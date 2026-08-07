@@ -1,97 +1,120 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Jemi-na Shopping App (m_jemina)
 
-# Getting Started
+A mobile client for the **Jemi-na multi-vendor e-commerce marketplace** (Uganda). Built with **React Native 0.85** and TypeScript, using the **New Architecture (Fabric) + Hermes**. The app is designed from [Google Stitch](https://stitch.withgoogle.com/) wireframes and mirrors the product catalog, cart and user features of the Laravel website (see the website repo notes below).
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+The app is a **UI-first prototype**: screens, components and a design system are implemented. Product data, cart and authentication are now wired to the Laravel website's REST API (`https://jemi-na.com/api/v1`): the catalog (51 products) is fetched live with a hardcoded offline fallback; **register/login/logout use the live Sanctum API** (`authMode: 'live'`) and fall back to an in-memory seeded mock (`authMode: 'demo'`) when offline; the **cart syncs to the server when signed in** (`cartSource: 'server'`). Demo login `user@email.com` / `customer@420`.
 
-## Step 1: Start Metro
+## Screenshots
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+| Home (live API) | Marketplace (live API) | Product Details (live API) |
+|-----------------|------------------------|----------------------------|
+| ![Home](docs/screenshots/home-live-api.png) | ![Marketplace](docs/screenshots/marketplace-live-api.png) | ![Product Details](docs/screenshots/product-details-live-api.png) |
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+## Features
+
+- Home with featured products, flash sales, category sections and a top-rated product grid — **driven by the live website API**
+- Marketplace browsing with category tabs and flash-sale carousel — **live API prices, discounts and stock**
+- Product details (gallery, price, vendor info, tabbed specs/reviews, wishlist heart, write-a-review form) — **live API data**
+- Vendor profile page — **live storefront** via `GET /api/v1/vendors/{id}` (products, rating, description)
+- **Sidebar menu** — slide-in drawer from the JEMINA header menu icon with Shop / Account / Company / Legal links
+- **Company & legal pages** — About Us, Services, Terms of Service, Privacy Policy and Contact Us (content mirrored from the website)
+- **Shopping cart** — add-to-cart from anywhere, quantity steppers, totals, live cart badge; **persists to the server when signed in**
+- **Checkout & orders** — shipping form + payment method + place order against the live API, order list with expandable details and pull-to-refresh
+- **Payment gateway handoff** — after checkout, non-credit payments open a gateway screen that initiates `POST /api/v1/payments/initiate`, shows the reference / payment link, and polls `GET /payments/{transactionId}/status`
+- **JEMINA credits** — signup bonus credited on registration, balance shown in Profile and at Checkout, **pay for orders with credits**; credit purchase screen + transaction history (`BuyCreditsScreen`, `CreditHistoryScreen`)
+- **Wishlist & reviews** — save products from details / browse your wishlist, and review purchased products — wired to `profile/wishlist` + `profile/reviews`
+- **Live product search** — Marketplace search bar hits `GET /api/v1/products/search` (`SearchResultsScreen`)
+- **User authentication** — register/login/logout wired to the **live Sanctum API**, plus a user dashboard (orders, wishlist, reviews, account); falls back to the seeded demo account when offline
+- **Live catalog with offline fallback** — fetches all 51 products + categories from `/api/v1` on startup; if the API is unreachable it falls back to the bundled mock catalog and shows a tap-to-retry banner
+- Custom navigation (no react-navigation dependency)
+- Material Symbols icon set (via `react-native-vector-icons`)
+- Theming with the Stitch-derived Jemi-na design system (Hanken Grotesk type, Material 3-style color tokens)
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | React Native 0.85.2 (New Architecture, Fabric) |
+| Language | TypeScript 5.8 |
+| Runtime | Hermes |
+| State | React Context (`CartContext`, `AuthContext`, `CatalogContext`) |
+| Data | Live REST API (`https://jemi-na.com/api/v1`) + offline fallback catalog; Sanctum bearer-token auth + server-synced cart |
+| Icons | `react-native-vector-icons` 10.3 (MaterialSymbols) |
+| Safe Area | `react-native-safe-area-context` 5.5 |
+| Build | Gradle 9.3.1, AGP 8.12, Kotlin 2.1.20, JDK 21 |
+| Node | >= 22.11.0 |
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js >= 22.11.0 and npm
+- JDK 21 (see `docs/CONFIGURATION.md` — this machine uses a JDK 21 toolchain)
+- Android SDK (API 36) + platform-tools, NDK 27.1.12297006
+- Android emulator (API 30-36) or a physical device
+
+Full environment details and troubleshooting: **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)**
+
+### Install
 
 ```sh
-# Using npm
+npm install
+```
+
+### Run (Android)
+
+```sh
+# Terminal 1 - start Metro
 npm start
 
-# OR using Yarn
-yarn start
-```
-
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
+# Terminal 2 - build & install on emulator/device
 npm run android
-
-# OR using Yarn
-yarn android
 ```
 
-### iOS
+Alternatively, open the `android/` folder in Android Studio and run the `app` configuration directly.
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+### Lint & Test
 
 ```sh
-bundle install
+npm run lint
+npm test
 ```
 
-Then, and every time you update your native dependencies, run:
+## Project Structure
 
-```sh
-bundle exec pod install
+```
+.
+├── App.tsx                      # Entry point: NavigationProvider + Router
+├── android/                     # Android native project (Gradle 9.3.1)
+├── docs/
+│   ├── screenshots/             # Full-resolution app screenshots
+│   ├── SYSTEM_REQUIREMENTS.md   # Hardware/software requirements
+│   ├── DESIGN.md                # Design system + app architecture
+│   └── CONFIGURATION.md         # Build & environment setup
+├── ios/                         # iOS native project
+├── src/
+│   ├── assets/fonts/            # Hanken Grotesk TTF weights
+│   ├── components/              # AppHeader, Sidebar, ProductCard, Button, BottomNav, InfoPage, ...
+│   ├── data/                    # api.ts (live API client + mapper), products.ts (offline fallback), images.ts
+│   ├── navigation/              # Custom NavigationContext router
+│   ├── screens/                 # Home, Marketplace, ProductDetails, VendorProfile, Cart, Login, Register, Profile, Checkout, Orders, Payment, Wishlist, MyReviews, CreditHistory, BuyCredits, SearchResults, About, Services, Terms, Privacy, Contact
+│   ├── state/                   # CatalogContext + CartContext + AuthContext (React Context)
+│   └── theme/                   # colors, typography, spacing tokens
+└── react-native.config.js       # Font asset linking config
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+## Documentation
 
-```sh
-# Using npm
-npm run ios
+- **[System Requirements](docs/SYSTEM_REQUIREMENTS.md)** — hardware/software/prerequisites matrix
+- **[Design & Architecture](docs/DESIGN.md)** — design tokens, screens, component model, planned data flow
+- **[Configuration](docs/CONFIGURATION.md)** — JDK/Gradle/NDK/SDK setup, environment variables, troubleshooting
 
-# OR using Yarn
-yarn ios
+## Related Repositories
+
+The companion Laravel website (source of product data and the REST API) lives at:
+
+```
+C:\xampp\htdocs\dev\jemina
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
-
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+It provides the REST API (`/api/v1/...`), product catalog and auth (Laravel Sanctum). **The app fetches its live product catalog from `https://jemi-na.com/api/v1/products` and `/categories`, and syncs auth + cart + orders + credits with the Sanctum endpoints.** Server-side fixes applied on the VPS: product status-filter (`'true'`), flat-discount math, image URL filtering, a new `ApiCartController` + cart routes, the Apache `Authorization`-header re-export in `public/.htaccess` (was causing `Unauthenticated.` on every protected route), an order-schema fix in `ApiOrderController` (was 500ing on the real table columns), and a new `ApiCreditController` (credits balance/history + signup bonus on API register + credit payment at checkout). See `docs/DESIGN.md` → *Backend Integration* for the endpoint map.

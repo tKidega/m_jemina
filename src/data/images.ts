@@ -1,0 +1,37 @@
+export const images = {
+  heroBanner: 'https://jemi-na.com/frontend/img/jemina/banner/default.png',
+  laptop:
+    'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=600&h=600&fit=crop&q=70&auto=format',
+  headphones:
+    'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop&q=70&auto=format',
+  phone:
+    'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&h=600&fit=crop&q=70&auto=format',
+  warehouse:
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuCqfOCaEeTl5Ir5Tl18vnMy1HZpdv1KqdwiILUdzSLDNgz_hpyCGmJQA4Frzy0rxZAuQtZ84yT2siwJR11q2TbWr4Py4Mf2wWZ1gd-TmE44oj8GFjV4HyvYVjE9M_UhFe4pAp6mn8yvS4a1WhW7azXil9_rwTf5NdTKVCYYIvAxaDVZTE6sR_ivvU_QCc2EpFH_j_ToP1T6g4qZnf5ZSJY_EDkkPAA6Vp8zjidjnVouQmxXN0paFHaV',
+  cables:
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuAiI68dACEPuUxf5uVbNmEdwP9gDCJx8I0eO0ql7MLhP9IrkMuiWc_rwn15ZlYAn-FHBXqs01dTw2T-doRGW99BnaM8zUjEwBKxxUGdmSyDEzvti02WBIx0OvnzJkTdRnqpn1YeSINe9Mq4LQkgM4QMdlGY3fq_PE5JqV9dU02GP2Izvn9l7eUyMIZh69hvxgN_3w8swL9ffAyx13eUzL7niOuJ8iPLrXf4FloLRtzMsS1qa6n9X23U',
+  phoneElite:
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuAxweccbF6N6MRCEbHaGTn23qQwQJPhopaE6OhxQU-VP3tTIsZVJJh4NUfQ0ti_3p9ZeSGn3lcSdmsGAjKmMjcaQTerH0D6J8kA3MPe8t1UYlBzwlgRXn6asXt-BbZO8Q0Zyfq7mxTM4iDsPhPRgVJyRtEKqCspRlfMJZ_4bOYGwyvWpR_PaZY4sa6JwJ3kxj1W69GDcasHoF8xtQ01iSTa3lh2Ea4KPfAp1tOUsBPIMiNrz3pnNKib',
+  watch:
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuDeNF_gYTsk3IhKhesc-lhm4ceS5ugQOaPdCrGGGQ8UdTmZDHkJPMOlW4gJCzjqJTaYWnjeVdgH1mpKsObmG2RWeYIyT9Wzv7Dr6JE77jtLJ9MYYVZvHvxaq7Q1hONsjtZlRFvQ1ZCR_R7f1RaZxZIlxG8o4uA8WfxSUXxNMLDOLznuFESZ8MtxMqFf4UICZYfcwv1Yox46YOH-NZ0pYibxg0MMC_2eKYSrlsQTUH_Bry0F0JN0RUkh',
+  backpack:
+    'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&h=600&fit=crop&q=70&auto=format',
+  solarLantern:
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuB7wtdrrzs7CeFH1XvZh6EwbcrDuaLAutm3cuSAPEw20F1TbE2gi4M7PnhgM96t3nThBgoZ1U0hT6oxapvd7rWyY7wKKJxb9eAxdQkjWVuXdoTmJNhsnX80NHIPiw3q0XW3IUAkT6-4uN4-S3mcSumT0j7DcRXJBOFXWfUKFLZuL0Ym8xISic9csH7w9jHvK746VuPy6AUQVfzzHxogJd_hSdpgQJwmWOlIDoYbxbmsxh5xGZ58DV_2',
+  cameraThumb:
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuBuY2tcPBJppAijizTo9Wq4ysrZOm-VHr_VHV6oy4LRnbck12xR83KApg4qZlslNCe4oiXpawFLCTevn0jENsBcAkTRc0Em_skZHX72Xc3eTIBBg1dm8xYyFdSNvuRIigrCZRwoVpPQfi_W4IxfuAjDR4axrUTzm0zELZ8TZ1ruMiwAVHIAm3fmgFrimDex6rYqnV_BpS1P7s7A2bQx3K7zG0Z_eK2yOL_ppMj2sId9gJJBrV62fYUX',
+  phoneStanding:
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuAh7KHnEafmYKLGiJ7Eg81fixJFBiR87QC-XuYayHfhQuGLPtcxJ4gat0jeLG_GukK9D2h9ryUYml53rcHBlHng089iIVRxpqg3WqpTwOuw6NlRcQl_69XzpuVqT34I0Gsb2APhMEJ6aIyo0oRIuRre9AfiKspoPXgmFhBhRmPNBo_FokF2rsfVMtD7-kq2dzbSeBEVT85gDfGEFVn2fyi8vwyMG4o5Sf8AvM7RnMhR27fviXjavtdk',
+  vendorCover:
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuDAPBy7CmfyWd3WG82O4yBxbSLMTu3dkBA75Rc8hkn5Mzq1ATb7I56QuByam2cYfh3gG0TbOPNbTgGhhXh0b0R0bPgPrRWR0L3MFJjDIGDt5U_ZZEfj6KK3V3Oi9LLBpr4k-yXAeG4aNlUET1BO8r0MnMF5xWtfVlqgqgF7pyKofvzLs4bE7_HvNutWsI66Ry2cqfhDBuI00BczVAuoKSgEr2CLQIPUK9afKW0iMQmTZo5tQ11r90cq',
+  vendorLogo:
+    'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=600&h=600&fit=crop&q=70&auto=format',
+  solarProduct:
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuDfJcBgssdHE10EWkHbvdsZw0K0PDBwpoeWM1-NaNBmS722ydCNjP7EAXot0EVofOjOd2RoFP-WPn5mKugdY1K1_J_vIZtRfOEOf7utMfcKQdEYalXrBJ2t1b6x_7hMsYf4cv8gRc9NJfhLb27CpaeGtRW3lMwCnhGXfCn_fctv-eZikdxoSxL_-Pw9aBvGLyX8weOLXZjOglhxQQc9xA6LZWENmNVUZ52XNf_QJO_FO-vlsfkRxM2D',
+  kidsBackpack:
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuBEPIE_-BuZRWsjJuOqnxXsZiCnjciq6JK954fNBtNlrID7ddzVo4naE7dkuGJxV2q_cyDxfqG7zXzNVHYjlQLFY8U8JRU70DmFDescIkH8BLRJw3IQlJFzLg0dGx4rQMx-7wHTttjdW06shkX4RqptWdRjlGhPGo4-3vQynKKuc7jGjRXtm93PC7dUMElhIYbQXxXLCyISSpwraXeUyl9KJk9gPmAFNhtIPnMBEFe8F2lfsHiSwjd_',
+  officePen:
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuB8NJR9Y6OaU6slkSor-2Nh7YrcPDwKFwSkoQXSyPUeMpmRihHdUbYHfQ4wTW4knFJuL6cyHcVOsC6M0JkcpryvWos9D4al6hiG-5ejqZUZtUnozkVcbZ6u3JQjWbn2TAxPf-qxsgVrw6Vc0OlL15aDvgMlxzXucb_s9e2pTjFKtLSROIqvtGeiNKMK-gK6EoDYtdZYktVBLlaw6zM-NXfHzNA8Rnl18mWo6lE3QJM7v0ByQRaFZ2b4',
+  cableCoil:
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuAe6hQyTea09UaehyAwayskoBS3yAPvZh0siAWTsjb4EgV1T061CziiVEw9LgSFmvrUnoQwlw5fz1hShNzC6gyCoM7MVBxo8s6lrMg9smxEhX_8sa0vGrwKSPtSdsbKDx9rQFkUjndrrjKZLyy05Ag5NHYPhZmfQmVemxfUqLiS7WyJqc5W0lHHHVTuR5un3H2C2_kBJdafAk3AgIucUTaIlx_T-mkIj59M_lqs7wLYhFDNQzA98RSM',
+};
