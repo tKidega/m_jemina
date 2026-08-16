@@ -77,3 +77,4 @@ yarn-error.log
 
 # local MCP config with secrets
 opencode.json
+metro.log
