@@ -119,7 +119,7 @@ export function AboutScreen() {
       <InfoSection icon="mail" title="Get in Touch">
         <Text style={styles.sectionLead}>Still have unanswered queries? We'd love to hear from you.</Text>
         {[
-          { icon: 'location-on' as IconName, label: 'Our Location', value: '123 Republic Road, Gulu City, UG' },
+          { icon: 'location-on' as IconName, label: 'Our Location', value: 'Plot 6 Republic Road, Gulu, UG' },
           { icon: 'mail' as IconName, label: 'Email Us', value: 'support@jemi-na.com' },
           { icon: 'call' as IconName, label: 'Call Us', value: '+256 765 368 348' },
         ].map(row => (

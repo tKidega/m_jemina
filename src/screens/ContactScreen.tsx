@@ -20,7 +20,7 @@ import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
 
 const CONTACT_ROWS: { icon: IconName; label: string; value: string; action?: () => void }[] = [
-  { icon: 'location-on', label: 'Address', value: '123 Republic Road, Gulu City, UG' },
+  { icon: 'location-on', label: 'Address', value: 'Plot 6 Republic Road, Gulu, UG' },
   { icon: 'mail', label: 'Email Us', value: 'support@jemi-na.com' },
   { icon: 'call', label: 'Call Support', value: '+256 765 368 348' },
 ];

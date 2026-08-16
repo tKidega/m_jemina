@@ -1,5 +1,10 @@
 export const images = {
   heroBanner: 'https://jemi-na.com/frontend/img/jemina/banner/default.png',
+  heroBannerElectronics: 'https://jemi-na.com/frontend/img/jemina/app/app_banner_electronics.png?v=500x325',
+  heroBannerHomeKitchen: 'https://jemi-na.com/frontend/img/jemina/app/app_banner_home_kitchen.png?v=500x325',
+  heroBannerPackagedFoods: 'https://jemi-na.com/frontend/img/jemina/app/app_banner_packaged_foods.png?v=500x325',
+  heroBannerServices: 'https://jemi-na.com/frontend/img/jemina/app/app_banner_services.png?v=500x325',
+  heroBannerComputers: 'https://jemi-na.com/frontend/img/jemina/app/app_banner_computers.png?v=500x325',
   laptop:
     'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=600&h=600&fit=crop&q=70&auto=format',
   headphones:

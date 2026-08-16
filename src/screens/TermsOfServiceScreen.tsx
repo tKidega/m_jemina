@@ -78,7 +78,7 @@ const SECTIONS: { icon: IconName; title: string; paragraphs?: string[]; bullets?
     bullets: [
       { bold: 'Email:', text: 'support@jemi-na.com' },
       { bold: 'Phone:', text: '+256 765 368 348' },
-      { bold: 'Address:', text: 'JEMINA Uganda Limited, 123 Republic Road, Gulu City, Uganda' },
+      { bold: 'Address:', text: 'JEMINA Uganda Limited, Plot 6 Republic Road, Gulu, Uganda' },
     ],
   },
 ];

@@ -19,7 +19,19 @@ export type RouteName =
   | 'MyReviews'
   | 'CreditHistory'
   | 'BuyCredits'
-  | 'SearchResults';
+  | 'SearchResults'
+  | 'ProductInquiry'
+  | 'EditProfile'
+  | 'AccountSettings'
+  | 'AddressBook'
+  | 'OrderTracking'
+  | 'Surveys'
+  | 'VendorActions'
+  | 'HelpCenter'
+  | 'Messages'
+  | 'PaymentMethods'
+  | 'Search'
+  | 'AllProducts';
 export type TabName = 'Home' | 'Marketplace' | 'Cart' | 'Profile';
 
 interface NavState {

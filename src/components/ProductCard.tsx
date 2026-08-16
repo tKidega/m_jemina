@@ -60,12 +60,17 @@ interface ProductCardProps {
   product: Product;
   onPress?: () => void;
   onAddToCart?: () => void;
+  onInquiry?: () => void;
   imageHeight?: number;
   compact?: boolean;
+  actionVariant?: 'addToCart' | 'inquiry';
+  actionLabel?: string;
 }
 
-export function ProductCard({ product, onPress, onAddToCart, imageHeight = 128, compact }: ProductCardProps) {
+export function ProductCard({ product, onPress, onAddToCart, onInquiry, imageHeight = 128, compact, actionVariant: actionVariantProp, actionLabel: actionLabelProp }: ProductCardProps) {
   const { image, category, title, price, originalPrice, discount, rating, reviews, minOrder, unitLabel, badge, badgeBottom, actionLabel, actionVariant = 'addToCart' } = product;
+  const variant = actionVariantProp ?? actionVariant;
+  const label = actionLabelProp ?? actionLabel;
 
   return (
     <Pressable
@@ -127,9 +132,9 @@ export function ProductCard({ product, onPress, onAddToCart, imageHeight = 128, 
             </View>
           </>
         )}
-        {actionVariant === 'inquiry' ? (
-          <Pressable style={[styles.actionBtn, styles.inquiryBtn]}>
-            <Text style={styles.inquiryText}>{actionLabel ?? 'Inquiry Only'}</Text>
+        {variant === 'inquiry' ? (
+          <Pressable style={[styles.actionBtn, styles.inquiryBtn]} onPress={onInquiry}>
+            <Text style={styles.inquiryText}>{label ?? 'Inquiry Only'}</Text>
           </Pressable>
         ) : (
           <View style={styles.actionRow}>

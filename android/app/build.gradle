@@ -78,6 +78,15 @@ android {
     compileSdk rootProject.ext.compileSdkVersion
 
     namespace "com.m_jemina"
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+
+    kotlinOptions {
+        jvmTarget = "21"
+    }
     defaultConfig {
         applicationId "com.m_jemina"
         minSdkVersion rootProject.ext.minSdkVersion

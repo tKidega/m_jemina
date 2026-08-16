@@ -8,7 +8,7 @@ import { TabName, useNavigation } from '../navigation/NavigationContext';
 
 const TABS: { tab: TabName; label: string; icon: IconName; filledIcon: IconName }[] = [
   { tab: 'Home', label: 'Home', icon: 'home', filledIcon: 'home' },
-  { tab: 'Marketplace', label: 'Marketplace', icon: 'storefront', filledIcon: 'storefront' },
+  { tab: 'Marketplace', label: 'B2B', icon: 'storefront', filledIcon: 'storefront' },
   { tab: 'Cart', label: 'Cart', icon: 'shopping-basket', filledIcon: 'shopping-basket' },
   { tab: 'Profile', label: 'Profile', icon: 'person', filledIcon: 'person' },
 ];

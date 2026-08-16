@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
@@ -42,6 +42,7 @@ export function CreditHistoryScreen() {
   const [balance, setBalance] = useState<number | null>(null);
   const [transactions, setTransactions] = useState<ApiCreditTransaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -61,6 +62,23 @@ export function CreditHistoryScreen() {
       setError(e instanceof Error ? e.message : 'Failed to load credit history.');
     } finally {
       setLoading(false);
+    }
+  }, [token]);
+
+  const onRefresh = useCallback(async () => {
+    if (!token) {
+      return;
+    }
+    setRefreshing(true);
+    setError(null);
+    try {
+      const data = await apiGetCreditHistory(token);
+      setBalance(data.balance);
+      setTransactions(data.transactions);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load credit history.');
+    } finally {
+      setRefreshing(false);
     }
   }, [token]);
 
@@ -92,7 +110,11 @@ export function CreditHistoryScreen() {
           <ActivityIndicator size="large" color={colors.secondary} />
         </View>
       ) : (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
+          }
+        >
           <View style={styles.balanceCard}>
             <View style={styles.balanceIcon}>
               <Icon name="local-atm" size={28} color={colors.onSecondary} />

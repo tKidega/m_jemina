@@ -11,10 +11,11 @@ interface ButtonProps {
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
   icon?: IconName;
   fullWidth?: boolean;
+  disabled?: boolean;
   style?: ViewStyle;
 }
 
-export function Button({ label, onPress, variant = 'primary', icon, fullWidth, style }: ButtonProps) {
+export function Button({ label, onPress, variant = 'primary', icon, fullWidth, disabled, style }: ButtonProps) {
   const isPrimary = variant === 'primary';
   const isOutline = variant === 'outline';
   const isGhost = variant === 'ghost';
@@ -47,10 +48,12 @@ export function Button({ label, onPress, variant = 'primary', icon, fullWidth, s
           paddingVertical: isGhost ? 8 : 12,
         },
         fullWidth && styles.full,
-        pressed && styles.pressed,
+        disabled && styles.disabled,
+        pressed && !disabled && styles.pressed,
         style,
       ]}
-      onPress={onPress}
+      onPress={disabled ? undefined : onPress}
+      disabled={disabled}
     >
       {icon ? <Icon name={icon} size={18} color={fg} /> : null}
       <Text style={[styles.label, { color: fg }]}>{label}</Text>
@@ -69,6 +72,9 @@ const styles = StyleSheet.create({
   },
   full: {
     width: '100%',
+  },
+  disabled: {
+    opacity: 0.5,
   },
   pressed: {
     opacity: 0.85,

@@ -1,5 +1,5 @@
-import React from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppHeader, HeaderCartButton } from '../components/AppHeader';
 import { BottomNav } from '../components/BottomNav';
 import { Icon } from '../components/Icon';
@@ -12,8 +12,18 @@ import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
 
 export function CartScreen() {
-  const { items, vendorGroups, itemCount, subtotal, totalDeliveryFees, updateQuantity, removeItem, clearCart } = useCart();
+  const { items, vendorGroups, itemCount, subtotal, totalDeliveryFees, updateQuantity, removeItem, clearCart, refresh } = useCart();
   const { navigate } = useNavigation();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refresh();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refresh]);
 
   return (
     <View style={styles.root}>
@@ -33,7 +43,11 @@ export function CartScreen() {
         </View>
       ) : (
         <>
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
+            }
+          >
             <View style={styles.itemsHeader}>
               <Text style={styles.itemsHeaderText}>
                 {itemCount} {itemCount === 1 ? 'item' : 'items'}

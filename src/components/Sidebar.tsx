@@ -1,8 +1,9 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, IconName } from './Icon';
 import { RouteName, TabName, useNavigation } from '../navigation/NavigationContext';
+import { useAuth } from '../state/AuthContext';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
@@ -16,13 +17,21 @@ interface SidebarLink {
 
 const SHOP_LINKS: SidebarLink[] = [
   { label: 'Home', icon: 'home', tab: 'Home' },
-  { label: 'Marketplace', icon: 'storefront', tab: 'Marketplace' },
+  { label: 'B2B', icon: 'storefront', tab: 'Marketplace' },
   { label: 'Cart', icon: 'shopping-cart', tab: 'Cart' },
 ];
 
-const ACCOUNT_LINKS: SidebarLink[] = [
+const MY_ACCOUNT_LINKS: SidebarLink[] = [
   { label: 'Profile', icon: 'person', tab: 'Profile' },
+  { label: 'Messages', icon: 'mail', route: 'Messages' },
+  { label: 'Track Orders', icon: 'track-changes', route: 'OrderTracking' },
   { label: 'My Orders', icon: 'receipt-long', route: 'Orders' },
+  { label: 'Surveys', icon: 'edit-note', route: 'Surveys' },
+  { label: 'Address Book', icon: 'home', route: 'AddressBook' },
+];
+
+const ACCOUNT_LINKS: SidebarLink[] = [
+  { label: 'Help Center', icon: 'support-agent', route: 'HelpCenter' },
 ];
 
 const COMPANY_LINKS: SidebarLink[] = [
@@ -36,20 +45,28 @@ const LEGAL_LINKS: SidebarLink[] = [
   { label: 'Privacy Policy', icon: 'verified-user', route: 'PrivacyPolicy' },
 ];
 
-const SECTIONS: { title: string; links: SidebarLink[] }[] = [
-  { title: 'Shop', links: SHOP_LINKS },
-  { title: 'Account', links: ACCOUNT_LINKS },
-  { title: 'Company', links: COMPANY_LINKS },
-  { title: 'Legal', links: LEGAL_LINKS },
-];
+const MY_ACCOUNT_SECTION = { title: 'My Account', links: MY_ACCOUNT_LINKS };
 
 const DRAWER_WIDTH = 300;
 
 export function Sidebar() {
   const insets = useSafeAreaInsets();
+  const { isAuthenticated } = useAuth();
   const { sidebarOpen, closeSidebar, navigateFromSidebar, tab, route } = useNavigation();
   const translateX = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
+
+  const sections = useMemo(() => {
+    const base: { title: string; links: SidebarLink[] }[] = [];
+    base.push({ title: 'Shop', links: SHOP_LINKS });
+    if (isAuthenticated) {
+      base.push(MY_ACCOUNT_SECTION);
+    }
+    base.push({ title: 'Account', links: ACCOUNT_LINKS });
+    base.push({ title: 'Company', links: COMPANY_LINKS });
+    base.push({ title: 'Legal', links: LEGAL_LINKS });
+    return base;
+  }, [isAuthenticated]);
 
   useEffect(() => {
     Animated.parallel([
@@ -98,7 +115,7 @@ export function Sidebar() {
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          {SECTIONS.map(section => (
+          {sections.map(section => (
             <View key={section.title} style={styles.section}>
               <Text style={styles.sectionTitle}>{section.title}</Text>
               {section.links.map(link => {

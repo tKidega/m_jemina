@@ -9,6 +9,7 @@ import { Sidebar } from './src/components/Sidebar';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { MarketplaceScreen } from './src/screens/MarketplaceScreen';
 import { ProductDetailsScreen } from './src/screens/ProductDetailsScreen';
+import { ProductInquiryScreen } from './src/screens/ProductInquiryScreen';
 import { VendorProfileScreen } from './src/screens/VendorProfileScreen';
 import { CartScreen } from './src/screens/CartScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -27,6 +28,14 @@ import { MyReviewsScreen } from './src/screens/MyReviewsScreen';
 import { CreditHistoryScreen } from './src/screens/CreditHistoryScreen';
 import { BuyCreditsScreen } from './src/screens/BuyCreditsScreen';
 import { SearchResultsScreen } from './src/screens/SearchResultsScreen';
+import { SearchScreen } from './src/screens/SearchScreen';
+import { CollectionProductsScreen } from './src/screens/CollectionProductsScreen';
+import { AccountSettingsScreen } from './src/screens/AccountSettingsScreen';
+import { OrderTrackingScreen } from './src/screens/OrderTrackingScreen';
+import { SurveysScreen } from './src/screens/SurveysScreen';
+import { VendorActionsScreen } from './src/screens/VendorActionsScreen';
+import { HelpCenterScreen } from './src/screens/HelpCenterScreen';
+import { MessagesScreen } from './src/screens/MessagesScreen';
 import { colors } from './src/theme/colors';
 
 function Router() {
@@ -71,8 +80,41 @@ function Router() {
   if (route === 'SearchResults') {
     return <SearchResultsScreen />;
   }
+  if (route === 'Search') {
+    return <SearchScreen />;
+  }
+  if (route === 'AllProducts') {
+    return <CollectionProductsScreen />;
+  }
+  if (route === 'EditProfile' || route === 'AccountSettings') {
+    return <AccountSettingsScreen initialTab="profile" />;
+  }
+  if (route === 'AddressBook') {
+    return <AccountSettingsScreen initialTab="address" />;
+  }
+  if (route === 'PaymentMethods') {
+    return <AccountSettingsScreen initialTab="payments" />;
+  }
+  if (route === 'OrderTracking') {
+    return <OrderTrackingScreen />;
+  }
+  if (route === 'Surveys') {
+    return <SurveysScreen />;
+  }
+  if (route === 'VendorActions') {
+    return <VendorActionsScreen />;
+  }
+  if (route === 'HelpCenter') {
+    return <HelpCenterScreen />;
+  }
+  if (route === 'Messages') {
+    return <MessagesScreen />;
+  }
   if (route === 'ProductDetails') {
     return <ProductDetailsScreen />;
+  }
+  if (route === 'ProductInquiry') {
+    return <ProductInquiryScreen />;
   }
   if (route === 'VendorProfile') {
     return <VendorProfileScreen />;

@@ -10,14 +10,22 @@ import {
 } from 'react-native';
 import { AppHeader, HeaderCartButton } from '../components/AppHeader';
 import { BottomNav } from '../components/BottomNav';
-import { Badge } from '../components/Badge';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
+import { ChatView } from '../components/ChatView';
+import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useCart } from '../state/CartContext';
 import { useCatalog } from '../state/CatalogContext';
-import { apiGetVendor, apiProductToProduct, ApiVendorDetail } from '../data/api';
-import type { Product } from '../components/ProductCard';
+import {
+  apiGetVendor,
+  apiProductToProduct,
+  apiVendorChatAsk,
+  apiVendorChatNotify,
+  makeConversationId,
+  ApiVendorDetail,
+} from '../data/api';
+import { ProductCard, type Product } from '../components/ProductCard';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
@@ -40,11 +48,14 @@ export function VendorProfileScreen() {
   const { goBack, navigate, switchTab, params } = useNavigation();
   const { addItem, itemCount } = useCart();
   const { products: catalogProducts, error, refresh } = useCatalog();
+  const { token, isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [vendor, setVendor] = useState<ApiVendorDetail | null>(null);
   const [vendorProducts, setVendorProducts] = useState<Product[]>([]);
   const [vendorLoading, setVendorLoading] = useState(false);
   const [vendorError, setVendorError] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [conversationId] = useState(() => makeConversationId());
 
   const vendorId = params?.vendorId != null ? Number(params.vendorId) : undefined;
   const vendorNameParam = params?.vendorName as string | undefined;
@@ -149,7 +160,22 @@ export function VendorProfileScreen() {
               <Icon name="star" size={18} color={colors.secondary} />
               <Text style={styles.ratingCount}>{reviewCount} Reviews</Text>
             </View>
-            <Button label="Visit Store" variant="primary" onPress={() => {}} style={styles.visitBtn} />
+            <View style={styles.profileActions}>
+              <Button label="Visit Store" variant="primary" onPress={() => {}} style={styles.visitBtn} />
+              <Button
+                label={isAuthenticated && token ? 'Chat with Shop' : 'Sign in to Chat'}
+                variant="secondary"
+                icon="chat"
+                onPress={() => {
+                  if (!isAuthenticated || !token) {
+                    navigate('Login');
+                    return;
+                  }
+                  setChatOpen(true);
+                }}
+                style={styles.visitBtn}
+              />
+            </View>
           </View>
         </View>
 
@@ -226,54 +252,17 @@ export function VendorProfileScreen() {
         {activeTab === 0 ? (
           <View style={styles.productGrid}>
             {PRODUCTS.map(p => (
-              <Pressable key={p.id} style={styles.productCard} onPress={() => navigate('ProductDetails', { product: p })}>
-                <View style={styles.productImageWrap}>
-                  <Image source={{ uri: p.image }} style={styles.productImage} resizeMode="cover" />
-                  <View style={styles.productBadges}>
-                    {p.badge ? <Badge label={p.badge.label} variant={p.badge.variant} /> : null}
-                    {p.extraBadge ? <Badge label={p.extraBadge.label} variant={p.extraBadge.variant} /> : null}
-                  </View>
-                  {p.discount ? (
-                    <View style={styles.discountChip}>
-                      <Text style={styles.discountText}>{p.discount}</Text>
-                    </View>
-                  ) : null}
-                  {p.badgeBottom ? (
-                    <View style={styles.badgeBottom}>
-                      <Badge label={p.badgeBottom.label} variant={p.badgeBottom.variant} />
-                    </View>
-                  ) : null}
-                </View>
-                <View style={styles.productBody}>
-                  <Text style={styles.productCategory}>{p.category}</Text>
-                  <Text style={styles.productTitle} numberOfLines={2}>{p.title}</Text>
-                  <View style={styles.productMeta}>
-                    <Icon name="star" size={12} color={colors.secondary} />
-                    <Text style={styles.productRating}>({p.rating?.toFixed(1) ?? '0.0'})</Text>
-                    <Text style={styles.productSep}>|</Text>
-                    <Text style={styles.productMinOrder}>{p.minOrder}</Text>
-                  </View>
-                  <View style={styles.productPriceRow}>
-                    <Text style={styles.productPrice}>{p.price}</Text>
-                    {p.original ? <Text style={styles.productOriginal}>{p.original}</Text> : null}
-                    {p.unit ? <Text style={styles.productUnit}>{p.unit}</Text> : null}
-                  </View>
-                  {p.inquiry ? (
-                    <Pressable style={styles.inquiryBtn}>
-                      <Text style={styles.inquiryText}>Inquiry Only</Text>
-                    </Pressable>
-                  ) : (
-                    <View style={styles.addRow}>
-                      <Pressable style={styles.addBtn} onPress={() => addItem(p)}>
-                        <Text style={styles.addBtnText}>Add to Cart</Text>
-                      </Pressable>
-                      <Pressable style={styles.favBtn}>
-                        <Icon name="favorite-border" size={18} color={colors.primary} />
-                      </Pressable>
-                    </View>
-                  )}
-                </View>
-              </Pressable>
+              <View key={p.id} style={styles.productCardWrap}>
+                <ProductCard
+                  product={p}
+                  compact
+                  imageHeight={120}
+                  actionVariant={p.inquiry ? 'inquiry' : 'addToCart'}
+                  onPress={() => navigate('ProductDetails', { product: p })}
+                  onInquiry={() => navigate('ProductInquiry', { product: p })}
+                  onAddToCart={() => addItem(p)}
+                />
+              </View>
             ))}
           </View>
         ) : (
@@ -320,7 +309,7 @@ export function VendorProfileScreen() {
           </View>
           <View style={styles.contactRow}>
             <Icon name="mail" size={16} color={colors.secondary} />
-            <Text style={styles.contactText}>jeminaofficial256@gmail.com</Text>
+            <Text style={styles.contactText}>support@jemi-na.com</Text>
           </View>
           <View style={styles.contactRow}>
             <Icon name="call" size={16} color={colors.secondary} />
@@ -329,6 +318,33 @@ export function VendorProfileScreen() {
         </View>
       </ScrollView>
       <BottomNav />
+
+      {chatOpen && vendorId != null && token ? (
+        <View style={styles.chatOverlay}>
+          <View style={styles.chatSheet}>
+            <View style={styles.chatHeader}>
+              <View style={styles.chatHeaderTitle}>
+                <View style={styles.chatAvatar}>
+                  <Icon name="chat" size={16} color={colors.onPrimary} />
+                </View>
+                <View>
+                  <Text style={styles.chatTitle}>Chat with {displayName}</Text>
+                  <Text style={styles.chatSub}>JVA replies instantly</Text>
+                </View>
+              </View>
+              <Pressable onPress={() => setChatOpen(false)} hitSlop={8}>
+                <Icon name="close" size={24} color={colors.onSurface} />
+              </Pressable>
+            </View>
+            <ChatView
+              assistantName={displayName}
+              greeting={`Hi! I'm the assistant for ${displayName}. Ask me about products, prices, or delivery — I'll get you a quick answer.`}
+              onSend={message => apiVendorChatAsk(token, vendorId, message, conversationId)}
+              onNotifyVendor={message => apiVendorChatNotify(token, vendorId, message)}
+            />
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -475,6 +491,10 @@ const styles = StyleSheet.create({
   },
   visitBtn: {
     width: '100%',
+  },
+  profileActions: {
+    width: '100%',
+    gap: spacing.sm,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -623,138 +643,8 @@ const styles = StyleSheet.create({
     gap: spacing.gutter,
     paddingHorizontal: spacing.lg,
   },
-  productCard: {
+  productCardWrap: {
     width: '48%',
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.lg,
-    overflow: 'hidden',
-  },
-  productImageWrap: {
-    position: 'relative',
-    height: 160,
-    backgroundColor: colors.surfaceSubtle,
-  },
-  productImage: {
-    width: '100%',
-    height: '100%',
-  },
-  productBadges: {
-    position: 'absolute',
-    top: spacing.sm,
-    left: spacing.sm,
-    gap: 4,
-  },
-  discountChip: {
-    position: 'absolute',
-    top: spacing.sm,
-    right: spacing.sm,
-    backgroundColor: colors.secondaryContainer,
-    borderRadius: radius.sm,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-  },
-  discountText: {
-    ...typography.labelSm,
-    color: colors.onSecondaryContainer,
-    fontWeight: '700',
-  },
-  badgeBottom: {
-    position: 'absolute',
-    bottom: spacing.sm,
-    left: spacing.sm,
-  },
-  productBody: {
-    padding: spacing.md,
-  },
-  productCategory: {
-    ...typography.labelMd,
-    color: colors.onSurfaceVariant,
-  },
-  productTitle: {
-    ...typography.headlineMd,
-    color: colors.primary,
-    marginTop: 2,
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  productMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: spacing.sm,
-  },
-  productRating: {
-    ...typography.labelMd,
-    color: colors.secondary,
-  },
-  productSep: {
-    ...typography.labelMd,
-    color: colors.outlineVariant,
-    marginHorizontal: 4,
-  },
-  productMinOrder: {
-    ...typography.labelMd,
-    color: colors.onSurfaceVariant,
-  },
-  productPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: spacing.sm,
-    flexWrap: 'wrap',
-    marginTop: spacing.sm,
-  },
-  productPrice: {
-    ...typography.headlineLg,
-    color: colors.secondary,
-    fontWeight: '700',
-  },
-  productOriginal: {
-    ...typography.labelMd,
-    color: colors.onSurfaceVariant,
-    textDecorationLine: 'line-through',
-  },
-  productUnit: {
-    ...typography.labelMd,
-    color: colors.onSurfaceVariant,
-  },
-  inquiryBtn: {
-    backgroundColor: colors.secondaryContainer,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    marginTop: spacing.md,
-  },
-  inquiryText: {
-    ...typography.labelMd,
-    color: colors.onSecondary,
-    fontWeight: '700',
-  },
-  addRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginTop: spacing.md,
-  },
-  addBtn: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-  },
-  addBtnText: {
-    ...typography.labelMd,
-    color: colors.primary,
-    fontWeight: '700',
-  },
-  favBtn: {
-    backgroundColor: colors.surfaceContainer,
-    borderRadius: radius.lg,
-    padding: spacing.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   reviewsEmpty: {
     alignItems: 'center',
@@ -854,6 +744,54 @@ const styles = StyleSheet.create({
   },
   contactText: {
     ...typography.labelMd,
+    color: colors.onSurfaceVariant,
+  },
+  chatOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  chatSheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    height: '82%',
+    overflow: 'hidden',
+  },
+  chatHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+    backgroundColor: colors.surfaceContainerLowest,
+  },
+  chatHeaderTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  chatAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.full,
+    backgroundColor: colors.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatTitle: {
+    ...typography.headlineMd,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  chatSub: {
+    ...typography.labelSm,
     color: colors.onSurfaceVariant,
   },
 });

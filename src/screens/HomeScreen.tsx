@@ -1,11 +1,11 @@
-﻿import React, { useMemo } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Image,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -17,6 +17,7 @@ import { SectionHeader } from '../components/SectionHeader';
 import { ProductCard } from '../components/ProductCard';
 import { HeroCarousel, type HeroSlide } from '../components/HeroCarousel';
 import { ProductCarousel } from '../components/ProductCarousel';
+import { CategoryCarousel } from '../components/CategoryCarousel';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useCart } from '../state/CartContext';
 import { useCatalog } from '../state/CatalogContext';
@@ -24,6 +25,7 @@ import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
 import { images } from '../data/images';
+import { apiGetVendors, ApiVendorSummary } from '../data/api';
 import { FLASH_SALE_PRODUCTS, FEATURED_PRODUCTS, TOP_RATED_PRODUCTS } from '../data/products';
 import type { Product } from '../components/ProductCard';
 import type { IconName } from '../components/Icon';
@@ -31,33 +33,33 @@ import type { IconName } from '../components/Icon';
 const HERO_SLIDES: HeroSlide[] = [
   {
     id: 'hero-1',
-    image: images.heroBanner,
-    title: 'Welcome to JEMINA Marketplace',
-    subtitle: 'Products relevant to current season and holidays. Corporate-ready solutions for your business.',
+    image: images.heroBannerElectronics,
+    title: 'Electronics & Accessories',
+    subtitle: 'Discover quality electronics, phones, and accessories at great prices.',
   },
   {
     id: 'hero-2',
-    image: images.heroBanner,
-    title: 'Corporate-Ready Solutions',
-    subtitle: 'Sourcing and supply tailored to your business needs.',
+    image: images.heroBannerHomeKitchen,
+    title: 'Home & Kitchen',
+    subtitle: 'Everything for your home and kitchen, sourced from trusted vendors.',
   },
   {
     id: 'hero-3',
-    image: images.heroBanner,
-    title: 'Local Heroes',
-    subtitle: 'Discover locally manufactured products from trusted Ugandan sellers.',
+    image: images.heroBannerPackagedFoods,
+    title: 'Packaged Foods',
+    subtitle: 'Fresh and packaged foods delivered to your doorstep.',
   },
   {
     id: 'hero-4',
-    image: images.heroBanner,
-    title: 'Bulk & Wholesale Deals',
-    subtitle: 'Competitive pricing for retailers and bulk buyers.',
+    image: images.heroBannerServices,
+    title: 'Professional Services',
+    subtitle: 'Corporate-ready solutions tailored to your business needs.',
   },
   {
     id: 'hero-5',
-    image: images.heroBanner,
-    title: 'Seasonal Offers',
-    subtitle: 'Limited-time deals curated for the current season.',
+    image: images.heroBannerComputers,
+    title: 'Computers & Laptops',
+    subtitle: 'Powerful computers and laptops for work, study, and play.',
   },
 ];
 
@@ -68,12 +70,64 @@ const TRUST_INDICATORS = [
   { icon: 'replay' as const, title: 'Easy Returns', subtitle: '30-Day Money Back' },
 ];
 
-const CATEGORIES = [
-  { icon: 'computer' as const, label: 'IT & Tech' },
-  { icon: 'checkroom' as const, label: 'Fashion' },
-  { icon: 'construction' as const, label: 'Construction' },
-  { icon: 'agriculture' as const, label: 'Agric' },
-  { icon: 'business-center' as const, label: 'B2B' },
+const CATEGORIES: { key: string; label: string; icon: IconName; match: RegExp }[] = [
+  { key: 'it-tech', label: 'IT & Tech', icon: 'computer', match: /it|technology|mobile|phone|tablet|computer|laptop|tech|electronics|electrical|audio|headset|camera/i },
+  { key: 'fashion', label: 'Fashion', icon: 'checkroom', match: /fashion|design|clothing|footwear|shoes/i },
+  { key: 'construction', label: 'Construction', icon: 'construction', match: /construction|engineering|building|tool|hardware/i },
+  { key: 'agric', label: 'Agric', icon: 'agriculture', match: /agric|produce|farm|seed|fertilizer/i },
+  { key: 'auto', label: 'Auto & Machinery', icon: 'directions-car', match: /auto|machinery|vehicle|car|motorcycle|engine/i },
+  { key: 'food', label: 'Food & Edibles', icon: 'restaurant', match: /food|edibles|cooking|ingredient|beverage|drink|snack|oil|honey/i },
+  { key: 'service', label: 'Service Delivery', icon: 'handshake', match: /service|delivery|professional|beauty|wellness|consult/i },
+  { key: 'art', label: 'Art & Culture', icon: 'palette', match: /art|culture|craft|handmade|music|painting|book/i },
+];
+
+const BRANDS: { key: string; label: string; icon: IconName; match: RegExp }[] = [
+  { key: 'sony', label: 'Sony', icon: 'photo-camera', match: /sony|playstation|xperia/i },
+  { key: 'oppo', label: 'OPPO', icon: 'smartphone', match: /oppo/i },
+  { key: 'apple', label: 'Apple', icon: 'computer', match: /apple|macbook|iphone|ipad|imac/i },
+  { key: 'samsung', label: 'Samsung', icon: 'smartphone', match: /samsung|galaxy/i },
+  { key: 'toshiba', label: 'Toshiba', icon: 'computer', match: /toshiba/i },
+  { key: 'xiaomi', label: 'Xiaomi', icon: 'smartphone', match: /xiaomi|redmi|poco/i },
+  { key: 'hp', label: 'HP', icon: 'computer', match: /\bhp\b|hewlett/i },
+  { key: 'oneplus', label: 'OnePlus', icon: 'smartphone', match: /oneplus/i },
+];
+
+interface StoreData {
+  id: string;
+  vendorId: number;
+  name: string;
+  rating: number;
+  products: number;
+  icon: 'storefront' | 'shopping-bag';
+  accent: string;
+  description: string;
+  location: string;
+  logo?: string;
+}
+
+const DEFAULT_STORES: StoreData[] = [
+  {
+    id: 'jemina',
+    vendorId: 1,
+    name: 'Jemina Official',
+    rating: 4.8,
+    products: 247,
+    icon: 'storefront',
+    accent: colors.secondary,
+    description: "Gulu's premier shop for curated electronics and office supplies. Verified Vendor.",
+    location: 'Gulu, Uganda',
+  },
+  {
+    id: 'fashion',
+    vendorId: 2,
+    name: 'Fashion Hub Gulu',
+    rating: 4.2,
+    products: 512,
+    icon: 'shopping-bag',
+    accent: colors.primary,
+    description: 'Trending fashion, footwear and accessories for the whole family.',
+    location: 'Gulu, Uganda',
+  },
 ];
 
 const FALLBACK_FEATURED: Product | undefined = FEATURED_PRODUCTS[0];
@@ -84,10 +138,83 @@ export function HomeScreen() {
   const { addItem, itemCount } = useCart();
   const { flashSale: flashSaleProducts, featured: featuredProducts, topRated: topRatedProducts, seasonal: seasonalProducts, products, loading, error, refresh } = useCatalog();
   const { width } = useWindowDimensions();
+  const [liveVendors, setLiveVendors] = useState<StoreData[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadVendors = useCallback(() => {
+    apiGetVendors()
+      .then((vendors: ApiVendorSummary[]) => {
+        const mapped: StoreData[] = vendors.map((v, i) => ({
+          id: `vendor-${v.id}`,
+          vendorId: v.id,
+          name: v.name || 'Jemina Vendor',
+          rating: v.rating,
+          products: v.product_count,
+          icon: (i % 2 === 0 ? 'storefront' : 'shopping-bag') as 'storefront' | 'shopping-bag',
+          accent: i % 2 === 0 ? colors.secondary : colors.primary,
+          description: v.description || `${v.name || 'Vendor'} - ${v.location || 'Uganda'}`,
+          location: v.location || 'Uganda',
+          logo: v.logo ?? undefined,
+        }));
+        if (mapped.length > 0) {
+          setLiveVendors(mapped);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiGetVendors()
+      .then((vendors: ApiVendorSummary[]) => {
+        if (cancelled) {
+          return;
+        }
+        const mapped: StoreData[] = vendors.map((v, i) => ({
+          id: `vendor-${v.id}`,
+          vendorId: v.id,
+          name: v.name || 'Jemina Vendor',
+          rating: v.rating,
+          products: v.product_count,
+          icon: (i % 2 === 0 ? 'storefront' : 'shopping-bag') as 'storefront' | 'shopping-bag',
+          accent: i % 2 === 0 ? colors.secondary : colors.primary,
+          description: v.description || `${v.name || 'Vendor'} - ${v.location || 'Uganda'}`,
+          location: v.location || 'Uganda',
+          logo: v.logo ?? undefined,
+        }));
+        if (mapped.length > 0) {
+          setLiveVendors(mapped);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([refresh(), loadVendors()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refresh, loadVendors]);
+
+  const stores = liveVendors.length > 0 ? liveVendors : DEFAULT_STORES;
 
   const featuredProduct = featuredProducts[0] ?? FALLBACK_FEATURED;
   const smallProducts = (flashSaleProducts.length > 0 ? flashSaleProducts : FALLBACK_FLASH).slice(0, 8);
   const topRated = topRatedProducts.length > 0 ? topRatedProducts : TOP_RATED_PRODUCTS;
+
+  const brandSections = useMemo(
+    () =>
+      BRANDS.map(brand => {
+        const list = products.filter(p => brand.match.test(p.title));
+        return { brand, list };
+      }).filter(s => s.list.length > 0),
+    [products],
+  );
 
   const extraSections = useMemo(() => {
     const matchesCategory = (keywords: RegExp) => products.filter(p => keywords.test(p.category));
@@ -106,8 +233,8 @@ export function HomeScreen() {
     ].filter((s): s is { icon: IconName; title: string; subtitle: string; list: Product[] } => s !== null);
   }, [products]);
 
-  const productCardWidth = Math.round((width - spacing.lg * 2 - spacing.gutter) / 2.2);
   const flashCardWidth = Math.round((width - spacing.lg * 2 - spacing.gutter) / 2);
+  const productCardWidth = flashCardWidth;
 
   return (
     <View style={styles.root}>
@@ -134,6 +261,9 @@ export function HomeScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
+        }
       >
         {/* Hero carousel */}
         <HeroCarousel slides={HERO_SLIDES} />
@@ -151,32 +281,59 @@ export function HomeScreen() {
 
         {/* Browse collections */}
         <View style={styles.section}>
-          <SectionHeader title="Browse Collections" actionLabel="View All" onAction={() => navigate('Marketplace')} />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
-            {CATEGORIES.map(c => (
-              <Pressable key={c.label} style={styles.categoryItem}>
-                <View style={styles.categoryCircle}>
-                  <Icon name={c.icon} size={26} color={colors.secondary} />
-                </View>
-                <Text style={styles.categoryLabel}>{c.label}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+          <SectionHeader title="Browse Collections" subtitle="Shop the latest from every primary category." />
+          <CategoryCarousel
+            categories={CATEGORIES.map(c => ({ key: c.key, label: c.label, icon: c.icon }))}
+            onPress={cat => {
+              const def = CATEGORIES.find(c => c.key === cat.key);
+              const list = def ? products.filter(p => def.match.test(p.category)) : products;
+              navigate('AllProducts', { title: def?.label ?? cat.label, products: list });
+            }}
+          />
         </View>
+
+        {/* Featured brands */}
+        {brandSections.length > 0 ? (
+          <View style={styles.section}>
+            <SectionHeader
+              icon="verified"
+              title="Featured Brands"
+              subtitle="Shop top electronics and lifestyle brands."
+              actionLabel="View All"
+              onAction={() => {
+                const all = brandSections.flatMap(s => s.list);
+                navigate('AllProducts', { title: 'Featured Brands', subtitle: 'Shop top electronics and lifestyle brands.', products: all });
+              }}
+            />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.brandRow}>
+              {brandSections.map(({ brand, list }) => (
+                <Pressable
+                  key={brand.key}
+                  style={styles.brandTile}
+                  onPress={() =>
+                    navigate('AllProducts', { title: brand.label, subtitle: `${brand.label} products`, products: list })
+                  }
+                >
+                  <View style={styles.brandCircle}>
+                    <Icon name={brand.icon} size={24} color={colors.secondary} />
+                  </View>
+                  <Text style={styles.brandName} numberOfLines={1}>{brand.label}</Text>
+                  <Text style={styles.brandCount}>{list.length} product{list.length === 1 ? '' : 's'}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
 
         {/* Search */}
         <View style={styles.section}>
-          <View style={styles.searchBar}>
+          <Pressable style={styles.searchBar} onPress={() => navigate('Search')}>
             <Icon name="search" size={20} color={colors.outline} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search products, brands..."
-              placeholderTextColor={colors.onSurfaceVariant}
-            />
-            <Pressable style={styles.searchBtn}>
+            <Text style={styles.searchInput}>Search products by name...</Text>
+            <View style={styles.searchBtn}>
               <Text style={styles.searchBtnText}>Search</Text>
-            </Pressable>
-          </View>
+            </View>
+          </Pressable>
         </View>
 
         {/* Smart picks */}
@@ -236,7 +393,7 @@ export function HomeScreen() {
             title="Top Rated"
             subtitle="Most loved products by our customers."
             actionLabel="View All"
-            onAction={() => navigate('Marketplace')}
+            onAction={() => navigate('AllProducts', { title: 'Top Rated', subtitle: 'Most loved products by our customers.', products: topRated })}
           />
           <View style={styles.productGrid}>
             {topRated.map(p => (
@@ -261,7 +418,7 @@ export function HomeScreen() {
             title="Seasonal & Promotional"
             subtitle="Products relevant to the current season and holidays."
             actionLabel="View All"
-            onAction={() => navigate('Marketplace')}
+            onAction={() => navigate('AllProducts', { title: 'Seasonal & Promotional', subtitle: 'Products relevant to the current season and holidays.', products: seasonalProducts })}
             trailing={<Badge label={`${seasonalProducts.length} OFFERS`} variant="flash" style={styles.dealsBadge} />}
           />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flashRow}>
@@ -296,6 +453,44 @@ export function HomeScreen() {
           </ScrollView>
         </View>
 
+        {/* Featured Stores */}
+        <View style={styles.section}>
+          <SectionHeader
+            icon="storefront"
+            title="Featured Stores"
+            subtitle="Top rated vendors and brands."
+            actionLabel="View All"
+            onAction={() => switchTab('Marketplace')}
+          />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.brandRow}>
+            {stores.map(s => (
+              <Pressable
+                key={s.id}
+                style={styles.storeCard}
+                onPress={() => navigate('VendorProfile', { vendorId: s.vendorId, vendorName: s.name })}
+              >
+                <View style={styles.storeLogoWrap}>
+                  {s.logo ? (
+                    <Image source={{ uri: s.logo }} style={styles.storeLogo} resizeMode="cover" />
+                  ) : (
+                    <Icon name={s.icon} size={28} color={s.accent} />
+                  )}
+                </View>
+                <View style={styles.storeBody}>
+                  <Text style={styles.storeName} numberOfLines={1}>{s.name}</Text>
+                  <Text style={styles.storeLocation} numberOfLines={1}>{s.location}</Text>
+                  <View style={styles.storeMeta}>
+                    <Icon name="star" size={13} color={colors.secondary} />
+                    <Text style={styles.storeRating}>{s.rating > 0 ? s.rating.toFixed(1) : '—'}</Text>
+                    <Text style={styles.storeDot}>·</Text>
+                    <Text style={styles.storeProducts}>{s.products} products</Text>
+                  </View>
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+
         {/* Flash & Deals */}
         <View style={styles.section}>
           <SectionHeader
@@ -304,39 +499,47 @@ export function HomeScreen() {
             title="Flash & Deals"
             subtitle="Limited time offers, act fast!"
             actionLabel="View All"
-            onAction={() => navigate('Marketplace')}
+            onAction={() => navigate('AllProducts', { title: 'Flash & Deals', subtitle: 'Limited time offers, act fast!', products: flashSaleProducts })}
             trailing={<Badge label={`${flashSaleProducts.length} DEALS`} variant="flash" style={styles.dealsBadge} />}
           />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flashRow}>
-            {flashSaleProducts.slice(0, 8).map(p => (
-              <Pressable key={p.id} style={[styles.flashCard, { width: flashCardWidth }]} onPress={() => navigate('ProductDetails', { product: p })}>
-                <View style={styles.flashImageWrap}>
-                  <Image source={{ uri: p.image }} style={styles.flashImage} resizeMode="cover" />
-                  <View style={styles.flashBadge}>
-                    <Badge label={p.discount ?? 'SALE'} variant="flash" />
+          {flashSaleProducts.length > 0 ? (
+            <ProductCarousel
+              products={flashSaleProducts}
+              cardWidth={flashCardWidth}
+              imageHeight={140}
+              showDots={false}
+              autoPlay={false}
+              onPress={p => navigate('ProductDetails', { product: p })}
+              onAddToCart={p => addItem(p)}
+              renderItem={product => (
+                <View style={styles.flashCard}>
+                  <View style={styles.flashImageWrap}>
+                    <Image source={{ uri: product.image }} style={styles.flashImage} resizeMode="cover" />
+                    <View style={styles.flashBadge}>
+                      <Badge label={product.discount ?? 'SALE'} variant="flash" />
+                    </View>
+                  </View>
+                  <View style={styles.flashBody}>
+                    <Text style={styles.flashCategory}>{product.category}</Text>
+                    <Text style={styles.flashTitle} numberOfLines={1}>{product.title}</Text>
+                    <View style={styles.flashPriceRow}>
+                      <Text style={styles.flashPrice}>{product.price}</Text>
+                      {product.originalPrice ? <Text style={styles.flashOriginalPrice}>{product.originalPrice}</Text> : null}
+                    </View>
+                    <Pressable style={styles.flashAddBtn} onPress={() => addItem(product)}>
+                      <Text style={styles.flashAddText}>Add to Cart</Text>
+                    </Pressable>
                   </View>
                 </View>
-                <View style={styles.flashBody}>
-                  <Text style={styles.flashCategory}>{p.category}</Text>
-                  <Text style={styles.flashTitle} numberOfLines={1}>{p.title}</Text>
-                  <View style={styles.flashPriceRow}>
-                    <Text style={styles.flashPrice}>{p.price}</Text>
-                    {p.originalPrice ? <Text style={styles.flashOriginalPrice}>{p.originalPrice}</Text> : null}
-                  </View>
-                  <Pressable style={styles.flashAddBtn} onPress={() => addItem(p)}>
-                    <Text style={styles.flashAddText}>Add to Cart</Text>
-                  </Pressable>
-                </View>
-              </Pressable>
-            ))}
-            {flashSaleProducts.length === 0 ? (
-              <Pressable style={[styles.flashEmptyCard, { width: flashCardWidth }]} onPress={refresh}>
-                <Icon name="bolt" size={40} color={colors.statusFlash} />
-                <Text style={styles.flashEmptyTitle}>No flash deals right now</Text>
-                <Text style={styles.flashEmptySub}>Tap to refresh the live catalog.</Text>
-              </Pressable>
-            ) : null}
-          </ScrollView>
+              )}
+            />
+          ) : (
+            <Pressable style={[styles.flashEmptyCard, { width: flashCardWidth }]} onPress={refresh}>
+              <Icon name="bolt" size={40} color={colors.statusFlash} />
+              <Text style={styles.flashEmptyTitle}>No flash deals right now</Text>
+              <Text style={styles.flashEmptySub}>Tap to refresh the live catalog.</Text>
+            </Pressable>
+          )}
         </View>
 
         {/* Additional product sections (mirrors website homepage) */}
@@ -347,7 +550,7 @@ export function HomeScreen() {
               title={section.title}
               subtitle={section.subtitle}
               actionLabel="View All"
-              onAction={() => navigate('Marketplace')}
+              onAction={() => navigate('AllProducts', { title: section.title, subtitle: section.subtitle, products: section.list })}
             />
             <ProductCarousel
               products={section.list}
@@ -439,29 +642,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
     paddingHorizontal: spacing.lg,
   },
-  categoryRow: {
-    gap: spacing.lg,
-    paddingRight: spacing.lg,
-    paddingBottom: spacing.sm,
-  },
-  categoryItem: {
-    alignItems: 'center',
-    width: 72,
-  },
-  categoryCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.surfaceContainerHigh,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.sm,
-  },
-  categoryLabel: {
-    ...typography.labelMd,
-    color: colors.onSurface,
-    textAlign: 'center',
-  },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -477,7 +657,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     ...typography.bodyMd,
-    color: colors.onSurface,
+    color: colors.onSurfaceVariant,
     paddingVertical: spacing.sm,
   },
   searchBtn: {
@@ -564,7 +744,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   flashCard: {
-    width: 250,
+    width: '100%',
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
     borderColor: colors.borderLight,
@@ -648,5 +828,99 @@ const styles = StyleSheet.create({
     ...typography.labelMd,
     color: colors.onSurfaceVariant,
     marginTop: 2,
+  },
+  brandRow: {
+    gap: spacing.gutter,
+    paddingRight: spacing.lg,
+    paddingBottom: spacing.sm,
+  },
+  brandTile: {
+    width: 108,
+    flexShrink: 0,
+    alignItems: 'center',
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+  },
+  brandCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.secondaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+  },
+  brandName: {
+    ...typography.labelMd,
+    color: colors.onSurface,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  brandCount: {
+    ...typography.labelSm,
+    color: colors.onSurfaceVariant,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  storeCard: {
+    width: 220,
+    flexShrink: 0,
+    flexDirection: 'row',
+    gap: spacing.md,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.xl,
+    padding: spacing.md,
+  },
+  storeLogoWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainerHigh,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  storeLogo: {
+    width: '100%',
+    height: '100%',
+  },
+  storeBody: {
+    flex: 1,
+  },
+  storeName: {
+    ...typography.headlineMd,
+    color: colors.onSurface,
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  storeLocation: {
+    ...typography.labelSm,
+    color: colors.onSurfaceVariant,
+    marginTop: 1,
+  },
+  storeMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: spacing.sm,
+  },
+  storeRating: {
+    ...typography.labelSm,
+    color: colors.onSurface,
+    fontWeight: '700',
+  },
+  storeDot: {
+    ...typography.labelSm,
+    color: colors.outline,
+  },
+  storeProducts: {
+    ...typography.labelSm,
+    color: colors.onSurfaceVariant,
   },
 });

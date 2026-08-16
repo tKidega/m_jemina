@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
@@ -33,6 +33,7 @@ export function MyReviewsScreen() {
   const { navigate, goBack } = useNavigation();
   const [reviews, setReviews] = useState<ApiMyReview[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -49,6 +50,21 @@ export function MyReviewsScreen() {
       setError(e instanceof Error ? e.message : 'Failed to load your reviews.');
     } finally {
       setLoading(false);
+    }
+  }, [token]);
+
+  const onRefresh = useCallback(async () => {
+    if (!token) {
+      return;
+    }
+    setRefreshing(true);
+    setError(null);
+    try {
+      setReviews(await apiGetMyReviews(token));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load your reviews.');
+    } finally {
+      setRefreshing(false);
     }
   }, [token]);
 
@@ -91,7 +107,11 @@ export function MyReviewsScreen() {
           <Button label="Browse Marketplace" variant="primary" fullWidth onPress={() => navigate('Marketplace')} style={styles.emptyBtn} />
         </View>
       ) : (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
+          }
+        >
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
           {reviews.map(review => (
             <Pressable

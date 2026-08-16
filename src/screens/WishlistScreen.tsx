@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppHeader, HeaderCartButton } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
@@ -35,6 +35,7 @@ export function WishlistScreen() {
   const { navigate, goBack, switchTab } = useNavigation();
   const [items, setItems] = useState<ApiWishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [removing, setRemoving] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,6 +53,21 @@ export function WishlistScreen() {
       setError(e instanceof Error ? e.message : 'Failed to load wishlist.');
     } finally {
       setLoading(false);
+    }
+  }, [token]);
+
+  const onRefresh = useCallback(async () => {
+    if (!token) {
+      return;
+    }
+    setRefreshing(true);
+    setError(null);
+    try {
+      setItems(await apiGetWishlist(token));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load wishlist.');
+    } finally {
+      setRefreshing(false);
     }
   }, [token]);
 
@@ -114,7 +130,11 @@ export function WishlistScreen() {
           <Button label="Browse Marketplace" variant="primary" fullWidth onPress={() => navigate('Marketplace')} style={styles.emptyBtn} />
         </View>
       ) : (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
+          }
+        >
           <View style={styles.itemsHeader}>
             <Text style={styles.itemsHeaderText}>
               {items.length} {items.length === 1 ? 'item' : 'items'} saved

@@ -1,7 +1,7 @@
-﻿import React, { useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Image,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,19 +11,17 @@ import {
 } from 'react-native';
 import { AppHeader, HeaderCartButton, HeaderSearchButton } from '../components/AppHeader';
 import { BottomNav } from '../components/BottomNav';
-import { Badge } from '../components/Badge';
 import { Icon } from '../components/Icon';
 import { SectionHeader } from '../components/SectionHeader';
 import { Button } from '../components/Button';
+import { ProductCard, Product } from '../components/ProductCard';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useCart } from '../state/CartContext';
 import { useCatalog } from '../state/CatalogContext';
 import { apiGetVendors } from '../data/api';
-import type { ApiVendorSummary } from '../data/api';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
-import { images } from '../data/images';
 
 const FILTERS = ['All', 'Wholesale', 'Bulk Orders', 'Corporate', 'Enterprise'];
 
@@ -66,7 +64,7 @@ const DEFAULT_STORES: StoreData[] = [
 
 export function MarketplaceScreen() {
   const { navigate, switchTab } = useNavigation();
-  const { addItem, itemCount } = useCart();
+  const { itemCount } = useCart();
   const {
     flashSale,
     products,
@@ -80,10 +78,11 @@ export function MarketplaceScreen() {
   const [searchText, setSearchText] = useState('');
   const [activeFilter, setActiveFilter] = useState(0);
   const [liveVendors, setLiveVendors] = useState<StoreData[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
   const { width } = useWindowDimensions();
   const flashCardWidth = Math.round((width - spacing.lg * 2 - spacing.lg) / 2);
 
-  useEffect(() => {
+  const loadVendors = useCallback(() => {
     apiGetVendors()
       .then(vendors => {
         const mapped: StoreData[] = vendors.map((v, i) => ({
@@ -101,6 +100,19 @@ export function MarketplaceScreen() {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    loadVendors();
+  }, [loadVendors]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([refresh(), loadVendors()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refresh, loadVendors]);
 
   const stores = liveVendors.length > 0 ? liveVendors : DEFAULT_STORES;
 
@@ -126,14 +138,26 @@ export function MarketplaceScreen() {
     { icon: 'inventory' as const, title: 'Bulk Orders', subtitle: 'Large-volume bulk purchasing for businesses.', list: bulkOrder.length > 0 ? bulkOrder : b2bProducts.filter(p => p.bulkOrder) },
     { icon: 'business-center' as const, title: 'Corporate', subtitle: 'Corporate-ready products and solutions.', list: corporateReady.length > 0 ? corporateReady : b2bProducts.filter(p => p.corporateReady || p.badge?.variant === 'corporate') },
     { icon: 'handshake' as const, title: 'Enterprise', subtitle: 'Enterprise-scale solutions for large teams.', list: enterpriseSolutions.length > 0 ? enterpriseSolutions : b2bProducts.filter(p => p.enterpriseSolution) },
-  ];
+  ].filter(section => {
+    if (activeFilter === 0) return true;
+    const filterMap: Record<string, string[]> = {
+      'Wholesale': ['Wholesale'],
+      'Bulk Orders': ['Bulk Orders'],
+      'Corporate': ['Corporate'],
+      'Enterprise': ['Enterprise'],
+    };
+    const allowed = filterMap[FILTERS[activeFilter]] ?? [];
+    return allowed.includes(section.title);
+  });
+
+  const openInquiry = (product: Product) => navigate('ProductInquiry', { product });
 
   return (
     <View style={styles.root}>
       <AppHeader
         right={
           <>
-            <HeaderSearchButton onPress={() => {}} />
+            <HeaderSearchButton onPress={() => navigate('Search')} />
             <HeaderCartButton count={itemCount} onPress={() => switchTab('Cart')} />
           </>
         }
@@ -144,15 +168,21 @@ export function MarketplaceScreen() {
           <Text style={styles.statusBannerText}>Offline â€” showing saved catalog. Tap to retry.</Text>
         </Pressable>
       ) : null}
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Welcome hero */}
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
+        }
+      >
+        {/* B2B hero */}
         <View style={styles.hero}>
-          <Image source={{ uri: images.heroBanner }} style={styles.heroImage} resizeMode="cover" />
-          <View style={styles.heroOverlay} />
-          <View style={styles.heroGlow} />
-          <Text style={styles.heroTitle}>Welcome to JEMINA Marketplace</Text>
-          <Text style={styles.heroSubtitle}>
-            Discover a world of trusted vendors, quality products, and seamless shopping experiences.
+          <View style={styles.heroPill}>
+            <Icon name="business-center" size={14} color={colors.onSecondary} />
+            <Text style={styles.heroPillText}>B2B Marketplace</Text>
+          </View>
+          <Text style={styles.heroTitle}>Procurement & Wholesale</Text>
+          <Text style={styles.heroText}>
+            Sourcing for your business? Browse wholesale, bulk and corporate-ready products and send an
+            inquiry to the vendor directly.
           </Text>
         </View>
 
@@ -198,28 +228,16 @@ export function MarketplaceScreen() {
               />
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flashRow}>
                 {items.map(p => (
-                  <Pressable key={p.id} style={[styles.flashCard, { width: flashCardWidth }]} onPress={() => navigate('ProductDetails', { product: p })}>
-                    <View style={styles.flashImageWrap}>
-                      <Image source={{ uri: p.image }} style={styles.flashImage} resizeMode="cover" />
-                      {p.badge ? (
-                        <View style={styles.flashDiscount}>
-                          <Badge label={p.badge.label} variant={p.badge.variant === 'corporate' ? 'corporate' : 'wholesale'} />
-                        </View>
-                      ) : null}
-                    </View>
-                    <View style={styles.flashBody}>
-                      <Text style={styles.flashCategory}>{p.category}</Text>
-                      <Text style={styles.flashTitle} numberOfLines={1}>{p.title}</Text>
-                      <View style={styles.flashPriceRow}>
-                        <Text style={styles.flashPrice}>{p.price}</Text>
-                        {p.originalPrice ? <Text style={styles.flashOriginal}>{p.originalPrice}</Text> : null}
-                      </View>
-                      <Text style={styles.b2bMiniOrder}>{p.minOrder ?? 'Min. Order: 1 unit'}</Text>
-                      <Pressable style={styles.flashAddBtn} onPress={() => addItem(p)}>
-                        <Text style={styles.flashAddText}>Add to Cart</Text>
-                      </Pressable>
-                    </View>
-                  </Pressable>
+                  <View key={p.id} style={[styles.productCardWrap, { width: flashCardWidth }]}>
+                    <ProductCard
+                      product={p}
+                      compact
+                      imageHeight={140}
+                      actionVariant="inquiry"
+                      onPress={() => navigate('ProductDetails', { product: p })}
+                      onInquiry={() => openInquiry(p)}
+                    />
+                  </View>
                 ))}
               </ScrollView>
             </View>
@@ -251,30 +269,16 @@ export function MarketplaceScreen() {
           />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flashRow}>
             {flashDeals.map(d => (
-              <Pressable key={d.id} style={[styles.flashCard, { width: flashCardWidth }]} onPress={() => navigate('ProductDetails', { product: d })}>
-                <View style={styles.flashImageWrap}>
-                  <Image source={{ uri: d.image }} style={styles.flashImage} resizeMode="cover" />
-                  <View style={styles.flashDiscount}>
-                    <Badge label={d.discount ?? 'SALE'} variant="flash" />
-                  </View>
-                </View>
-                <View style={styles.flashBody}>
-                  <Text style={styles.flashCategory}>{d.category}</Text>
-                  <Text style={styles.flashTitle} numberOfLines={1}>{d.title}</Text>
-                  <View style={styles.flashPriceRow}>
-                    <Text style={styles.flashPrice}>{d.price}</Text>
-                    {d.originalPrice ? <Text style={styles.flashOriginal}>{d.originalPrice}</Text> : null}
-                  </View>
-                  <View style={styles.ratingRow}>
-                    <Icon name="star" size={12} color={colors.secondary} />
-                    <Text style={styles.rating}>{d.rating?.toFixed(1)}</Text>
-                    <Text style={styles.reviews}>({d.reviews})</Text>
-                  </View>
-                  <Pressable style={styles.flashAddBtn} onPress={() => addItem(d)}>
-                    <Text style={styles.flashAddText}>Add to Cart</Text>
-                  </Pressable>
-                </View>
-              </Pressable>
+              <View key={d.id} style={[styles.productCardWrap, { width: flashCardWidth }]}>
+                <ProductCard
+                  product={d}
+                  compact
+                  imageHeight={140}
+                  actionVariant="inquiry"
+                  onPress={() => navigate('ProductDetails', { product: d })}
+                  onInquiry={() => openInquiry(d)}
+                />
+              </View>
             ))}
             <Pressable style={styles.seeAllCard} onPress={() => {}}>
               <Icon name="fast-forward" size={44} color={colors.outline} />
@@ -367,54 +371,51 @@ const styles = StyleSheet.create({
   content: {
     paddingBottom: 24,
   },
-  hero: {
-    margin: spacing.lg,
-    marginTop: spacing.lg,
-    backgroundColor: colors.primaryContainer,
-    borderRadius: radius.xl,
-    height: 190,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
-    position: 'relative',
-    overflow: 'hidden',
-  },
   heroImage: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    opacity: 0.6,
+    width: '100%',
+    aspectRatio: 500 / 325,
+    marginTop: spacing.lg,
+    marginBottom: spacing.lg,
   },
-  heroOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.primary,
-    opacity: 0.5,
-  },
-  heroGlow: {
-    position: 'absolute',
-    right: -40,
-    top: 0,
-    width: '60%',
-    height: '100%',
+  hero: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.lg,
     backgroundColor: colors.secondaryContainer,
-    opacity: 0.25,
-    transform: [{ rotate: '0deg' }],
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+  },
+  heroPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
+  },
+  heroPillText: {
+    ...typography.labelSm,
+    color: colors.secondary,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   heroTitle: {
     ...typography.headlineLg,
-    color: colors.onPrimary,
-    marginBottom: spacing.sm,
-    maxWidth: 260,
+    color: colors.onSecondary,
+    fontWeight: '800',
+    marginTop: spacing.md,
   },
-  heroSubtitle: {
+  heroText: {
     ...typography.bodyMd,
-    color: colors.onPrimaryContainer,
-    maxWidth: 280,
+    color: colors.onSecondary,
+    opacity: 0.92,
+    marginTop: spacing.sm,
+    lineHeight: 20,
+  },
+  productCardWrap: {
+    marginBottom: spacing.sm,
   },
   searchRow: {
     flexDirection: 'column',

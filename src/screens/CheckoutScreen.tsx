@@ -15,7 +15,8 @@ import { Button } from '../components/Button';
 import { useCart } from '../state/CartContext';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { apiCreateOrder, apiGetCreditBalance, apiGetAddresses, apiApplyVoucher } from '../data/api';
+import { apiCreateOrder, apiGetCreditBalance, apiGetAddresses, apiApplyVoucher, apiGetPaymentMethods } from '../data/api';
+import type { ApiPaymentMethod } from '../data/api';
 import { formatUGX } from '../components/ProductCard';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -65,6 +66,7 @@ export function CheckoutScreen() {
   });
   const [paymentMethod, setPaymentMethod] = useState<string>(PAYMENT_METHODS[0].id);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const [savedPaymentMethods, setSavedPaymentMethods] = useState<ApiPaymentMethod[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -82,6 +84,9 @@ export function CheckoutScreen() {
     apiGetCreditBalance(token)
       .then(data => { if (!cancelled) setCreditBalance(data.balance); })
       .catch(() => { if (!cancelled) setCreditBalance(null); });
+    apiGetPaymentMethods(token)
+      .then(data => { if (!cancelled) setSavedPaymentMethods(data); })
+      .catch(() => { if (!cancelled) setSavedPaymentMethods([]); });
     apiGetAddresses(token)
       .then(addrs => {
         if (!cancelled && addrs.length > 0) {
@@ -332,6 +337,32 @@ export function CheckoutScreen() {
           {/* Payment method */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Payment Method</Text>
+            {savedPaymentMethods.length > 0 ? (
+              <Pressable style={styles.savedPayCard} onPress={() => navigate('PaymentMethods')}>
+                <View style={styles.savedPayBody}>
+                  <Text style={styles.savedPayLabel}>Saved payment methods</Text>
+                  {(() => {
+                    const def = savedPaymentMethods.find(m => m.is_default) ?? savedPaymentMethods[0];
+                    const masked = def.type === 'card' ? `•••• ${def.account_number.slice(-4)}` : def.account_number;
+                    return (
+                      <Text style={styles.savedPayValue}>
+                        {def.provider.charAt(0).toUpperCase() + def.provider.slice(1)} · {masked}
+                        {def.is_default ? ' · Default' : ''}
+                      </Text>
+                    );
+                  })()}
+                </View>
+                <Icon name="chevron-right" size={20} color={colors.primary} />
+              </Pressable>
+            ) : (
+              <Pressable style={styles.savedPayCard} onPress={() => navigate('PaymentMethods')}>
+                <View style={styles.savedPayBody}>
+                  <Text style={styles.savedPayLabel}>Saved payment methods</Text>
+                  <Text style={styles.savedPayEmpty}>No saved method yet — tap to add one</Text>
+                </View>
+                <Icon name="chevron-right" size={20} color={colors.primary} />
+              </Pressable>
+            )}
             {creditBalance != null ? (
               <View style={styles.creditCard}>
                 <View style={styles.creditIcon}>
@@ -605,6 +636,37 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.md,
     marginBottom: spacing.sm,
+  },
+  savedPayCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  savedPayBody: {
+    flex: 1,
+  },
+  savedPayLabel: {
+    ...typography.labelSm,
+    color: colors.onSurfaceVariant,
+  },
+  savedPayValue: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  savedPayEmpty: {
+    ...typography.bodyMd,
+    color: colors.outline,
+    fontStyle: 'italic',
+    marginTop: 2,
   },
   creditIcon: {
     width: 36,

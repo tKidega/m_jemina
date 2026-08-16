@@ -116,7 +116,7 @@ export function ProductCarousel({
 
 const styles = StyleSheet.create({
   content: {
-    paddingHorizontal: spacing.lg,
+    paddingRight: spacing.lg,
     gap: spacing.gutter,
   },
   item: {

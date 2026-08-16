@@ -4,19 +4,16 @@ import {
   Image,
   Pressable,
   StyleSheet,
-  Text,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import { colors } from '../theme/colors';
-import { typography } from '../theme/typography';
 import { spacing } from '../theme/spacing';
 
 export interface HeroSlide {
   id: string;
   image: string;
-  title: string;
-  subtitle: string;
+  title?: string;
+  subtitle?: string;
 }
 
 interface HeroCarouselProps {
@@ -30,7 +27,6 @@ export function HeroCarousel({
   autoPlayInterval = 10000,
   fadeDuration = 1100,
 }: HeroCarouselProps) {
-  const { width } = useWindowDimensions();
   const [active, setActive] = useState(0);
   const opacity = useRef(new Animated.Value(1)).current;
   const animatingRef = useRef(false);
@@ -59,7 +55,7 @@ export function HeroCarousel({
           toValue: 1,
           duration: fadeDuration,
           useNativeDriver: true,
-        }).start(({ finished: _finished }) => {
+        }).start(() => {
           animatingRef.current = false;
         });
       });
@@ -80,14 +76,13 @@ export function HeroCarousel({
   const slide = slides[active];
 
   return (
-    <View style={styles.container}>
-      <Animated.View style={[styles.slide, { width, opacity }]}>
-        <Image source={{ uri: slide.image }} style={styles.bg} resizeMode="cover" />
-        <View style={styles.overlay} />
-        <View style={styles.content}>
-          <Text style={styles.title}>{slide.title}</Text>
-          <Text style={styles.subtitle}>{slide.subtitle}</Text>
-        </View>
+    <View style={styles.wrapper}>
+      <Animated.View style={[styles.slide, { opacity }]}>
+        <Image
+          source={{ uri: slide.image }}
+          style={styles.image}
+          resizeMode="stretch"
+        />
       </Animated.View>
       {slides.length > 1 ? (
         <View style={styles.dots}>
@@ -103,52 +98,27 @@ export function HeroCarousel({
 }
 
 const styles = StyleSheet.create({
-  container: {
+  wrapper: {
+    width: '100%',
+    aspectRatio: 500 / 325,
     backgroundColor: colors.primary,
-    height: 280,
     position: 'relative',
     overflow: 'hidden',
   },
   slide: {
-    height: 280,
-    position: 'relative',
-  },
-  bg: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    opacity: 0.45,
   },
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.primary,
-    opacity: 0.55,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.xxl,
-  },
-  title: {
-    ...typography.headlineLg,
-    color: colors.onPrimary,
-    marginBottom: spacing.sm,
-  },
-  subtitle: {
-    ...typography.bodyMd,
-    color: colors.onPrimary,
-    opacity: 0.8,
+  image: {
+    width: '100%',
+    height: '100%',
   },
   dots: {
     position: 'absolute',
-    bottom: 44,
+    bottom: 12,
     left: 0,
     right: 0,
     flexDirection: 'row',

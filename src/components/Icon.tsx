@@ -95,6 +95,23 @@ export type IconName =
   | 'handshake'
   | 'gavel'
   | 'radio-button-unchecked'
+  | 'radio-button-checked'
+  | 'check-box'
+  | 'check-box-outline-blank'
+  | 'edit'
+  | 'edit-note'
+  | 'help-outline'
+  | 'more-horiz'
+  | 'flag'
+  | 'my-location'
+  | 'schedule'
+  | 'place'
+  | 'map'
+  | 'event'
+  | 'directions-car'
+  | 'restaurant'
+  | 'palette'
+  | 'send'
 
 interface IconProps {
   name: IconName;

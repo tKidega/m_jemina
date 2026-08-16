@@ -35,6 +35,7 @@ interface CartContextValue {
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
+  refresh: () => Promise<void>;
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -56,7 +57,7 @@ function groupByVendor(items: CartItem[]): VendorGroup[] {
     }
     map.get(key)!.push(item);
   }
-  return Array.from(map.entries()).map(([key, groupItems]) => {
+  return Array.from(map.entries()).map(([, groupItems]) => {
     const firstVendor = groupItems[0].product.vendor;
     const deliveryFee = groupItems.reduce((sum, i) => sum + (i.product.deliveryFee ?? 0), 0);
     return {
@@ -73,29 +74,28 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [cartSource, setCartSource] = useState<'server' | 'local'>('local');
 
+  const refresh = useCallback(async () => {
+    if (!token) {
+      setItems([]);
+      setCartSource('local');
+      return;
+    }
+    try {
+      const serverItems = await apiGetCart(token);
+      setItems(serverItems.map(toLocalItem));
+      setCartSource('server');
+    } catch {
+      setCartSource('local');
+    }
+  }, [token]);
+
   useEffect(() => {
     if (!token) {
       setCartSource('local');
       return;
     }
-    let cancelled = false;
-    apiGetCart(token)
-      .then(serverItems => {
-        if (cancelled) {
-          return;
-        }
-        setItems(serverItems.map(toLocalItem));
-        setCartSource('server');
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCartSource('local');
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
+    refresh().catch(() => {});
+  }, [token, refresh]);
 
   const addItem = useCallback(
     (product: Product, quantity = 1) => {
@@ -176,8 +176,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       removeItem,
       updateQuantity,
       clearCart,
+      refresh,
     }),
-    [items, vendorGroups, itemCount, subtotal, totalDeliveryFees, cartSource, addItem, removeItem, updateQuantity, clearCart],
+    [items, vendorGroups, itemCount, subtotal, totalDeliveryFees, cartSource, addItem, removeItem, updateQuantity, clearCart, refresh],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

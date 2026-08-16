@@ -3,6 +3,8 @@ import { images } from './images';
 
 export const API_BASE_URL = 'https://jemi-na.com/api/v1';
 
+const API_ORIGIN = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
+
 export interface ApiCategory {
   id: number;
   name: string;
@@ -97,12 +99,19 @@ const SLUG_TO_LOCAL_IMAGE: Record<string, string> = {
   'bulk-electrical-cables-grade-a': images.cableCoil,
 };
 
+function absoluteUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  if (/^https?:\/\//i.test(url)) return url;
+  if (url.startsWith('/')) return `${API_ORIGIN}${url}`;
+  return url;
+}
+
 function resolveImage(api: ApiProduct): string | undefined {
   if (api.images && api.images.length > 0 && api.images[0]) {
-    return api.images[0];
+    return absoluteUrl(api.images[0]);
   }
   if (api.photo) {
-    return api.photo;
+    return absoluteUrl(api.photo);
   }
   const slug = (api.slug || '').toLowerCase();
   for (const [key, url] of Object.entries(SLUG_TO_LOCAL_IMAGE)) {
@@ -150,7 +159,7 @@ export function apiProductToProduct(api: ApiProduct): Product {
   return {
     id: String(api.id),
     image,
-    gallery: api.images.length > 0 ? api.images : image ? [image] : undefined,
+    gallery: api.images.length > 0 ? api.images.map(absoluteUrl).filter(Boolean) as string[] : image ? [image] : undefined,
     category: api.category?.name ?? 'General',
     title: api.name,
     price: `UGX ${Math.round(effective).toLocaleString()}`,
@@ -228,6 +237,25 @@ export interface ApiUser {
   email: string;
   role?: string;
   phone?: string | null;
+  bio?: string | null;
+  photo?: string | null;
+  date_of_birth?: string | null;
+  gender?: string | null;
+  language?: string | null;
+  street_address?: string | null;
+  city?: string | null;
+  region?: string | null;
+  postal_code?: string | null;
+  country?: string | null;
+  facebook?: string | null;
+  twitter?: string | null;
+  instagram?: string | null;
+  linkedin?: string | null;
+  email_notifications?: boolean;
+  sms_notifications?: boolean;
+  marketing_emails?: boolean;
+  security_notifications?: boolean;
+  timezone?: string | null;
   email_verified_at?: string | null;
   created_at?: string | null;
 }
@@ -359,13 +387,37 @@ export interface ApiShippingAddress {
   phone: string;
 }
 
+export interface ApiTrackingEventRow {
+  status: string;
+  location?: string | null;
+  notes?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  created_at?: string | null;
+}
+
+export interface ApiTrackingInfo {
+  status?: string | null;
+  tracking_number?: string | null;
+  carrier?: string | null;
+  dispatched_at?: string | null;
+  delivered_at?: string | null;
+  dispatch_location?: string | null;
+  destination_location?: string | null;
+  transit_points?: Array<{ name?: string; location?: string; latitude?: number; longitude?: number }>;
+  customer_received_at?: string | null;
+  timeline?: ApiTrackingEventRow[];
+}
+
 export interface ApiOrderItem {
+  id?: number;
   product_id: number;
   product_name: string;
   quantity: number;
   unit_price: number;
   total: number;
   product_image?: string | null;
+  tracking?: ApiTrackingInfo;
 }
 
 export interface ApiOrder {
@@ -459,6 +511,78 @@ export interface ApiPaymentStatus {
 export async function apiGetPaymentStatus(token: string, transactionId: string): Promise<ApiPaymentStatus> {
   const json = await request<ApiPaymentStatus>(`/payments/${transactionId}/status`, { token });
   return json.data as ApiPaymentStatus;
+}
+
+// ---------------------------------------------------------------------------
+// Saved Payment Methods API
+// ---------------------------------------------------------------------------
+
+export type ApiPaymentMethodType = 'card' | 'mobile_money' | 'cloud_pay';
+
+export interface ApiPaymentMethod {
+  id: number;
+  user_id: number;
+  type: ApiPaymentMethodType;
+  provider: string;
+  account_number: string;
+  expiry_date?: string | null;
+  account_name?: string | null;
+  is_default: boolean;
+  is_active: boolean;
+  created_at?: string | null;
+}
+
+export async function apiGetPaymentMethods(token: string): Promise<ApiPaymentMethod[]> {
+  const json = await request<{ payment_methods: ApiPaymentMethod[] }>('/payment-methods', { token });
+  return (json.data as { payment_methods: ApiPaymentMethod[] }).payment_methods ?? [];
+}
+
+export async function apiSavePaymentMethod(
+  token: string,
+  payload: {
+    type: ApiPaymentMethodType;
+    provider: string;
+    account_number: string;
+    expiry_date?: string;
+    account_name?: string;
+    is_default?: boolean;
+  },
+): Promise<ApiPaymentMethod> {
+  const json = await request<{ payment_method: ApiPaymentMethod }>('/payment-methods', {
+    method: 'POST',
+    token,
+    body: payload,
+  });
+  return (json.data as { payment_method: ApiPaymentMethod }).payment_method;
+}
+
+export async function apiUpdatePaymentMethod(
+  token: string,
+  id: number,
+  payload: Partial<{
+    type: ApiPaymentMethodType;
+    provider: string;
+    account_number: string;
+    expiry_date?: string;
+    account_name?: string;
+    is_default?: boolean;
+    is_active?: boolean;
+  }>,
+): Promise<ApiPaymentMethod> {
+  const json = await request<{ payment_method: ApiPaymentMethod }>(`/payment-methods/${id}`, {
+    method: 'PUT',
+    token,
+    body: payload,
+  });
+  return (json.data as { payment_method: ApiPaymentMethod }).payment_method;
+}
+
+export async function apiDeletePaymentMethod(token: string, id: number): Promise<void> {
+  await request(`/payment-methods/${id}`, { method: 'DELETE', token });
+}
+
+export async function apiSetDefaultPaymentMethod(token: string, id: number): Promise<void> {
+  await request(`/payment-methods/${id}/default`, { method: 'PUT', token });
 }
 
 // ---------------------------------------------------------------------------
@@ -725,4 +849,330 @@ export async function apiApplyVoucher(
     body: { code, subtotal },
   });
   return json.data as ApiVoucherResult;
+}
+
+// ---------------------------------------------------------------------------
+// Profile Update API
+// ---------------------------------------------------------------------------
+
+export async function apiUpdateProfile(
+  token: string,
+  payload: Partial<ApiUser>,
+): Promise<ApiUser> {
+  const json = await request<{ user: ApiUser }>('/profile', {
+    method: 'PUT',
+    token,
+    body: payload,
+  });
+  return (json.data as { user: ApiUser }).user;
+}
+
+// ---------------------------------------------------------------------------
+// Surveys API
+// ---------------------------------------------------------------------------
+
+export interface ApiSurveyQuestion {
+  id: number;
+  question: string;
+  type: string;
+  options: string[];
+  is_required: boolean;
+  order: number;
+  answer?: string | string[] | null;
+}
+
+export interface ApiSurvey {
+  id: number;
+  survey_name: string;
+  survey_description?: string | null;
+  type?: string;
+  credit_reward: number;
+  is_required: boolean;
+  questions_count?: number;
+  completed?: boolean;
+  locked?: boolean;
+  questions?: ApiSurveyQuestion[];
+}
+
+export interface ApiVendorJourney {
+  user_survey_completed: boolean;
+  vendor_survey_completed: boolean;
+  both_completed: boolean;
+  unlocked: boolean;
+  has_vendor: boolean;
+  account_active: boolean;
+  agreement_accepted: boolean;
+}
+
+export interface ApiVendorActionsStatus {
+  journey: ApiVendorJourney;
+  vendor: { id: number; shop_name: string; shop_slug: string; is_active: boolean } | null;
+}
+
+export interface ApiAgreementSection {
+  heading: string;
+  blocks: (
+    | { type: 'paragraph'; text: string }
+    | { type: 'subheading'; text: string }
+    | { type: 'list'; items: string[] }
+  )[];
+}
+
+export interface ApiVendorAgreement {
+  title: string;
+  last_updated: string;
+  notice: string;
+  sections: ApiAgreementSection[];
+  acceptance: string;
+}
+
+export async function apiGetSurveys(
+  token: string,
+): Promise<{ surveys: ApiSurvey[]; vendorJourney?: ApiVendorJourney }> {
+  const json = await request<{ surveys: ApiSurvey[]; vendor_journey?: ApiVendorJourney }>('/surveys', {
+    token,
+  });
+  const data = json.data as { surveys: ApiSurvey[]; vendor_journey?: ApiVendorJourney };
+  return { surveys: data.surveys ?? [], vendorJourney: data.vendor_journey };
+}
+
+export async function apiGetVendorActionsStatus(token: string): Promise<ApiVendorActionsStatus> {
+  const json = await request<ApiVendorActionsStatus>('/vendor/actions', { token });
+  return json.data as ApiVendorActionsStatus;
+}
+
+export async function apiGetVendorAgreement(token: string): Promise<ApiVendorAgreement> {
+  const json = await request<{ agreement: ApiVendorAgreement }>('/vendor/agreement', { token });
+  return (json.data as { agreement: ApiVendorAgreement }).agreement;
+}
+
+export async function apiAcceptVendorAgreement(token: string): Promise<void> {
+  await request('/vendor/agreement/accept', { method: 'POST', token });
+}
+
+export async function apiCheckVendorAgreementAccepted(token: string): Promise<boolean> {
+  const json = await request<{ accepted: boolean }>('/vendor/agreement/accept', {
+    method: 'POST',
+    token,
+    body: { check: true },
+  });
+  return (json.data as { accepted: boolean })?.accepted ?? false;
+}
+
+export async function apiCreateVendorStore(
+  token: string,
+  payload: {
+    shop_name: string;
+    shop_owner: string;
+    shop_email: string;
+    shop_phone: string;
+    pay_method?: string;
+    terms: boolean;
+  },
+): Promise<{ id: number; shop_name: string; shop_slug: string }> {
+  const json = await request<{ vendor: { id: number; shop_name: string; shop_slug: string } }>(
+    '/vendor/store',
+    { method: 'POST', token, body: payload },
+  );
+  return (json.data as { vendor: { id: number; shop_name: string; shop_slug: string } }).vendor;
+}
+
+export async function apiGetSurvey(token: string, id: number): Promise<ApiSurvey> {
+  const json = await request<{ survey: ApiSurvey }>(`/surveys/${id}`, { token });
+  return (json.data as { survey: ApiSurvey }).survey;
+}
+
+export async function apiSubmitSurvey(
+  token: string,
+  id: number,
+  answers: { question_id: number; answer: string | string[] }[],
+): Promise<number> {
+  const json = await request<{ credit_awarded: number }>(`/surveys/${id}/submit`, {
+    method: 'POST',
+    token,
+    body: { answers },
+  });
+  return (json.data as { credit_awarded?: number })?.credit_awarded ?? 0;
+}
+
+// ---------------------------------------------------------------------------
+// Help / Support Ticket API
+// ---------------------------------------------------------------------------
+
+export interface ApiHelpTicket {
+  id: number;
+  ticket_number: string;
+  type: string;
+  type_label?: string;
+  priority: string;
+  priority_label?: string;
+  subject: string;
+  description: string;
+  status: string;
+  status_label?: string;
+  response?: string | null;
+  admin_summary?: string | null;
+  assigned_to?: number | null;
+  attachments?: string[];
+  created_at?: string | null;
+  responded_at?: string | null;
+  resolved_at?: string | null;
+}
+
+export async function apiGetTickets(token: string): Promise<ApiHelpTicket[]> {
+  const json = await request<{ tickets: ApiHelpTicket[] }>('/help/tickets', { token });
+  return (json.data as { tickets: ApiHelpTicket[] }).tickets ?? [];
+}
+
+export async function apiGetTicket(token: string, id: number): Promise<ApiHelpTicket> {
+  const json = await request<{ ticket: ApiHelpTicket }>(`/help/tickets/${id}`, { token });
+  return (json.data as { ticket: ApiHelpTicket }).ticket;
+}
+
+export async function apiCreateTicket(
+  token: string,
+  payload: {
+    type: string;
+    priority: string;
+    subject: string;
+    description: string;
+  },
+): Promise<ApiHelpTicket> {
+  const json = await request<{ ticket: ApiHelpTicket }>('/help/tickets', {
+    method: 'POST',
+    token,
+    body: payload,
+  });
+  return (json.data as { ticket: ApiHelpTicket }).ticket;
+}
+
+// ---------------------------------------------------------------------------
+// In-App Messages API
+// ---------------------------------------------------------------------------
+
+export interface ApiMessage {
+  id: number;
+  name?: string | null;
+  subject: string;
+  message: string;
+  type?: string;
+  status?: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export async function apiGetMessages(
+  token: string,
+): Promise<{ messages: ApiMessage[]; new_count: number }> {
+  const json = await request<{ messages: ApiMessage[]; new_count: number }>('/messages', { token });
+  const data = json.data as { messages: ApiMessage[]; new_count?: number };
+  return { messages: data.messages ?? [], new_count: data.new_count ?? 0 };
+}
+
+export async function apiGetMessage(token: string, id: number): Promise<ApiMessage> {
+  const json = await request<{ message: ApiMessage }>(`/messages/${id}`, { token });
+  return (json.data as { message: ApiMessage }).message;
+}
+
+export async function apiMarkMessageRead(token: string, id: number): Promise<void> {
+  await request(`/messages/${id}/read`, { method: 'PUT', token });
+}
+
+// ---------------------------------------------------------------------------
+// Chatbot / Chat API
+// ---------------------------------------------------------------------------
+
+export interface ApiInquiryResult {
+  id: number;
+  inquiry_reference: string;
+  formatted_reference: string;
+  status: string;
+  status_name: string;
+  product_name: string;
+  quantity_required: number;
+  submitted_at: string;
+}
+
+export interface ApiInquiryInput {
+  product_id: number | string;
+  vendor_id: number | string;
+  user_name: string;
+  user_email: string;
+  user_phone: string;
+  company_name?: string;
+  quantity_required: number;
+  expected_delivery?: string;
+  delivery_location?: string;
+  inquiry_subject: 'bulk_order' | 'wholesale_pricing' | 'custom_order' | 'partnership' | 'other';
+  inquiry_message: string;
+}
+
+export async function apiSubmitInquiry(
+  token: string,
+  payload: ApiInquiryInput,
+): Promise<ApiInquiryResult> {
+  const json = await request<{ inquiry: ApiInquiryResult }>('/inquiries', {
+    method: 'POST',
+    token,
+    body: payload,
+  });
+  return (json.data as { inquiry: ApiInquiryResult }).inquiry;
+}
+
+export interface ApiChatReply {
+  success: boolean;
+  response: string | null;
+  answered: boolean;
+  needs_vendor?: boolean;
+  suggestions: string[];
+}
+
+/** Stable-ish per-screen conversation id so order-status state survives app restarts. */
+export function makeConversationId(): string {
+  const rand = Math.random().toString(36).slice(2, 10);
+  return `app_${Date.now().toString(36)}_${rand}`;
+}
+
+export async function apiChatAsk(
+  token: string,
+  message: string,
+  conversationId: string,
+): Promise<ApiChatReply> {
+  const json = await request<ApiChatReply>('/chat/ask', {
+    method: 'POST',
+    token,
+    body: { message, conversation_id: conversationId },
+  });
+  return json as unknown as ApiChatReply;
+}
+
+export async function apiChatClear(token: string, conversationId: string): Promise<void> {
+  await request('/chat/clear', { method: 'POST', token, body: { conversation_id: conversationId } });
+}
+
+export async function apiVendorChatAsk(
+  token: string,
+  vendorId: number | string,
+  message: string,
+  conversationId: string,
+): Promise<ApiChatReply> {
+  const json = await request<ApiChatReply>('/vendor-chat/ask', {
+    method: 'POST',
+    token,
+    body: { vendor_id: Number(vendorId), message, conversation_id: conversationId },
+  });
+  return json as unknown as ApiChatReply;
+}
+
+export async function apiVendorChatNotify(
+  token: string,
+  vendorId: number | string,
+  message: string,
+): Promise<ApiChatReply> {
+  const json = await request<ApiChatReply>('/vendor-chat/notify', {
+    method: 'POST',
+    token,
+    body: { vendor_id: Number(vendorId), message },
+  });
+  return json as unknown as ApiChatReply;
 }

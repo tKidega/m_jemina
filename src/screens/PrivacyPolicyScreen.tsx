@@ -64,8 +64,8 @@ const SECTIONS: { icon: IconName; title: string; paragraphs?: string[]; bullets?
     icon: 'mail',
     title: '7. Contact Privacy Team',
     bullets: [
-      { bold: 'Email:', text: 'privacy@jemina.co.ug' },
-      { bold: 'Address:', text: 'JEMINA Uganda Limited, 123 Republic Road, Gulu City, Uganda' },
+      { bold: 'Email:', text: 'support@jemi-na.com' },
+      { bold: 'Address:', text: 'JEMINA Uganda Limited, Plot 6 Republic Road, Gulu, Uganda' },
     ],
   },
 ];
@@ -106,7 +106,7 @@ export function PrivacyPolicyScreen() {
       <View style={styles.notice}>
         <Text style={styles.noticeTitle}>We value your trust.</Text>
         <Text style={styles.noticeText}>
-          For any privacy-related questions, contact our privacy team at privacy@jemina.co.ug.
+          For any privacy-related questions, contact our privacy team at support@jemi-na.com.
         </Text>
       </View>
     </InfoPage>

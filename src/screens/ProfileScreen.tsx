@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppHeader, HeaderCartButton } from '../components/AppHeader';
 import { BottomNav } from '../components/BottomNav';
 import { Icon } from '../components/Icon';
@@ -18,9 +18,11 @@ const MENU_ITEMS = [
   { icon: 'receipt-long' as const, label: 'My Orders', sub: 'Track and manage your orders', route: 'Orders' },
   { icon: 'favorite' as const, label: 'Wishlist', sub: 'Products you saved for later', route: 'Wishlist' },
   { icon: 'star-border' as const, label: 'My Reviews', sub: 'Ratings and reviews you have written', route: 'MyReviews' },
-  { icon: 'settings' as const, label: 'Account Settings', sub: 'Profile, address and preferences' },
-  { icon: 'history' as const, label: 'Recently Viewed', sub: 'Products you viewed' },
-  { icon: 'support-agent' as const, label: 'Help & Support', sub: 'FAQs, contact and returns' },
+  { icon: 'settings' as const, label: 'Account Settings', sub: 'Profile, payments & addresses', route: 'AccountSettings' },
+  { icon: 'edit-note' as const, label: 'Surveys', sub: 'Earn credits with feedback', route: 'Surveys' },
+  { icon: 'track-changes' as const, label: 'Track Order', sub: 'Follow your packages live', route: 'OrderTracking' },
+  { icon: 'mail' as const, label: 'Messages', sub: 'Support replies and updates', route: 'Messages' },
+  { icon: 'support-agent' as const, label: 'Help & Support', sub: 'Contact support and tickets', route: 'HelpCenter' },
 ];
 
 const DASH_STATS = [
@@ -36,27 +38,41 @@ export function ProfileScreen() {
   const [activeSection, setActiveSection] = useState(0);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [defaultAddress, setDefaultAddress] = useState<ApiAddress | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
+  const loadDashboard = useCallback(async () => {
     if (!isAuthenticated || !token) {
       setCreditBalance(null);
       setDefaultAddress(null);
       return;
     }
-    let cancelled = false;
-    apiGetCreditBalance(token)
-      .then(data => { if (!cancelled) setCreditBalance(data.balance); })
-      .catch(() => { if (!cancelled) setCreditBalance(null); });
-    apiGetAddresses(token)
-      .then(addrs => {
-        if (!cancelled) {
-          const def = addrs.find(a => a.is_default) ?? addrs[0] ?? null;
-          setDefaultAddress(def);
-        }
-      })
-      .catch(() => { if (!cancelled) setDefaultAddress(null); });
-    return () => { cancelled = true; };
+    try {
+      const data = await apiGetCreditBalance(token);
+      setCreditBalance(data.balance);
+    } catch {
+      setCreditBalance(null);
+    }
+    try {
+      const addrs = await apiGetAddresses(token);
+      const def = addrs.find(a => a.is_default) ?? addrs[0] ?? null;
+      setDefaultAddress(def);
+    } catch {
+      setDefaultAddress(null);
+    }
   }, [isAuthenticated, token]);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadDashboard();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadDashboard]);
 
   const displayName = user?.name ?? 'JEMINA Customer';
   const initials = displayName
@@ -98,7 +114,11 @@ export function ProfileScreen() {
       <AppHeader
         right={<HeaderCartButton count={itemCount} onPress={() => {}} />}
       />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
+        }
+      >
         {/* Profile header */}
         <View style={styles.profileCard}>
           <View style={styles.avatarFilled}>
@@ -178,7 +198,7 @@ export function ProfileScreen() {
               style={[styles.menuItem, i === activeSection && styles.menuItemActive]}
               onPress={() =>
                 item.route
-                  ? navigate(item.route as 'Orders' | 'Wishlist' | 'MyReviews')
+                  ? navigate(item.route as 'Orders' | 'Wishlist' | 'MyReviews' | 'AccountSettings' | 'Surveys' | 'OrderTracking' | 'Messages' | 'HelpCenter')
                   : setActiveSection(i)
               }
             >

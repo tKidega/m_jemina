@@ -276,13 +276,15 @@ export function ProductDetailsScreen() {
               </View>
             ) : null}
             <View style={styles.divider} />
-            <View style={styles.corporateRow}>
-              <View style={styles.corporateText}>
-                <Text style={styles.corporateTitle}>Corporate Ready</Text>
-                <Text style={styles.corporateSubtitle}>Contact vendor for wholesale custom pricing</Text>
+            {resolved.corporateReady ? (
+              <View style={styles.corporateRow}>
+                <View style={styles.corporateText}>
+                  <Text style={styles.corporateTitle}>Corporate Ready</Text>
+                  <Text style={styles.corporateSubtitle}>Contact vendor for wholesale custom pricing</Text>
+                </View>
+                <Icon name="verified" size={28} color={colors.secondary} />
               </View>
-              <Icon name="verified" size={28} color={colors.secondary} />
-            </View>
+            ) : null}
           </View>
 
           {/* Spec bento */}
@@ -507,8 +509,12 @@ export function ProductDetailsScreen() {
 
       {/* Bottom action bar */}
       <View style={styles.actionBar}>
-        <Pressable style={styles.inquireBtn}>
-          <Icon name="chat-bubble" size={18} color={colors.primary} />
+        <Pressable
+          style={[styles.inquireBtn, !resolved.corporateReady && styles.inquireBtnDisabled]}
+          disabled={!resolved.corporateReady}
+          onPress={() => navigate('ProductInquiry', { product: resolved })}
+        >
+          <Icon name="chat-bubble" size={18} color={resolved.corporateReady ? colors.primary : colors.outline} />
           <Text style={styles.inquireText}>INQUIRE</Text>
         </Pressable>
         <Pressable style={[styles.addBtn, added && styles.addBtnAdded]} onPress={handleAddToCart}>
@@ -704,10 +710,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   price: {
-    ...typography.displayLg,
+    ...typography.headlineLg,
     color: colors.secondary,
     fontWeight: '700',
-    fontSize: 28,
+    fontSize: 20,
   },
   originalPrice: {
     ...typography.bodyLg,
@@ -977,6 +983,10 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
     borderRadius: radius.xl,
     paddingVertical: spacing.md,
+  },
+  inquireBtnDisabled: {
+    borderColor: colors.outlineVariant,
+    opacity: 0.5,
   },
   inquireText: {
     ...typography.labelMd,
