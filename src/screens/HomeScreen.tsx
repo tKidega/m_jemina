@@ -26,7 +26,6 @@ import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
 import { images } from '../data/images';
 import { apiGetVendors, ApiVendorSummary } from '../data/api';
-import { FLASH_SALE_PRODUCTS, FEATURED_PRODUCTS, TOP_RATED_PRODUCTS } from '../data/products';
 import type { Product } from '../components/ProductCard';
 import type { IconName } from '../components/Icon';
 
@@ -102,9 +101,6 @@ const DEFAULT_STORES: StoreData[] = [
   },
 ];
 
-const FALLBACK_FEATURED: Product | undefined = FEATURED_PRODUCTS[0];
-const FALLBACK_FLASH: Product[] = FLASH_SALE_PRODUCTS.slice(0, 4);
-
 export function HomeScreen() {
   const { navigate, switchTab } = useNavigation();
   const { addItem, itemCount } = useCart();
@@ -175,9 +171,9 @@ export function HomeScreen() {
 
   const stores = liveVendors.length > 0 ? liveVendors : DEFAULT_STORES;
 
-  const featuredProduct = featuredProducts[0] ?? FALLBACK_FEATURED;
-  const smallProducts = (flashSaleProducts.length > 0 ? flashSaleProducts : FALLBACK_FLASH).slice(0, 8);
-  const topRated = topRatedProducts.length > 0 ? topRatedProducts : TOP_RATED_PRODUCTS;
+  const featuredProduct = featuredProducts[0];
+  const smallProducts = flashSaleProducts.slice(0, 8);
+  const topRated = topRatedProducts;
 
   const brandSections = useMemo(
     () =>
@@ -221,7 +217,7 @@ export function HomeScreen() {
       {error ? (
         <Pressable style={styles.statusBanner} onPress={refresh}>
           <Icon name="sync" size={16} color={colors.white} />
-          <Text style={styles.statusBannerText}>Offline — showing saved catalog. Tap to retry.</Text>
+          <Text style={styles.statusBannerText}>Offline — live catalog unavailable. Tap to retry.</Text>
         </Pressable>
       ) : loading ? (
         <View style={styles.statusBanner}>
@@ -302,7 +298,7 @@ export function HomeScreen() {
           <SectionHeader
             icon="auto-awesome"
             title="Smart Picks"
-            trailing={<Badge label="4 DEALS" variant="flash" style={styles.dealsBadge} />}
+            trailing={flashSaleProducts.length > 0 ? <Badge label={`${flashSaleProducts.length} DEALS`} variant="flash" style={styles.dealsBadge} /> : null}
           />
           {featuredProduct ? (
             <Pressable
@@ -385,6 +381,7 @@ export function HomeScreen() {
             onAction={() => navigate('AllProducts', { title: 'Seasonal & Promotional', subtitle: 'Products relevant to the current season and holidays.', products: seasonalProducts })}
             trailing={<Badge label={`${seasonalProducts.length} OFFERS`} variant="flash" style={styles.dealsBadge} />}
           />
+          {seasonalProducts.length > 0 ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flashRow}>
             {seasonalProducts.slice(0, 8).map(p => (
               <Pressable key={p.id} style={[styles.flashCard, { width: flashCardWidth }]} onPress={() => navigate('ProductDetails', { product: p })}>
@@ -407,14 +404,16 @@ export function HomeScreen() {
                 </View>
               </Pressable>
             ))}
-            {seasonalProducts.length === 0 ? (
-              <Pressable style={[styles.flashEmptyCard, { width: flashCardWidth }]} onPress={refresh}>
+          </ScrollView>
+          ) : (
+            <View style={styles.emptyCentered}>
+              <Pressable style={styles.flashEmptyCard} onPress={refresh}>
                 <Icon name="auto-awesome" size={40} color={colors.secondary} />
                 <Text style={styles.flashEmptyTitle}>No seasonal offers right now</Text>
                 <Text style={styles.flashEmptySub}>Tap to refresh the live catalog.</Text>
               </Pressable>
-            ) : null}
-          </ScrollView>
+            </View>
+          )}
         </View>
 
         {/* Featured Stores */}
@@ -479,46 +478,38 @@ export function HomeScreen() {
             onAction={() => navigate('AllProducts', { title: 'Flash & Deals', subtitle: 'Limited time offers, act fast!', products: flashSaleProducts })}
             trailing={<Badge label={`${flashSaleProducts.length} DEALS`} variant="flash" style={styles.dealsBadge} />}
           />
-          {flashSaleProducts.length > 0 ? (
-            <ProductCarousel
-              products={flashSaleProducts}
-              cardWidth={flashCardWidth}
-              imageHeight={140}
-              showDots={false}
-              autoPlay
-              loop
-              autoPlayInterval={10000}
-              onPress={p => navigate('ProductDetails', { product: p })}
-              onAddToCart={p => addItem(p)}
-              renderItem={product => (
-                <View style={styles.flashCard}>
-                  <View style={styles.flashImageWrap}>
-                    <Image source={{ uri: product.image }} style={styles.flashImage} resizeMode="cover" />
-                    <View style={styles.flashBadge}>
-                      <Badge label={product.discount ?? 'SALE'} variant="flash" />
-                    </View>
-                  </View>
-                  <View style={styles.flashBody}>
-                    <Text style={styles.flashCategory}>{product.category}</Text>
-                    <Text style={styles.flashTitle} numberOfLines={1}>{product.title}</Text>
-                    <View style={styles.flashPriceRow}>
-                      <Text style={styles.flashPrice}>{product.price}</Text>
-                      {product.originalPrice ? <Text style={styles.flashOriginalPrice}>{product.originalPrice}</Text> : null}
-                    </View>
-                    <Pressable style={styles.flashAddBtn} onPress={() => addItem(product)}>
-                      <Text style={styles.flashAddText}>Add to Cart</Text>
-                    </Pressable>
+          <ProductCarousel
+            products={flashSaleProducts}
+            cardWidth={flashCardWidth}
+            imageHeight={140}
+            showDots={false}
+            autoPlay
+            loop
+            autoPlayInterval={10000}
+            onPress={p => navigate('ProductDetails', { product: p })}
+            onAddToCart={p => addItem(p)}
+            renderItem={product => (
+              <View style={styles.flashCard}>
+                <View style={styles.flashImageWrap}>
+                  <Image source={{ uri: product.image }} style={styles.flashImage} resizeMode="cover" />
+                  <View style={styles.flashBadge}>
+                    <Badge label={product.discount ?? 'SALE'} variant="flash" />
                   </View>
                 </View>
-              )}
-            />
-          ) : (
-            <Pressable style={[styles.flashEmptyCard, { width: flashCardWidth }]} onPress={refresh}>
-              <Icon name="bolt" size={40} color={colors.statusFlash} />
-              <Text style={styles.flashEmptyTitle}>No flash deals right now</Text>
-              <Text style={styles.flashEmptySub}>Tap to refresh the live catalog.</Text>
-            </Pressable>
-          )}
+                <View style={styles.flashBody}>
+                  <Text style={styles.flashCategory}>{product.category}</Text>
+                  <Text style={styles.flashTitle} numberOfLines={1}>{product.title}</Text>
+                  <View style={styles.flashPriceRow}>
+                    <Text style={styles.flashPrice}>{product.price}</Text>
+                    {product.originalPrice ? <Text style={styles.flashOriginalPrice}>{product.originalPrice}</Text> : null}
+                  </View>
+                  <Pressable style={styles.flashAddBtn} onPress={() => addItem(product)}>
+                    <Text style={styles.flashAddText}>Add to Cart</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+          />
         </View>
 
         {/* Additional product sections (mirrors website homepage) */}
@@ -800,12 +791,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   flashEmptyCard: {
-    width: 250,
+    width: '100%',
     backgroundColor: colors.surfaceContainerHigh,
     borderRadius: radius.xl,
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.xl,
+  },
+  emptyCentered: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   flashEmptyTitle: {
     ...typography.headlineMd,

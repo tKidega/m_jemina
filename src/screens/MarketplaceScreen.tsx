@@ -165,7 +165,7 @@ export function MarketplaceScreen() {
       {error ? (
         <Pressable style={styles.statusBanner} onPress={refresh}>
           <Icon name="sync" size={16} color={colors.white} />
-          <Text style={styles.statusBannerText}>Offline â€” showing saved catalog. Tap to retry.</Text>
+          <Text style={styles.statusBannerText}>Offline — live catalog unavailable. Tap to retry.</Text>
         </Pressable>
       ) : null}
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}
@@ -280,9 +280,28 @@ export function MarketplaceScreen() {
                 />
               </View>
             ))}
-            <Pressable style={styles.seeAllCard} onPress={() => {}}>
-              <Icon name="fast-forward" size={44} color={colors.outline} />
-            </Pressable>
+            <View style={[styles.productCardWrap, { width: flashCardWidth }]}>
+              <Pressable
+                style={styles.seeAllCard}
+                onPress={() => navigate('AllProducts', { title: 'Flash Sales', subtitle: 'Limited time offers, act fast!', products: flashDeals })}
+              >
+                <View style={[styles.flashImageWrap, styles.seeAllImage]}>
+                  <View style={styles.seeAllBadge}>
+                    <Icon name="bolt" size={36} color={colors.statusFlash} />
+                  </View>
+                </View>
+                <View style={styles.flashBody}>
+                  <Text style={styles.flashCategory}>Flash Sales</Text>
+                  <Text style={styles.flashTitle} numberOfLines={1}>View all flash deals</Text>
+                  <View style={styles.flashPriceRow}>
+                    <Text style={styles.flashPrice}>{flashDeals.length} Deals</Text>
+                  </View>
+                  <View style={styles.flashAddBtn}>
+                    <Text style={styles.flashAddText}>View All</Text>
+                  </View>
+                </View>
+              </Pressable>
+            </View>
           </ScrollView>
         </View>
 
@@ -316,7 +335,10 @@ export function MarketplaceScreen() {
                   </View>
                 ))}
               </View>
-              <Pressable style={[styles.storeBtn, { backgroundColor: s.accent }]}>
+              <Pressable
+                style={[styles.storeBtn, { backgroundColor: s.accent }]}
+                onPress={() => navigate('VendorProfile', { vendorId: s.vendorId, vendorName: s.name })}
+              >
                 <Text style={styles.storeBtnText}>Visit Store</Text>
                 <Icon name="launch" size={16} color={colors.onPrimary} />
               </Pressable>
@@ -738,9 +760,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   seeAllCard: {
-    width: 100,
-    backgroundColor: colors.surfaceContainerHigh,
+    width: '100%',
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
     borderRadius: radius.xl,
+    overflow: 'hidden',
+  },
+  seeAllImage: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  seeAllBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.surfaceContainerHigh,
     alignItems: 'center',
     justifyContent: 'center',
   },

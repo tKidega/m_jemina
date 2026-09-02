@@ -1,6 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Image,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   ScrollView,
   StyleSheet,
   View,
@@ -20,8 +22,12 @@ interface HeroCarouselProps {
   slides: HeroSlide[];
 }
 
+const AUTO_PLAY_INTERVAL = 4000;
+
 export function HeroCarousel({ slides }: HeroCarouselProps) {
   const { width } = useWindowDimensions();
+  const scrollRef = useRef<ScrollView>(null);
+  const [active, setActive] = useState(0);
 
   useEffect(() => {
     slides.forEach((slide) => {
@@ -29,13 +35,34 @@ export function HeroCarousel({ slides }: HeroCarouselProps) {
     });
   }, [slides]);
 
+  useEffect(() => {
+    if (slides.length <= 1) {
+      return;
+    }
+    const timer = setInterval(() => {
+      const next = (active + 1) % slides.length;
+      scrollRef.current?.scrollTo({ x: next * width, animated: true });
+      setActive(next);
+    }, AUTO_PLAY_INTERVAL);
+    return () => clearInterval(timer);
+  }, [slides.length, active, width]);
+
+  const handleMomentumEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const index = Math.round(e.nativeEvent.contentOffset.x / width);
+    if (index >= 0 && index < slides.length && index !== active) {
+      setActive(index);
+    }
+  };
+
   return (
     <View style={styles.wrapper}>
       <ScrollView
+        ref={scrollRef}
         horizontal
         pagingEnabled
         bounces={false}
         showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={handleMomentumEnd}
       >
         {slides.map((slide) => (
           <View key={slide.id} style={[styles.page, { width }]}>

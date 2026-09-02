@@ -4,11 +4,14 @@ import {
   NativeSyntheticEvent,
   ScrollView,
   StyleSheet,
+  Text,
   View,
   useWindowDimensions,
 } from 'react-native';
 import { colors } from '../theme/colors';
-import { spacing } from '../theme/spacing';
+import { spacing, radius } from '../theme/spacing';
+import { typography } from '../theme/typography';
+import { Icon } from './Icon';
 import { ProductCard } from './ProductCard';
 import type { Product } from './ProductCard';
 
@@ -60,7 +63,15 @@ export function ProductCarousel({
   }, [autoPlay, loop, autoPlayInterval, pageCount, products.length, active]);
 
   if (products.length === 0) {
-    return null;
+    return (
+      <View style={styles.emptyWrap}>
+        <View style={styles.emptyCard}>
+          <Icon name="inventory" size={40} color={colors.outlineVariant} />
+          <Text style={styles.emptyTitle}>No products right now</Text>
+          <Text style={styles.emptySub}>Pull to refresh the live catalog.</Text>
+        </View>
+      </View>
+    );
   }
 
   const handleMomentumEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -121,6 +132,31 @@ const styles = StyleSheet.create({
   },
   item: {
     flexShrink: 0,
+  },
+  emptyWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xl,
+  },
+  emptyCard: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.xl,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+  },
+  emptyTitle: {
+    ...typography.headlineMd,
+    color: colors.onSurface,
+    fontWeight: '700',
+  },
+  emptySub: {
+    ...typography.labelMd,
+    color: colors.onSurfaceVariant,
+    textAlign: 'center',
   },
   dots: {
     flexDirection: 'row',

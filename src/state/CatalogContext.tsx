@@ -1,6 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { Product } from '../components/ProductCard';
-import { PRODUCTS as FALLBACK_PRODUCTS } from '../data/products';
 import { apiProductToProduct, fetchCategories, fetchProducts } from '../data/api';
 import type { ApiCategory } from '../data/api';
 
@@ -62,7 +61,7 @@ function derive(products: Product[]) {
 }
 
 export function CatalogProvider({ children }: { children: React.ReactNode }) {
-  const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<ApiCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +78,6 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
       setCategories(apiCategories);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load catalog');
-      setProducts(FALLBACK_PRODUCTS);
     } finally {
       setLoading(false);
     }

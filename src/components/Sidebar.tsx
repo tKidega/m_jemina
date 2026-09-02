@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, IconName } from './Icon';
 import { RouteName, TabName, useNavigation } from '../navigation/NavigationContext';
@@ -8,11 +8,14 @@ import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
 
+const SITE_BASE = 'https://jemi-na.com';
+
 interface SidebarLink {
   label: string;
   icon: IconName;
   route?: RouteName;
   tab?: TabName;
+  href?: string;
 }
 
 const SHOP_LINKS: SidebarLink[] = [
@@ -35,14 +38,14 @@ const ACCOUNT_LINKS: SidebarLink[] = [
 ];
 
 const COMPANY_LINKS: SidebarLink[] = [
-  { label: 'About Us', icon: 'info', route: 'About' },
-  { label: 'Services', icon: 'business-center', route: 'Services' },
+  { label: 'About Us', icon: 'info', href: `${SITE_BASE}/about` },
+  { label: 'Services', icon: 'business-center', href: `${SITE_BASE}/services` },
   { label: 'Contact Us', icon: 'mail', route: 'Contact' },
 ];
 
 const LEGAL_LINKS: SidebarLink[] = [
-  { label: 'Terms of Service', icon: 'description', route: 'TermsOfService' },
-  { label: 'Privacy Policy', icon: 'verified-user', route: 'PrivacyPolicy' },
+  { label: 'Terms of Service', icon: 'description', href: `${SITE_BASE}/terms-of-service` },
+  { label: 'Privacy Policy', icon: 'verified-user', href: `${SITE_BASE}/privacy-policy` },
 ];
 
 const MY_ACCOUNT_SECTION = { title: 'My Account', links: MY_ACCOUNT_LINKS };
@@ -84,6 +87,11 @@ export function Sidebar() {
   }, [sidebarOpen, translateX, backdropOpacity]);
 
   const handlePress = (link: SidebarLink) => {
+    if (link.href) {
+      closeSidebar();
+      Linking.openURL(link.href).catch(() => {});
+      return;
+    }
     if (link.tab) {
       navigateFromSidebar(link.route ?? 'Home', link.tab);
     } else if (link.route) {
