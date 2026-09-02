@@ -573,7 +573,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginHorizontal: spacing.lg,
-    marginTop: spacing.xs,
+    marginTop: spacing.md,
     backgroundColor: colors.white,
     borderRadius: radius.xl,
     borderWidth: 1,
@@ -618,7 +618,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
   },
   section: {
-    marginTop: spacing.xl,
+    marginTop: spacing.md,
     paddingHorizontal: spacing.lg,
   },
   searchBar: {

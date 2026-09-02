@@ -1,12 +1,12 @@
 export const images = {
   heroBanner: 'https://jemi-na.com/frontend/img/jemina/banner/default.png',
   heroBanners: [
-    'https://jemi-na.com/frontend/img/jemina/app/app_banner_1.png?v=2',
-    'https://jemi-na.com/frontend/img/jemina/app/app_banner_2.png?v=2',
-    'https://jemi-na.com/frontend/img/jemina/app/app_banner_3.png?v=2',
-    'https://jemi-na.com/frontend/img/jemina/app/app_banner_4.png?v=2',
-    'https://jemi-na.com/frontend/img/jemina/app/app_banner_5.png?v=2',
-    'https://jemi-na.com/frontend/img/jemina/app/app_banner_6.png?v=2',
+    'https://jemi-na.com/frontend/img/jemina/app/app_banner_1.png?v=3',
+    'https://jemi-na.com/frontend/img/jemina/app/app_banner_2.png?v=3',
+    'https://jemi-na.com/frontend/img/jemina/app/app_banner_3.png?v=3',
+    'https://jemi-na.com/frontend/img/jemina/app/app_banner_4.png?v=3',
+    'https://jemi-na.com/frontend/img/jemina/app/app_banner_5.png?v=3',
+    'https://jemi-na.com/frontend/img/jemina/app/app_banner_6.png?v=3',
   ],
   laptop:
     'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=600&h=600&fit=crop&q=70&auto=format',
