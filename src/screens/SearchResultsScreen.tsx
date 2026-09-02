@@ -1,14 +1,21 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { AppHeader } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
-import { ProductCard } from '../components/ProductCard';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useCart } from '../state/CartContext';
 import { apiSearchProducts, apiProductToProduct, ApiProduct } from '../data/api';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { spacing } from '../theme/spacing';
+import { spacing, radius } from '../theme/spacing';
 
 export function SearchResultsScreen() {
   const { params, goBack, navigate } = useNavigation();
@@ -42,12 +49,55 @@ export function SearchResultsScreen() {
   const renderItem = ({ item }: { item: ApiProduct }) => {
     const product = apiProductToProduct(item);
     return (
-      <ProductCard
-        product={product}
-        onPress={() => navigate('ProductDetails', { product })}
-        onAddToCart={() => addItem(product)}
-        imageHeight={140}
-      />
+      <View style={styles.row}>
+        <Pressable
+          style={({ pressed }) => [styles.main, pressed && styles.pressed]}
+          onPress={() => navigate('ProductDetails', { product })}
+        >
+          <View style={styles.thumb}>
+            {product.image ? (
+              <Image source={{ uri: product.image }} style={styles.thumbImage} resizeMode="cover" />
+            ) : (
+              <View style={[styles.thumbImage, styles.thumbPlaceholder]}>
+                <Icon name="store" size={22} color={colors.outlineVariant} />
+              </View>
+            )}
+            {product.discount ? (
+              <View style={styles.discountBadge}>
+                <Text style={styles.discountText}>{product.discount}</Text>
+              </View>
+            ) : null}
+          </View>
+          <View style={styles.body}>
+            <Text style={styles.title} numberOfLines={2}>
+              {product.title}
+            </Text>
+            <View style={styles.priceRow}>
+              <Text style={styles.price}>{product.price}</Text>
+              {product.originalPrice ? (
+                <Text style={styles.originalPrice}>{product.originalPrice}</Text>
+              ) : null}
+            </View>
+            <View style={styles.meta}>
+              <Icon name="star" size={13} color={colors.secondary} />
+              <Text style={styles.metaText}>
+                {product.rating !== undefined ? product.rating.toFixed(1) : '—'}
+              </Text>
+              {product.category ? (
+                <>
+                  <Text style={styles.metaDot}>·</Text>
+                  <Text style={styles.metaText} numberOfLines={1}>
+                    {product.category}
+                  </Text>
+                </>
+              ) : null}
+            </View>
+          </View>
+        </Pressable>
+        <Pressable style={styles.addBtn} onPress={() => addItem(product)}>
+          <Icon name="add-shopping-cart" size={18} color={colors.primary} />
+        </Pressable>
+      </View>
     );
   };
 
@@ -80,10 +130,11 @@ export function SearchResultsScreen() {
           data={products}
           keyExtractor={item => String(item.id)}
           renderItem={renderItem}
-          numColumns={2}
           contentContainerStyle={styles.list}
-          columnWrapperStyle={styles.column}
           showsVerticalScrollIndicator={false}
+          initialNumToRender={14}
+          maxToRenderPerBatch={14}
+          windowSize={7}
           ListHeaderComponent={
             <Text style={styles.resultCount}>
               {products.length} {products.length === 1 ? 'result' : 'results'} found
@@ -132,12 +183,113 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     paddingBottom: spacing.xxl,
   },
-  column: {
-    gap: spacing.md,
-  },
   resultCount: {
     ...typography.labelMd,
     color: colors.onSurfaceVariant,
     marginBottom: spacing.md,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.lg,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  pressed: {
+    opacity: 0.85,
+  },
+  main: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  thumb: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainerHigh,
+    overflow: 'hidden',
+  },
+  thumbImage: {
+    width: '100%',
+    height: '100%',
+  },
+  thumbPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  discountBadge: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    backgroundColor: colors.statusFlash,
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  discountText: {
+    ...typography.labelSm,
+    color: colors.white,
+    fontWeight: '700',
+    fontSize: 9,
+    textTransform: 'uppercase',
+  },
+  body: {
+    flex: 1,
+    minWidth: 0,
+  },
+  title: {
+    ...typography.labelMd,
+    color: colors.onSurface,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    flexWrap: 'wrap',
+    marginTop: 2,
+    gap: 6,
+  },
+  price: {
+    ...typography.headlineMd,
+    color: colors.secondary,
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  originalPrice: {
+    ...typography.labelSm,
+    color: colors.outline,
+    textDecorationLine: 'line-through',
+  },
+  meta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 3,
+  },
+  metaText: {
+    ...typography.labelSm,
+    color: colors.onSurfaceVariant,
+    flexShrink: 1,
+  },
+  metaDot: {
+    color: colors.outlineVariant,
+    marginHorizontal: 2,
+  },
+  addBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceContainerLowest,
   },
 });

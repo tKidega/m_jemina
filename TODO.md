@@ -36,6 +36,9 @@ Legend: `[x]` done · `[ ]` pending.
 - [x] Product-carousel dots removed on Home; hero dots visibility + image fit fixed
 - [x] Deep-link product search (`GET /api/v1/products/search`) — `SearchResultsScreen`, Marketplace search bar
 - [x] Vendor storefront from vendor tap (`VendorProfileScreen` loads live data via `GET /api/v1/vendors/{id}`; Marketplace/ProductDetails wire vendor nav)
+- [x] **Home restructure (2026-09-02)**: search bar pinned to top of Home (above hero); trust badges moved below Featured Stores + redesigned as flat cards with icon chips; hero = manual swipe (no dots/autoplay); category carousel no-autoplay; all product carousels `loop` + `autoPlay` + `autoPlayInterval={10000}`
+- [x] **Browse Collections reworked with custom icons (2026-09-02)**: "Home & Living" added (icon `'home'`), "Auto & Machinery" removed
+- [x] **SearchResultsScreen rewritten to dense single-column thumbnail list (2026-09-02)**: 64x64 thumb, 2-line title, price + strikethrough compare, rating + star, 36px circular add button, "N results found" header, empty-state "No results found"
 
 ## JEMINA Credits — remaining
 
@@ -58,5 +61,6 @@ Legend: `[x]` done · `[ ]` pending.
 ## Housekeeping
 
 - [x] `tsc --noEmit`, `eslint`, `jest` green
+- [x] Release APK rebuilt + installed on phone `0794415254003308` + emulator `emulator-5554` (2026-09-02) — `app-release.apk` at `D:\mApps\m_jemina\app-release.apk`; Home layout + search flow verified on-device via uiautomator dumps
 - [ ] Verify checkout/order/cart flows against live API on device (emulator) after release config
 - [ ] Update `docs/DESIGN.md` endpoint map with orders/credits/payments + vendors/search

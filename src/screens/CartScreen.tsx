@@ -85,15 +85,15 @@ export function CartScreen() {
                       <Text style={styles.itemPrice}>{formatUGX(item.product.priceValue * item.quantity)}</Text>
                       <View style={styles.itemActions}>
                         <View style={styles.qtyStepper}>
-                          <Pressable style={styles.qtyBtn} onPress={() => updateQuantity(item.product.id, item.quantity - 1)} hitSlop={4}>
-                            <Icon name="remove" size={16} color={colors.primary} />
+                          <Pressable style={styles.qtyBtn} onPress={() => updateQuantity(item.product.id, item.quantity - 1)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Decrease quantity of ${item.product.title}`}>
+                            <Icon name="remove" size={18} color={colors.primary} />
                           </Pressable>
                           <Text style={styles.qtyText}>{item.quantity}</Text>
-                          <Pressable style={styles.qtyBtn} onPress={() => updateQuantity(item.product.id, item.quantity + 1)} hitSlop={4}>
-                            <Icon name="add" size={16} color={colors.primary} />
+                          <Pressable style={styles.qtyBtn} onPress={() => updateQuantity(item.product.id, item.quantity + 1)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Increase quantity of ${item.product.title}`}>
+                            <Icon name="add" size={18} color={colors.primary} />
                           </Pressable>
                         </View>
-                        <Pressable style={styles.removeBtn} onPress={() => removeItem(item.product.id)} hitSlop={4}>
+                        <Pressable style={styles.removeBtn} onPress={() => removeItem(item.product.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Remove ${item.product.title} from cart`}>
                           <Icon name="delete-outline" size={20} color={colors.outline} />
                         </Pressable>
                       </View>
@@ -247,12 +247,12 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   qtyBtn: {
-    width: 22,
-    height: 22,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceContainer,
-    borderRadius: 11,
+    borderRadius: 18,
   },
   qtyText: {
     ...typography.labelMd,

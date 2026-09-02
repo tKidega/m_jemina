@@ -30,38 +30,10 @@ import { FLASH_SALE_PRODUCTS, FEATURED_PRODUCTS, TOP_RATED_PRODUCTS } from '../d
 import type { Product } from '../components/ProductCard';
 import type { IconName } from '../components/Icon';
 
-const HERO_SLIDES: HeroSlide[] = [
-  {
-    id: 'hero-1',
-    image: images.heroBannerElectronics,
-    title: 'Electronics & Accessories',
-    subtitle: 'Discover quality electronics, phones, and accessories at great prices.',
-  },
-  {
-    id: 'hero-2',
-    image: images.heroBannerHomeKitchen,
-    title: 'Home & Kitchen',
-    subtitle: 'Everything for your home and kitchen, sourced from trusted vendors.',
-  },
-  {
-    id: 'hero-3',
-    image: images.heroBannerPackagedFoods,
-    title: 'Packaged Foods',
-    subtitle: 'Fresh and packaged foods delivered to your doorstep.',
-  },
-  {
-    id: 'hero-4',
-    image: images.heroBannerServices,
-    title: 'Professional Services',
-    subtitle: 'Corporate-ready solutions tailored to your business needs.',
-  },
-  {
-    id: 'hero-5',
-    image: images.heroBannerComputers,
-    title: 'Computers & Laptops',
-    subtitle: 'Powerful computers and laptops for work, study, and play.',
-  },
-];
+const HERO_SLIDES: HeroSlide[] = images.heroBanners.map((image, i) => ({
+  id: `hero-${i + 1}`,
+  image,
+}));
 
 const TRUST_INDICATORS = [
   { icon: 'local-shipping' as const, title: 'Shipping', subtitle: 'Flexible Transport' },
@@ -75,7 +47,7 @@ const CATEGORIES: { key: string; label: string; icon: IconName; match: RegExp }[
   { key: 'fashion', label: 'Fashion', icon: 'checkroom', match: /fashion|design|clothing|footwear|shoes/i },
   { key: 'construction', label: 'Construction', icon: 'construction', match: /construction|engineering|building|tool|hardware/i },
   { key: 'agric', label: 'Agric', icon: 'agriculture', match: /agric|produce|farm|seed|fertilizer/i },
-  { key: 'auto', label: 'Auto & Machinery', icon: 'directions-car', match: /auto|machinery|vehicle|car|motorcycle|engine/i },
+  { key: 'home-living', label: 'Home & Living', icon: 'home', match: /home|living|kitchen|furniture|furnishing|interior|decor|bedroom|living room/i },
   { key: 'food', label: 'Food & Edibles', icon: 'restaurant', match: /food|edibles|cooking|ingredient|beverage|drink|snack|oil|honey/i },
   { key: 'service', label: 'Service Delivery', icon: 'handshake', match: /service|delivery|professional|beauty|wellness|consult/i },
   { key: 'art', label: 'Art & Culture', icon: 'palette', match: /art|culture|craft|handmade|music|painting|book/i },
@@ -265,19 +237,19 @@ export function HomeScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
         }
       >
+        {/* Search */}
+        <View style={styles.searchSection}>
+          <Pressable style={styles.searchBar} onPress={() => navigate('Search')}>
+            <Icon name="search" size={20} color={colors.outline} />
+            <Text style={styles.searchInput}>Search products by name...</Text>
+            <View style={styles.searchBtn}>
+              <Text style={styles.searchBtnText}>Search</Text>
+            </View>
+          </Pressable>
+        </View>
+
         {/* Hero carousel */}
         <HeroCarousel slides={HERO_SLIDES} />
-
-        {/* Trust indicators */}
-        <View style={styles.trustCard}>
-          {TRUST_INDICATORS.map((t, i) => (
-            <View key={t.title} style={[styles.trustItem, (i === 0 || i === 2) && styles.trustBorderRight, i < 2 && styles.trustBorderBottom]}>
-              <Icon name={t.icon} size={22} color={colors.secondary} />
-              <Text style={styles.trustTitle}>{t.title}</Text>
-              <Text style={styles.trustSubtitle}>{t.subtitle}</Text>
-            </View>
-          ))}
-        </View>
 
         {/* Browse collections */}
         <View style={styles.section}>
@@ -325,17 +297,6 @@ export function HomeScreen() {
           </View>
         ) : null}
 
-        {/* Search */}
-        <View style={styles.section}>
-          <Pressable style={styles.searchBar} onPress={() => navigate('Search')}>
-            <Icon name="search" size={20} color={colors.outline} />
-            <Text style={styles.searchInput}>Search products by name...</Text>
-            <View style={styles.searchBtn}>
-              <Text style={styles.searchBtnText}>Search</Text>
-            </View>
-          </Pressable>
-        </View>
-
         {/* Smart picks */}
         <View style={styles.section}>
           <SectionHeader
@@ -381,6 +342,9 @@ export function HomeScreen() {
             imageHeight={130}
             compact
             showDots={false}
+            autoPlay
+            loop
+            autoPlayInterval={10000}
             onPress={p => navigate('ProductDetails', { product: p })}
               onAddToCart={p => addItem(p)}
           />
@@ -491,6 +455,19 @@ export function HomeScreen() {
           </ScrollView>
         </View>
 
+        {/* Trust indicators */}
+        <View style={styles.trustCard}>
+          {TRUST_INDICATORS.map((t, i) => (
+            <View key={t.title} style={[styles.trustItem, (i === 0 || i === 2) && styles.trustBorderRight, i < 2 && styles.trustBorderBottom]}>
+              <View style={styles.trustIcon}>
+                <Icon name={t.icon} size={20} color={colors.secondary} />
+              </View>
+              <Text style={styles.trustTitle}>{t.title}</Text>
+              <Text style={styles.trustSubtitle}>{t.subtitle}</Text>
+            </View>
+          ))}
+        </View>
+
         {/* Flash & Deals */}
         <View style={styles.section}>
           <SectionHeader
@@ -508,7 +485,9 @@ export function HomeScreen() {
               cardWidth={flashCardWidth}
               imageHeight={140}
               showDots={false}
-              autoPlay={false}
+              autoPlay
+              loop
+              autoPlayInterval={10000}
               onPress={p => navigate('ProductDetails', { product: p })}
               onAddToCart={p => addItem(p)}
               renderItem={product => (
@@ -557,6 +536,9 @@ export function HomeScreen() {
               cardWidth={productCardWidth}
               imageHeight={150}
               showDots={false}
+              autoPlay
+              loop
+              autoPlayInterval={10000}
               onPress={p => navigate('ProductDetails', { product: p })}
             onAddToCart={p => addItem(p)}
             />
@@ -600,24 +582,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginHorizontal: spacing.lg,
-    marginTop: -28,
-    backgroundColor: colors.surfaceContainerLowest,
+    marginTop: spacing.xs,
+    backgroundColor: colors.white,
     borderRadius: radius.xl,
     borderWidth: 1,
     borderColor: colors.borderLight,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
     padding: spacing.sm,
-    zIndex: 3,
   },
   trustItem: {
     width: '50%',
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.md,
+  },
+  trustIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surfaceContainerHigh,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xs,
   },
   trustBorderRight: {
     borderRightWidth: 1,
@@ -631,12 +616,15 @@ const styles = StyleSheet.create({
     ...typography.labelMd,
     color: colors.onSurface,
     fontWeight: '700',
-    marginTop: 4,
   },
   trustSubtitle: {
     ...typography.labelSm,
     color: colors.onSurfaceVariant,
     marginTop: 1,
+  },
+  searchSection: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
   },
   section: {
     marginTop: spacing.xl,

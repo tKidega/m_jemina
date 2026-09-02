@@ -22,7 +22,7 @@ interface CategoryCarouselProps {
 export function CategoryCarousel({
   categories,
   onPress,
-  autoPlay = true,
+  autoPlay = false,
   autoPlayInterval = 4000,
 }: CategoryCarouselProps) {
   const { width } = useWindowDimensions();
@@ -51,12 +51,6 @@ export function CategoryCarousel({
     return null;
   }
 
-  const goToPage = (page: number) => {
-    const target = ((page % pageCount) + pageCount) % pageCount;
-    pageRef.current = target;
-    scrollRef.current?.scrollTo({ x: target * perView * step, animated: true });
-  };
-
   return (
     <View>
       <ScrollView
@@ -67,7 +61,7 @@ export function CategoryCarousel({
         decelerationRate="fast"
         contentContainerStyle={styles.content}
       >
-        {categories.map((cat, i) => (
+        {categories.map((cat) => (
           <Pressable key={cat.key} style={styles.tile} onPress={() => onPress?.(cat)}>
             <View style={styles.circle}>
               <Icon name={cat.icon} size={26} color={cat.color ?? colors.secondary} />

@@ -23,11 +23,11 @@ export function AppHeader({ title = 'JEMINA', showBack, onBack, onMenu, right, s
 		<View style={[styles.container, style]}>
 			<View style={styles.left}>
 				{showBack ? (
-					<Pressable style={styles.iconBtn} onPress={onBack} hitSlop={8}>
+					<Pressable style={styles.iconBtn} onPress={onBack} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
 						<Icon name="chevron-right" size={28} color={colors.onPrimary} style={styles.backIcon} />
 					</Pressable>
 				) : (
-					<Pressable style={styles.iconBtn} onPress={handleMenu} hitSlop={8}>
+					<Pressable style={styles.iconBtn} onPress={handleMenu} hitSlop={8} accessibilityRole="button" accessibilityLabel="Open menu">
 						<Icon name="menu" size={26} color={colors.onPrimary} />
 					</Pressable>
 				)}
@@ -40,7 +40,7 @@ export function AppHeader({ title = 'JEMINA', showBack, onBack, onMenu, right, s
 
 export function HeaderNotificationButton({ hasBadge = false, onPress }: { hasBadge?: boolean; onPress?: () => void }) {
 	return (
-		<Pressable style={styles.iconBtn} onPress={onPress} hitSlop={8}>
+		<Pressable style={styles.iconBtn} onPress={onPress} hitSlop={8} accessibilityRole="button" accessibilityLabel="Notifications">
 			<Icon name="notifications" size={26} color={colors.onPrimary} />
 			{hasBadge && <View style={styles.notifBadge} />}
 		</Pressable>
@@ -49,7 +49,7 @@ export function HeaderNotificationButton({ hasBadge = false, onPress }: { hasBad
 
 export function HeaderCartButton({ count = 0, onPress }: { count?: number; onPress?: () => void }) {
 	return (
-		<Pressable style={styles.iconBtn} onPress={onPress} hitSlop={8}>
+		<Pressable style={styles.iconBtn} onPress={onPress} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Cart, ${count} items`}>
 			<Icon name="shopping-cart" size={26} color={colors.onPrimary} />
 			{count > 0 && (
 				<View style={styles.cartBadge}>
@@ -62,7 +62,7 @@ export function HeaderCartButton({ count = 0, onPress }: { count?: number; onPre
 
 export function HeaderSearchButton({ onPress }: { onPress?: () => void }) {
 	return (
-		<Pressable style={styles.iconBtn} onPress={onPress} hitSlop={8}>
+		<Pressable style={styles.iconBtn} onPress={onPress} hitSlop={8} accessibilityRole="button" accessibilityLabel="Search">
 			<Icon name="search" size={26} color={colors.onPrimary} />
 		</Pressable>
 	);
@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
 		gap: spacing.md,
 	},
 	iconBtn: {
-		padding: 4,
+		padding: 9,
 		borderRadius: 4,
 		position: 'relative',
 	},

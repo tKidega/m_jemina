@@ -8,8 +8,9 @@ what the live server looks like, and the current state.
 Wire the app to the live Jemi-na Sanctum API (`https://jemi-na.com/api/v1`) with graceful
 demo fallback, then complete the full app → PlayStore roadmap so the app is "fully
 functional like the website" (login → cart → checkout/orders → JEMINA credits).
-**Current focus:** marketplace cart/checkout overhaul (vendor grouping, delivery fees, coupons),
-profile settings, and PlayStore release.
+**Current focus:** Home/browse UI polish (2026-09-02: search bar top, trust badges below Featured
+Stores, "Home & Living" category, dense search results — done + verified on-device), then marketplace
+cart/checkout overhaul (vendor grouping, delivery fees, coupons), profile settings, and PlayStore release.
 
 ## Live test accounts
 
@@ -104,6 +105,14 @@ Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes 
   platform fee 1500, voucher fields sent with order creation.
 - `src/screens/MarketplaceScreen.tsx` — **Featured Stores from live `apiGetVendors()`** (falls back
   to DEFAULT_STORES if API fails). Search bar triggers `SearchResults`.
+- `src/screens/HomeScreen.tsx` — **restructured (2026-09-02)**: search bar section pinned at top
+  (`searchSection` style) above the hero; Browse Collections uses custom `CATEGORIES` (added
+  "Home & Living" w/ icon `'home'`, removed "Auto & Machinery"); Featured Stores → trust badges
+  (flat cards w/ icon chips: Shipping, Secure Payments, etc.) → Flash & Deals. Hero = manual swipe
+  (no dots/autoplay); ProductCarousel everywhere = `loop` + `autoPlay` + `autoPlayInterval={10000}`.
+- `src/screens/SearchResultsScreen.tsx` — **rewritten to dense single-column thumbnail list
+  (2026-09-02)**: 64x64 thumb, 2-line title, price + strikethrough compare, rating + star,
+  36px circular add button, "{N} results found" header, empty state.
 - `src/screens/ProfileScreen.tsx` — **shows default address card** (auto-fetched from server),
   JEMINA credits balance, menu items (Orders/Wishlist/Reviews/Settings).
 - `src/screens/PaymentScreen.tsx` — gateway handoff: calls `apiInitiatePayment` (maps `mtn` →
@@ -115,7 +124,6 @@ Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes 
 - `src/screens/MyReviewsScreen.tsx` — auth-gated, lists reviews.
 - `src/screens/CreditHistoryScreen.tsx` — auth-gated, balance card + transaction list.
 - `src/screens/BuyCreditsScreen.tsx` — amount presets, gateway select, payment link, poll.
-- `src/screens/SearchResultsScreen.tsx` — live search, 2-col grid.
 - `src/screens/ProductDetailsScreen.tsx` — wishlist heart, review form, vendor row → VendorProfile.
 - `src/screens/VendorProfileScreen.tsx` — loads live vendor via `GET /vendors/{id}`.
 - Navigation: routes added to `NavigationContext` + `App.tsx` router; `navigate`/`switchTab` close sidebar.
@@ -159,6 +167,28 @@ Note: gateway init on the live server currently fails gracefully — VPS `.env` 
 Flutterwave keys and Bitcoin is unimplemented server-side, so `initiate` returns
 "Payment gateway is not available"/"not fully implemented". App shows the error + Retry + Orders.
 
+### Verified on device (2026-09-02 — Home/browse UI polish)
+
+Model cannot view screenshots, so on-device checks used `uiautomator dump` + regex on
+`emulator-5554` (~1080x2274). Confirmed:
+- Home order: search bar pinned top (bounds `[42,239][1038,360]`), hero below it (y392), then
+  Browse Collections, Featured Stores, trust badge cards (Shipping/Secure), Flash & Deals.
+- Browse Collections: "Home & Living" present (`content-desc="?, Home &amp; Living"`), "Auto &
+  Machinery" absent.
+- Search flow: Home tap search bar → Search screen (Recent Searches + EditText); typed "solar" +
+  enter → header `Results for "solar"` + one dense thumbnail row (thumb ImageView, title
+  "Dlight Solar Lantern-Reading Light S30", UGX 45,000, rating 0.0, category IT & Technology);
+  query "phone" → correct "No results found" empty state.
+- **Live catalog has exactly 1 product total** (`/api/v1/products?per_page=50` total=1;
+  `/products/search?q=` returns total=1 only for solar/light/lamp/lantern, 0 otherwise) — dense
+  multi-row grid could NOT be demonstrated with real data; verified structurally only.
+- Gotchas: RN app does not intercept Android back (`input keyevent 4` exits to launcher; use
+  on-screen back); Android restores task ScrollView scroll position on relaunch, so dumps showing
+  "Account"/"Product detail" were Home scrolled to footer/Featured banner. `NavigationContext` has
+  no persistence (starts `{tab:'Home',route:'Home'}`).
+- Build ~1m9s; APK at `D:\mApps\m_jemina\app-release.apk`; installed on phone `0794415254003308`
+  + emulator `emulator-5554`.
+
 ## Repo checks
 
 `npx tsc --noEmit`, `npx eslint src App.tsx` — both green. `npx jest` not run this session.
@@ -168,6 +198,8 @@ Flutterwave keys and Bitcoin is unimplemented server-side, so `initiate` returns
 **Completed (this session):** Login fix, Featured Stores from live vendors, vendor-grouped cart with
 delivery fees, checkout overhaul (vendor grouping + delivery fees + coupon redemption + compact UI),
 server-side Address/Voucher APIs, Profile default address card, APK rebuilt + installed on 2 devices.
+**UI polish (2026-09-02):** Home restructure (search bar top, trust badges below Featured Stores,
+Home & Living category), SearchResultsScreen dense thumbnail list, build + on-device verify.
 
 **Remaining / next when user returns:**
 - PlayStore release config (keystore, versionCode, AAB, listing, privacy policy).

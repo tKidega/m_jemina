@@ -138,10 +138,10 @@ export function ProductCard({ product, onPress, onAddToCart, onInquiry, imageHei
           </Pressable>
         ) : (
           <View style={styles.actionRow}>
-            <Pressable style={styles.addToCartBtn} onPress={onAddToCart}>
+            <Pressable style={styles.addToCartBtn} onPress={onAddToCart} accessibilityRole="button" accessibilityLabel={`Add ${title} to cart`}>
               <Text style={styles.addToCartText}>{actionLabel ?? 'Add to Cart'}</Text>
             </Pressable>
-            <Pressable style={styles.favBtn} onPress={onAddToCart}>
+            <Pressable style={styles.favBtn} onPress={onAddToCart} accessibilityRole="button" accessibilityLabel={`Add ${title} to cart`}>
               <Icon name="favorite-border" size={18} color={colors.primary} />
             </Pressable>
           </View>
@@ -276,11 +276,13 @@ const styles = StyleSheet.create({
   },
   addToCartBtn: {
     flex: 1,
+    minHeight: 44,
     borderWidth: 1,
     borderColor: colors.primary,
     borderRadius: 6,
     paddingVertical: 8,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   addToCartText: {
     ...typography.labelMd,
@@ -288,7 +290,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   favBtn: {
-    width: 36,
+    width: 44,
+    alignSelf: 'stretch',
+    minHeight: 44,
     backgroundColor: colors.surfaceContainer,
     borderRadius: 6,
     alignItems: 'center',

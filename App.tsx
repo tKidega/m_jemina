@@ -1,5 +1,5 @@
-import React from 'react';
-import { StatusBar } from 'react-native';
+import React, { useEffect } from 'react';
+import { BackHandler, StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationProvider, useNavigation } from './src/navigation/NavigationContext';
 import { CartProvider } from './src/state/CartContext';
@@ -137,6 +137,23 @@ function Router() {
   return <HomeScreen />;
 }
 
+function HardwareBackButton() {
+  const { canGoBack, goBack } = useNavigation();
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (canGoBack) {
+        goBack();
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [canGoBack, goBack]);
+
+  return null;
+}
+
 function App() {
   return (
     <SafeAreaProvider>
@@ -145,6 +162,7 @@ function App() {
         <CartProvider>
           <CatalogProvider>
             <NavigationProvider>
+              <HardwareBackButton />
               <Router />
               <Sidebar />
             </NavigationProvider>

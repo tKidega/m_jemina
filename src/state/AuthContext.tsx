@@ -26,44 +26,20 @@ interface AuthContextValue {  user: User | null;
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export const MOCK_CUSTOMER_PASSWORD = 'customer@420';
+export const MOCK_CUSTOMER_PASSWORD = 'demo@420';
 
 export const SEEDED_CUSTOMERS: User[] = [
   {
-    id: '3',
-    name: 'Kidega Timothy Labeja',
-    email: 'bits.bytes.loko@gmail.com',
-    phone: '+256765368345',
-    role: 'customer',
-    createdAt: '2026-07-15T00:48:26Z',
-  },
-  {
-    id: '5',
+    id: 'demo-1',
     name: 'Demo Account',
-    email: 'user@email.com',
-    phone: '+256765368348',
+    email: 'demo@jemina.com',
+    phone: '+256700000000',
     role: 'customer',
-    createdAt: '2026-07-15T21:34:05Z',
-  },
-  {
-    id: '6',
-    name: 'Ouma Nobert',
-    email: 'oumanobert934@gmail.com',
-    phone: '0764003659',
-    role: 'customer',
-    createdAt: '2026-07-16T12:27:57Z',
-  },
-  {
-    id: '7',
-    name: 'TEBERE SIMON PETER KERI',
-    email: 'spktebere@gmail.com',
-    phone: '0772212049',
-    role: 'customer',
-    createdAt: '2026-07-17T01:53:28Z',
+    createdAt: '2026-01-01T00:00:00Z',
   },
 ];
 
-export const DEMO_USER: User = SEEDED_CUSTOMERS[1];
+export const DEMO_USER: User = SEEDED_CUSTOMERS[0];
 
 const registeredUsers = new Map<string, User>(SEEDED_CUSTOMERS.map(u => [u.email, u]));
 
