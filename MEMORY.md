@@ -8,9 +8,9 @@ what the live server looks like, and the current state.
 Wire the app to the live Jemi-na Sanctum API (`https://jemi-na.com/api/v1`) with graceful
 demo fallback, then complete the full app → PlayStore roadmap so the app is "fully
 functional like the website" (login → cart → checkout/orders → JEMINA credits).
-**Current focus:** Home/browse UI polish (2026-09-02: search bar top, trust badges below Featured
-Stores, "Home & Living" category, dense search results — done + verified on-device), then marketplace
-cart/checkout overhaul (vendor grouping, delivery fees, coupons), profile settings, and PlayStore release.
+**Current focus (2026-09-06):** Website parity gaps — admin-managed promo banner on Home, homepage
+product dedupe, survey reward copy alignment, vendor subscription visibility audit. Followed by
+PlayStore release config (keystore, AAB, listing).
 
 ## Live test accounts
 
@@ -35,8 +35,8 @@ cart/checkout overhaul (vendor grouping, delivery fees, coupons), profile settin
   (`RewriteCond %{HTTP:Authorization} .` / `RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]`);
   without it every Sanctum-protected route 401s.
 - Login requires `device_name` (`m_jemina_app`).
-- Register returns `name: null` (server reads `first_name`, writes `name`) — real server bug;
-  app falls back to "JEMINA Customer".
+- Register now uses `$request->name` directly (first_name bug fixed server-side); returns user name correctly.
+  **No signup bonus awarded** — `fb22f1c` removed credit rewards from registration entirely.
 - `POST /api/v1/orders` previously 500'd: `ApiOrderController` wrote columns that don't exist
   (`orders.shipping_amount`, `orders.tax_amount`, `order_items.unit_price`, `order_items.product_name`).
   Real schema: orders use `subtotal`, `shipping_cost`, `transaction_fee`, `total_amount`; order_items
@@ -54,8 +54,9 @@ cart/checkout overhaul (vendor grouping, delivery fees, coupons), profile settin
    order number `ORD-YYYYMMDD-XXXXX`. **Also accepts `voucher_id`, `voucher_code`,
    `discount_amount` optional fields.**
 2. `app/Http/Controllers/Api/ApiCreditController.php` — NEW: `balance`, `history`.
-3. `app/Http/Controllers/Api/ApiAuthController.php` — register now awards the signup bonus
-   (`config('credit.signup_bonus')`, default 1,000,000) via `UserCredit::getOrCreateForUser`.
+3. `app/Http/Controllers/Api/ApiAuthController.php` — register **originally** awarded signup bonus
+   (`config('credit.signup_bonus')`, default 1,000,000). **Removed in `fb22f1c`** — current
+   register returns no credit; also customer-role-only gate (403 for privileged roles).
 4. `routes/api.php` — added protected `GET /credits/balance`, `GET /credits/history`.
 5. `app/Http/Controllers/Api/ApiVendorController.php` — NEW: `GET /api/v1/vendors` (index:
    active vendors + businessCard + `product_count`) and `GET /api/v1/vendors/{id}` (show:
@@ -114,7 +115,15 @@ Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes 
   (2026-09-02)**: 64x64 thumb, 2-line title, price + strikethrough compare, rating + star,
   36px circular add button, "{N} results found" header, empty state.
 - `src/screens/ProfileScreen.tsx` — **shows default address card** (auto-fetched from server),
-  JEMINA credits balance, menu items (Orders/Wishlist/Reviews/Settings).
+  JEMINA credits balance, menu items (Orders/Wishlist/Reviews/Surveys/Settings).
+  Profile menu "Surveys" entry links to `SurveysScreen` ("Earn credits with feedback").
+- `src/screens/SurveysScreen.tsx` — loads surveys via `GET /api/v1/surveys`, opens detail via
+  `GET /surveys/{id}`, submits via `POST /surveys/{id}/submit`. **Server returns
+  `credit_awarded: 0`** (rewards disabled `fb22f1c`); app shows fallback "Thank you for
+  your feedback!" toast. Survey cards still display `credit_reward` field from API.
+- `src/screens/VendorActionsScreen.tsx` — vendor journey gating: user survey must complete
+  before vendor survey; vendor registration form. Entry from `SurveysScreen` completion
+  and sidebar.
 - `src/screens/PaymentScreen.tsx` — gateway handoff: calls `apiInitiatePayment` (maps `mtn` →
   `mtn_mobile_money`), shows reference + payment link (opens via `Linking`), polls
   `GET /payments/{transactionId}/status` every 5s; `Retry` + `Go to My Orders` actions.
@@ -137,6 +146,7 @@ Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes 
 ## Verified against live API (2026-08-03)
 
 - Register (user 10) → 201 + 1,000,000 signup credits in `credits/balance` + `signup_bonus` history row.
+  **(Pre-`fb22f1c` — bonus removed from server; no longer issued on register.)**
 - `POST /api/v1/orders` (user 9, product 51 ×2, `payment_method=mtn`) → 201 order `ORD-20260803-AJ6DE`,
   subtotal 90000, delivery 10, fee 1500, total 91510; list + detail endpoints return it.
 - `POST /api/v1/orders` (user 10, `payment_method=credit`) → order `ORD-20260803-LL4O6` status
@@ -184,8 +194,8 @@ Model cannot view screenshots, so on-device checks used `uiautomator dump` + reg
   multi-row grid could NOT be demonstrated with real data; verified structurally only.
 - Gotchas: RN app does not intercept Android back (`input keyevent 4` exits to launcher; use
   on-screen back); Android restores task ScrollView scroll position on relaunch, so dumps showing
-  "Account"/"Product detail" were Home scrolled to footer/Featured banner. `NavigationContext` has
-  no persistence (starts `{tab:'Home',route:'Home'}`).
+  "Account"/"Product detail" were Home scrolled to footer/Featured banner.
+  `src/navigation/NavigationContext.tsx` has no persistence (starts `{tab:'Home',route:'Home'}`).
 - Build ~1m9s; APK at `D:\mApps\m_jemina\app-release.apk`; installed on phone `0794415254003308`
   + emulator `emulator-5554`.
 
@@ -193,16 +203,43 @@ Model cannot view screenshots, so on-device checks used `uiautomator dump` + reg
 
 `npx tsc --noEmit`, `npx eslint src App.tsx` — both green. `npx jest` not run this session.
 
+## Website parity audit (2026-09-06)
+
+Read against web repo HEAD `f5e2a53` (all deployed on VPS). App status: clean @ `f304f90`.
+
+- **Promotions API exists, app not consuming it.** Public `GET /api/v1/promotions`,
+  `GET /promotions/{id}`, `POST /promotions/{id}/view`, `POST /promotions/{id}/click`
+  (`routes/api.php` L81–87). Website `5868f4c` added admin-managed promos with `placement`
+  enum (`seasonal`, `popular`, `new_arrivals`…). App Home "Seasonal & Promotional" section
+  derives from product `seasonal`/`holiday_special` flags, NOT the Promotions API.
+- **Homepage feed dedupe** (web `5868f4c`): website dedupes products across homepage blocks;
+  app carousels can repeat products. Mirror in `CatalogContext` buckets.
+- **Surveys API live + wired in app:** `GET /api/v1/surveys`, `GET /surveys/{id}` (locked/vendor
+  gating, `SURVEY_LOCKED` 423), `POST /surveys/{id}/submit`. **But submit hardcodes
+  `credit_awarded: 0`** — survey rewards disabled in `fb22f1c`; list/show still advertise
+  `credit_reward` (default 500000). App screens exist; reward copy needs alignment.
+- **Signup credit bonus removed** (`fb22f1c`): web AND `ApiAuthController.register()` give no
+  bonus now. Historical account id 10 started with 1,000,000 (pre-removal).
+- **Login is customer-role-only:** `ApiAuthController.login()` returns 403 for non-customer roles
+  before any OTP check → web email-OTP 2FA (`91774af`) is unreachable from the app.
+- **Vendor subscription billing** on web (`vendor/subscribe`, `VendorSubscriptionController`,
+  90-day Starter `2699b14`): check `ApiVendorController` exposure before surfacing in app.
+- **Verify after deploys:** `GET /api/v1/products?per_page=1` for the `status='true'` guard
+  (VPS copy of `ApiProductController` diverges from committed HEAD).
+
 ## Next
 
-**Completed (this session):** Login fix, Featured Stores from live vendors, vendor-grouped cart with
-delivery fees, checkout overhaul (vendor grouping + delivery fees + coupon redemption + compact UI),
-server-side Address/Voucher APIs, Profile default address card, APK rebuilt + installed on 2 devices.
-**UI polish (2026-09-02):** Home restructure (search bar top, trust badges below Featured Stores,
-Home & Living category), SearchResultsScreen dense thumbnail list, build + on-device verify.
+**Completed (this session, 2026-09-02):** Home/browse UI polish, dense search results,
+build + on-device verify.
+**Documentation refresh (2026-09-06):** TODO.md + MEMORY.md reconciled with website changes
+(promos API, surveys endpoint, signup-bonus removal, survey reward=0, vendor subscription,
+login role gate). No code changes this pass.
 
 **Remaining / next when user returns:**
 - PlayStore release config (keystore, versionCode, AAB, listing, privacy policy).
+- Website-parity TODO.md items: Home admin-promo banner from `GET /api/v1/promotions` +
+  view/click tracking; homepage feed dedupe; promo "Reserve → info modal" parity; survey
+  reward copy alignment; vendor subscription status audit.
 - Gateway keys on VPS for live payment processing.
 - Optional: address/payment method editors in Profile (currently read-only for address).
 - Optional: vendor-specific delivery fee config per vendor (currently product-level delivery_fee).
