@@ -3,10 +3,12 @@ import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleS
 import { AppHeader, HeaderCartButton } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
+import { EmptyState } from '../components/EmptyState';
 import { useAuth } from '../state/AuthContext';
 import { useCart } from '../state/CartContext';
+import { useWishlist } from '../state/WishlistContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { apiGetWishlist, apiRemoveFromWishlist, ApiWishlistItem } from '../data/api';
+import { apiGetWishlist, ApiWishlistItem } from '../data/api';
 import { formatUGX, Product } from '../components/ProductCard';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -32,6 +34,7 @@ function wishlistItemToProduct(item: ApiWishlistItem): Product {
 export function WishlistScreen() {
   const { token, isAuthenticated } = useAuth();
   const { addItem, itemCount } = useCart();
+  const { toggle } = useWishlist();
   const { navigate, goBack, switchTab } = useNavigation();
   const [items, setItems] = useState<ApiWishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,7 +84,7 @@ export function WishlistScreen() {
     }
     setRemoving(productId);
     try {
-      await apiRemoveFromWishlist(token, productId);
+      await toggle(productId);
       setItems(prev => prev.filter(i => i.product.id !== productId));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to remove item.');
@@ -94,14 +97,13 @@ export function WishlistScreen() {
     return (
       <View style={styles.root}>
         <AppHeader title="Wishlist" showBack onBack={goBack} />
-        <View style={styles.empty}>
-          <View style={styles.emptyIcon}>
-            <Icon name="favorite-border" size={56} color={colors.outlineVariant} />
-          </View>
-          <Text style={styles.emptyTitle}>Sign in to see your wishlist</Text>
-          <Text style={styles.emptySubtitle}>Save products you love and find them here anytime.</Text>
-          <Button label="Sign In" variant="primary" fullWidth onPress={() => navigate('Login')} style={styles.emptyBtn} />
-        </View>
+        <EmptyState
+          icon="favorite-border"
+          title="Sign in to see your wishlist"
+          subtitle="Save products you love and find them here anytime."
+          actionLabel="Sign In"
+          onAction={() => navigate('Login')}
+        />
       </View>
     );
   }
@@ -119,16 +121,13 @@ export function WishlistScreen() {
           <ActivityIndicator size="large" color={colors.secondary} />
         </View>
       ) : items.length === 0 ? (
-        <View style={styles.empty}>
-          <View style={styles.emptyIcon}>
-            <Icon name="favorite-border" size={56} color={colors.outlineVariant} />
-          </View>
-          <Text style={styles.emptyTitle}>Your wishlist is empty</Text>
-          <Text style={styles.emptySubtitle}>
-            Tap the heart on any product to save it here for later.
-          </Text>
-          <Button label="Browse Marketplace" variant="primary" fullWidth onPress={() => navigate('Marketplace')} style={styles.emptyBtn} />
-        </View>
+        <EmptyState
+          icon="favorite-border"
+          title="Your wishlist is empty"
+          subtitle="Tap the heart on any product to save it here for later."
+          actionLabel="Browse Marketplace"
+          onAction={() => navigate('Marketplace')}
+        />
       ) : (
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}
           refreshControl={
@@ -177,7 +176,7 @@ export function WishlistScreen() {
                       style={styles.removeBtn}
                       onPress={() => handleRemove(item.product.id)}
                       disabled={removing === item.product.id}
-                      hitSlop={4}
+                      hitSlop={8}
                     >
                       <Icon
                         name={removing === item.product.id ? 'sync' : 'delete-outline'}
@@ -209,11 +208,12 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
   },
   itemsHeader: {
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   itemsHeaderText: {
-    ...typography.headlineMd,
-    color: colors.onSurface,
+    ...typography.bodyMd,
+    color: colors.onSurfaceVariant,
+    fontWeight: '600',
   },
   item: {
     flexDirection: 'row',
@@ -271,36 +271,6 @@ const styles = StyleSheet.create({
   },
   removeBtn: {
     padding: spacing.sm,
-  },
-  empty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xxl,
-  },
-  emptyIcon: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: colors.surfaceContainerHigh,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xl,
-  },
-  emptyTitle: {
-    ...typography.headlineLg,
-    color: colors.primary,
-    textAlign: 'center',
-    marginBottom: spacing.sm,
-  },
-  emptySubtitle: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-    marginBottom: spacing.xl,
-  },
-  emptyBtn: {
-    width: '100%',
   },
   loading: {
     flex: 1,

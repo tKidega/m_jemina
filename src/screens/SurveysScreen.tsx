@@ -142,8 +142,8 @@ export function SurveysScreen() {
         <View style={styles.center}>
           <Icon name="edit-note" size={56} color={colors.outlineVariant} />
           <Text style={styles.centerTitle}>Sign in to take surveys</Text>
-          <Text style={styles.centerSub}>Earn JEMINA credits for sharing your feedback.</Text>
-          <Button label="Sign In" variant="primary" fullWidth onPress={() => {}} style={styles.centerBtn} />
+          <Text style={styles.centerSub}>Share your feedback to help improve JEMINA.</Text>
+          <Button label="Sign In" variant="primary" fullWidth onPress={() => navigate('Login')} style={styles.centerBtn} />
         </View>
       </View>
     );
@@ -162,7 +162,7 @@ export function SurveysScreen() {
             {activeSurvey.survey_description ? (
               <Text style={styles.surveyDesc}>{activeSurvey.survey_description}</Text>
             ) : null}
-            <Text style={styles.surveyReward}>Reward: {formatUGX(activeSurvey.credit_reward)}</Text>
+            <Text style={styles.surveyReward}>Thank you for helping improve JEMINA for all shoppers.</Text>
 
             {questions.map((q, qi) => (
               <View key={q.id} style={styles.questionCard}>
@@ -306,8 +306,8 @@ function SurveyCard({ survey, onStart }: { survey: ApiSurvey; onStart: () => voi
       {survey.locked ? <View style={styles.cardFooter}><View style={styles.lockedChip}><Icon name="lock" size={14} color={colors.onSurfaceVariant} /><Text style={styles.lockedChipText}>Complete the User Experience survey to unlock</Text></View></View> : (
           <View style={styles.cardFooter}>
             <View style={styles.metaBox}>
-              <Text style={styles.metaLabel}>Reward</Text>
-              <Text style={styles.metaValue}>{formatUGX(survey.credit_reward)}</Text>
+              <Text style={styles.metaLabel}>Type</Text>
+              <Text style={styles.metaValue}>{isVendor ? 'Vendor' : 'User'}</Text>
             </View>
             <View style={styles.metaBox}>
               <Text style={styles.metaLabel}>Questions</Text>

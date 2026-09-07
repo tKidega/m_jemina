@@ -3,6 +3,7 @@ import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-na
 import { AppHeader } from '../components/AppHeader';
 import { Icon, IconName } from '../components/Icon';
 import { Button } from '../components/Button';
+import { EmptyState } from '../components/EmptyState';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { apiInitiatePayment, apiGetPaymentStatus, apiGetCreditBalance, ApiPaymentResult, ApiPaymentStatus } from '../data/api';
@@ -123,14 +124,13 @@ export function BuyCreditsScreen() {
     return (
       <View style={styles.root}>
         <AppHeader title="Buy Credits" showBack onBack={goBack} />
-        <View style={styles.empty}>
-          <View style={styles.emptyIcon}>
-            <Icon name="local-atm" size={56} color={colors.outlineVariant} />
-          </View>
-          <Text style={styles.emptyTitle}>Sign in to buy credits</Text>
-          <Text style={styles.emptySubtitle}>Top up your JEMINA credits to pay for orders instantly.</Text>
-          <Button label="Sign In" variant="primary" fullWidth onPress={() => navigate('Login')} style={styles.emptyBtn} />
-        </View>
+        <EmptyState
+          icon="local-atm"
+          title="Sign in to buy credits"
+          subtitle="Top up your JEMINA credits to pay for orders instantly."
+          actionLabel="Sign In"
+          onAction={() => navigate('Login')}
+        />
       </View>
     );
   }
@@ -489,35 +489,5 @@ const styles = StyleSheet.create({
   },
   actionBtn: {
     marginBottom: spacing.md,
-  },
-  empty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xxl,
-  },
-  emptyIcon: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: colors.surfaceContainerHigh,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xl,
-  },
-  emptyTitle: {
-    ...typography.headlineLg,
-    color: colors.primary,
-    textAlign: 'center',
-    marginBottom: spacing.sm,
-  },
-  emptySubtitle: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-    marginBottom: spacing.xl,
-  },
-  emptyBtn: {
-    width: '100%',
   },
 });

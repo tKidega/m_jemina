@@ -6,6 +6,7 @@ export type RouteName =
   | 'ProductDetails'
   | 'VendorProfile'
   | 'Login'
+  | 'TwoFactor'
   | 'Register'
   | 'Checkout'
   | 'Orders'

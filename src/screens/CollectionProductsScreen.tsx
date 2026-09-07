@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
-import { Icon } from '../components/Icon';
+import { EmptyState } from '../components/EmptyState';
 import { ProductCard, type Product } from '../components/ProductCard';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useCart } from '../state/CartContext';
@@ -109,13 +109,11 @@ export function CollectionProductsScreen() {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <View style={styles.emptyIcon}>
-              <Icon name="inventory" size={40} color={colors.outlineVariant} />
-            </View>
-            <Text style={styles.emptyTitle}>No products found</Text>
-            <Text style={styles.emptyText}>Try a different filter to find what you're looking for.</Text>
-          </View>
+          <EmptyState
+            icon="inventory"
+            title="No products found"
+            subtitle="Try a different filter to find what you're looking for."
+          />
         }
       />
     </View>
@@ -188,31 +186,5 @@ const styles = StyleSheet.create({
   },
   cardWrap: {
     flexShrink: 0,
-  },
-  empty: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: spacing.xxl,
-    paddingHorizontal: spacing.xxl,
-  },
-  emptyIcon: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: colors.surfaceContainerHigh,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
-  },
-  emptyTitle: {
-    ...typography.headlineMd,
-    color: colors.onSurface,
-    fontWeight: '700',
-  },
-  emptyText: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-    marginTop: spacing.sm,
   },
 });

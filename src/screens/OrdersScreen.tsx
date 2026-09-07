@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
+import { EmptyState } from '../components/EmptyState';
 import { Icon } from '../components/Icon';
-import { Button } from '../components/Button';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { apiGetOrder, apiGetOrders, ApiOrder } from '../data/api';
@@ -171,12 +171,13 @@ export function OrdersScreen() {
     return (
       <View style={styles.root}>
         <AppHeader title="My Orders" showBack onBack={goBack} />
-        <View style={styles.center}>
-          <Icon name="receipt-long" size={56} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>Sign in to view orders</Text>
-          <Text style={styles.centerSub}>Track and manage your orders after signing in.</Text>
-          <Button label="Sign In" variant="primary" fullWidth onPress={() => navigate('Login')} style={styles.centerBtn} />
-        </View>
+        <EmptyState
+          icon="receipt-long"
+          title="Sign in to view orders"
+          subtitle="Track and manage your orders after signing in."
+          actionLabel="Sign In"
+          onAction={() => navigate('Login')}
+        />
       </View>
     );
   }
@@ -189,19 +190,21 @@ export function OrdersScreen() {
           <Text style={styles.loadingMain}>Loading your orders...</Text>
         </View>
       ) : error ? (
-        <View style={styles.center}>
-          <Icon name="error-outline" size={48} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>Couldn't load orders</Text>
-          <Text style={styles.centerSub}>{error}</Text>
-          <Button label="Try Again" variant="primary" fullWidth onPress={() => loadOrders()} style={styles.centerBtn} />
-        </View>
+        <EmptyState
+          icon="error-outline"
+          title="Couldn't load orders"
+          subtitle={error}
+          actionLabel="Try Again"
+          onAction={() => loadOrders()}
+        />
       ) : orders.length === 0 ? (
-        <View style={styles.center}>
-          <Icon name="receipt-long" size={56} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>No orders yet</Text>
-          <Text style={styles.centerSub}>When you place an order, it will show up here.</Text>
-          <Button label="Browse Marketplace" variant="primary" fullWidth onPress={() => navigate('Marketplace')} style={styles.centerBtn} />
-        </View>
+        <EmptyState
+          icon="receipt-long"
+          title="No orders yet"
+          subtitle="When you place an order, it will show up here."
+          actionLabel="Browse Marketplace"
+          onAction={() => navigate('Marketplace')}
+        />
       ) : (
         <ScrollView
           style={styles.scroll}
@@ -236,22 +239,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xxl,
-  },
-  centerTitle: {
-    ...typography.headlineLg,
-    color: colors.primary,
-    textAlign: 'center',
-    marginTop: spacing.lg,
-  },
-  centerSub: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-    marginBottom: spacing.xl,
-  },
-  centerBtn: {
-    width: '100%',
   },
   loadingMain: {
     ...typography.bodyMd,

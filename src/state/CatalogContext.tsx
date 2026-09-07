@@ -38,19 +38,34 @@ function derive(products: Product[]) {
   const bulkProducts = products.filter(p => p.bulkOrder);
   const corporateReadyProducts = products.filter(p => p.corporateReady || p.badge?.variant === 'corporate');
   const enterpriseSolutions = products.filter(p => p.enterpriseSolution);
+
+  // Cross-block dedupe (website parity): the homepage renders many overlapping
+  // buckets. Ensure a product does not repeat across the sections that appear
+  // together on the Home screen, favoring the more targeted bucket first.
+  // Priority: featured > topRated > flash > seasonal.
+  const featuredIds = new Set(featured.map(p => p.id));
+  const topRatedDedup = topRated.filter(p => !featuredIds.has(p.id));
+  const topRatedIds = new Set(topRatedDedup.map(p => p.id));
+  const flashDedup = flashSale.filter(p => !featuredIds.has(p.id) && !topRatedIds.has(p.id));
+  const flashIds = new Set(flashDedup.map(p => p.id));
+
   const seasonalProducts = products.filter(
     p =>
-      p.seasonal ||
-      p.holidaySpecial ||
-      Boolean(p.seasonalTheme) ||
-      p.badge?.variant === 'flash' ||
-      Boolean(p.discount),
+      (p.seasonal ||
+        p.holidaySpecial ||
+        Boolean(p.seasonalTheme) ||
+        p.badge?.variant === 'flash' ||
+        Boolean(p.discount)) &&
+      !featuredIds.has(p.id) &&
+      !topRatedIds.has(p.id) &&
+      !flashIds.has(p.id),
   );
+
   return {
-    flashSale,
+    flashSale: flashDedup,
     featured,
     wholesale,
-    topRated,
+    topRated: topRatedDedup,
     b2b: products.filter(isB2B),
     wholesaleProducts,
     bulkProducts,

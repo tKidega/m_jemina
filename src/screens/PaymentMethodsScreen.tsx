@@ -14,6 +14,7 @@ import {
 import { AppHeader } from '../components/AppHeader';
 import { Icon, IconName } from '../components/Icon';
 import { Button } from '../components/Button';
+import { EmptyState } from '../components/EmptyState';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import {
@@ -155,7 +156,7 @@ function MethodCard({ method, onEdit, onDelete, onSetDefault }: {
 
 export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean }) {
   const { token, isAuthenticated } = useAuth();
-  const { goBack } = useNavigation();
+  const { goBack, navigate } = useNavigation();
   const [methods, setMethods] = useState<ApiPaymentMethod[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -296,12 +297,7 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
     return (
       <View style={styles.root}>
         {!embedded ? <AppHeader title="Payment Methods" showBack onBack={goBack} /> : null}
-        <View style={styles.center}>
-          <Icon name="credit-card" size={56} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>Sign in to manage payment methods</Text>
-          <Text style={styles.centerSub}>Save a card or mobile money number for faster checkout after signing in.</Text>
-          <Button label="Sign In" variant="primary" fullWidth onPress={() => {}} style={styles.centerBtn} />
-        </View>
+        <EmptyState icon="credit-card" title="Sign in to manage payment methods" subtitle="Save a card or mobile money number for faster checkout after signing in." actionLabel="Sign In" onAction={() => navigate('Login')} />
       </View>
     );
   }
@@ -317,19 +313,9 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
           <Text style={styles.loadingText}>Loading payment methods...</Text>
         </View>
       ) : error ? (
-        <View style={styles.center}>
-          <Icon name="error-outline" size={48} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>Couldn't load payment methods</Text>
-          <Text style={styles.centerSub}>{error}</Text>
-          <Button label="Try Again" variant="primary" fullWidth onPress={() => load()} style={styles.centerBtn} />
-        </View>
+        <EmptyState icon="error-outline" title="Couldn't load payment methods" subtitle={error} actionLabel="Try Again" onAction={() => load()} />
       ) : methods.length === 0 ? (
-        <View style={styles.center}>
-          <Icon name="account-balance-wallet" size={56} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>No payment methods saved</Text>
-          <Text style={styles.centerSub}>Add a credit card, mobile money number, or Cloud Pay account for faster checkout.</Text>
-          <Button label="Add Payment Method" variant="primary" fullWidth onPress={openCreate} style={styles.centerBtn} />
-        </View>
+        <EmptyState icon="account-balance-wallet" title="No payment methods saved" subtitle="Add a credit card, mobile money number, or Cloud Pay account for faster checkout." actionLabel="Add Payment Method" onAction={openCreate} />
       ) : (
         <ScrollView
           style={styles.scroll}
@@ -456,22 +442,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xxl,
-  },
-  centerTitle: {
-    ...typography.headlineLg,
-    color: colors.primary,
-    textAlign: 'center',
-    marginTop: spacing.lg,
-  },
-  centerSub: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-    marginBottom: spacing.xl,
-  },
-  centerBtn: {
-    width: '100%',
   },
   topBar: {
     paddingHorizontal: spacing.lg,

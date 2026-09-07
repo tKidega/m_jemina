@@ -8,13 +8,31 @@ what the live server looks like, and the current state.
 Wire the app to the live Jemi-na Sanctum API (`https://jemi-na.com/api/v1`) with graceful
 demo fallback, then complete the full app → PlayStore roadmap so the app is "fully
 functional like the website" (login → cart → checkout/orders → JEMINA credits).
-**Current focus (2026-09-06):** Website parity gaps — admin-managed promo banner on Home, homepage
-product dedupe, survey reward copy alignment, vendor subscription visibility audit. Followed by
-PlayStore release config (keystore, AAB, listing).
+**Current focus (2026-09-07):** Login/session bug fixed server-side (Apache mod_php now forwards
+the `Authorization` header). Cart screen redesigned (vendor sections, smaller type, per-product
+delivery fees) and uniform styling rolled out across all screens via shared `EmptyState`/`SurfaceCard`
+primitives (12 screens refactored). **Checkout pickup-point redesign (app-side) done:** removed the
+shipping-details form, auto-source the delivery address from the address book, replaced "Shipping
+Details" with a "Pickup Point & Delivery" section (default "Jemina Point" pickup option or
+delivery-to-address; "Add a delivery address" link → `AddressBook` when none exists); Total label
+reduced to `bodyLg`. **Push notifications + promo/ad popup done (app + server):** app popup
+auto-opens on launch with the first seasonal promotion (close X at top + "Maybe later"); global
+`NotificationContext` handles `promo`/`order_status`/`message` pushes (popup or banner) and
+`two_factor` stays on `subscribeToSecurityCode`; server `PushNotificationService` gained
+`sendOrderUpdate`/`sendPromotion` (broadcast)/`notifyNewMessage`, wired into OrderController,
+PromotionController (store/update/toggle/approve → broadcast when live) and MessagingController.
+Website pickup-point system (backend + admin CRUD) is the NEXT phase.
+Remaining: 3 website-parity gaps (admin promo banner, homepage dedupe, promo info modal), site
+pickup-point system, survey reward copy, VPS gateway keys, VPS FCM service-account creds
+(FIREBASE_CREDENTIALS_JSON/_PATH — pushes degrade to no-op logs until set) + live push round-trip
+(both test accounts now return "Invalid credentials"), and the PlayStore listing/gradlew
+AAB (versionCode bump). Working tree UNCOMMITTED (this + prior sessions pending review).
 
 ## Live test accounts
 
 - `mjemina.test.20260802140339@example.com` / `TestPassw0rd!42` — user id 9, the main throwaway.
+  **⚠ 2026-09-07: both live test accounts now return `Invalid credentials` on
+  `POST /api/v1/auth/login` — status unknown; treat as not usable until re-verified.**
 - `mjemina.credit.20260803014602@example.com` / `TestPassw0rd!42` — user id 10, used to verify
   the credits flow (signup bonus + credit payment). Started with 1,000,000 credits, spent 46,510.
 - `user@email.com` / `customer@420` — ONLY valid in the app's in-memory seeded mock, not live.
@@ -33,7 +51,10 @@ PlayStore release config (keystore, AAB, listing).
 
 - `Authorization` header re-export lives in `/var/www/jemina/public/.htaccess`
   (`RewriteCond %{HTTP:Authorization} .` / `RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]`);
-  without it every Sanctum-protected route 401s.
+  without it every Sanctum-protected route 401s. **Note: this .htaccess rewrite only helps under
+  php-fpm/FastCGI. The live site runs Apache mpm_prefork + mod_php (libphp8.3), which never
+  populates `HTTP_AUTHORIZATION` — so all Sanctum calls 401'd. Fixed 2026-09-07 by adding
+  `SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1` in the 443 vhost (see Deployed changes).**
 - Login requires `device_name` (`m_jemina_app`).
 - Register now uses `$request->name` directly (first_name bug fixed server-side); returns user name correctly.
   **No signup bonus awarded** — `fb22f1c` removed credit rewards from registration entirely.
@@ -78,6 +99,16 @@ PlayStore release config (keystore, AAB, listing).
    `voucher_id`, `code`, `discount`, `formatted_discount`.**
 10. `routes/api.php` — **Added protected `POST /vouchers/validate`, `POST /vouchers/apply`,
     and `/addresses` route group (GET/POST/PUT/DELETE/{id}/default).**
+11. `/etc/apache2/sites-enabled/000-default-le-ssl.conf` — **Added
+    `SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1` inside `<VirtualHost *:443>`**
+    (backup `000-default-le-ssl.conf.bak-authfix`; `apachectl configtest` OK + reload). **Root-cause
+    fix for the login-session bug:** live site is mpm_prefork + mod_php which strips the
+    `Authorization` header before PHP sees it, so every Sanctum call 401'd and the app's self-heal
+    expired sessions instantly. Verified from public internet: fresh login then `GET /profile/wishlist`
+    (id 4 token), `/credits/balance`, `/addresses`, `/cart` all returned 200 with the existing token;
+    DB `last_used_at` now populated on the two most recent `m_jemina_app` tokens (2026-09-07 14:31:09
+    and 14:17:33 UTC). User confirmed signed-in on phone. **No app rebuild needed** — the app's
+    `request()`/`emitUnauthorized` self-heal stays as a correct guard.
 
 Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes deployed;
 `.htaccess` Authorization fix; product status-filter/flat-discount/image fixes.
@@ -90,20 +121,82 @@ Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes 
   `bits.bytes.loko@gmail.com` / id 3 / CUSTOMER / JEMINA Credits UGX 2,094,516.
 - `src/data/api.ts` — `request<T>()` helper + auth, cart, orders, payments (incl. `apiGetPaymentStatus`),
   credits, wishlist, reviews, search, vendor, **address** (`apiGetAddresses`/`apiSaveAddress`/
-  `apiUpdateAddress`/`apiDeleteAddress`/`apiSetDefaultAddress`), **voucher**
-  (`apiValidateVoucher`/`apiApplyVoucher`). `ApiProduct`/`ApiVendor` types include
-  `delivery_fee`. Order creation accepts `voucher_id`, `voucher_code`, `discount_amount`.
+  `apiUpdateAddress`/`apiDeleteAddress`/`apiSetDefaultAddress`), **payment methods** (`apiGetPaymentMethods`/
+  `apiSavePaymentMethod`/`apiUpdatePaymentMethod`/`apiDeletePaymentMethod`/`apiSetDefaultPaymentMethod`),
+  **voucher** (`apiValidateVoucher`/`apiApplyVoucher`), **surveys** + **vendor journey** (`apiGetSurveys`,
+  `apiGetSurvey`, `apiSubmitSurvey`, `apiGetVendorActionsStatus`, `apiGetVendorAgreement`,
+  `apiAcceptVendorAgreement`, `apiCheckVendorAgreementAccepted`, `apiCreateVendorStore`), **help**
+  (`apiGetTickets`/`apiGetTicket`/`apiCreateTicket`), **messages** (`apiGetMessages`/`apiGetMessage`/
+  `apiMarkMessageRead`), **inquiry** (`apiSubmitInquiry`), **chat** (`apiChatAsk`/`apiChatClear`/
+  `apiVendorChatAsk`/`apiVendorChatNotify`), **profile** (`apiUpdateProfile`). `ApiProduct`/`ApiVendor`
+  types include `delivery_fee`.   Order creation accepts `voucher_id`, `voucher_code`, `discount_amount`, plus optional
+  `pickup_point`/`fulfilment` (pickup-vs-delivery metadata, currently ignored by the web backend).
+  **`apiGetPromotions` exists and is consumed by the Home promo popup (2026-09-07) —
+  Home "Seasonal & Promotional" section previously product-flag based; the auto-promo popup
+  now fetches `GET /api/v1/promotions` (placement `seasonal`, seasonal fallback).**
 - `src/state/AuthContext.tsx` — live-first (`authMode: 'live'`) with demo fallback; google/logout.
+- `src/lib/notifications.ts` — **push layer (2026-09-07)**: `requestNotificationPermission`,
+  `PushEvent` typed union (`two_factor` | `promo` | `order_status` | `message`), `parsePushEvent`,
+  `subscribeToPushEvents`, `subscribeToPushOpened` (app state active/inactive detection),
+  `getInitialPush` (`getInitialNotification(messaging)` kick-off), `subscribeToSecurityCode`
+  (2FA code auto-fill). FCM via `@react-native-firebase/app` + `messaging` `^26.4.0`,
+  `android/app/google-services.json` (m-jemina project).
+- `src/state/NotificationContext.tsx` — **NEW (2026-09-07)**: `NotificationProvider` renders the
+  global promo popup Modal + top floating in-app notice banner (5s auto-dismiss, tap navigates);
+  `useNotification` exposes `showPromo(promo)` / `showNotice(title, body, navigateTo)`.
+  `promoVisit(promo)` opens the promo's `target_url`/`link_url` via `Linking` when no vendor shop.
+- `src/lib/promo.ts` — **NEW (2026-09-07)**: `promoImageUrl` (base `https://jemi-na.com`).
+- `App.tsx` — **NEW (2026-09-07)**: `NotificationProvider` wraps the app (inside
+  `NavigationProvider`); `PushBridge` wires foreground/opened/initial push events: `promo` →
+  `showPromo`, `order_status`/`message` → notice banner navigating `Orders`/`Messages`,
+  `two_factor` ignored (handled by `subscribeToSecurityCode`).
+- `src/screens/HomeScreen.tsx` — **auto promo popup (2026-09-07)**: module flag
+  `promoPopupShownThisLaunch` → `autoShowPopup()` opens the first seasonal promo once per app
+  launch (no tap needed); old bottom sheet replaced by a centered popup with a top-right close X
+  + "Maybe later"; card tap still tracks `apiTrackPromotionClick`. Uses `useNotification()` +
+  `promoImageUrl`; local popup JSX/styles removed.
 - `src/components/ProductCard.tsx` — `Product` interface includes `deliveryFee`.
 - `src/state/CartContext.tsx` — token-aware server sync (`cartSource: 'server'|'local'`);
   **groups items by vendor** via `groupByVendor()`, exposes `vendorGroups: VendorGroup[]`,
   `totalDeliveryFees`. Delivery fee per vendor = sum of product delivery fees (min 10k UGX).
-- `src/screens/CartScreen.tsx` — **vendor-grouped layout** with "Fulfilled by {vendor}" headers,
-  delivery fee per vendor, subtotal + total delivery fees in summary.
+- `src/state/CatalogContext.tsx` — derives buckets (flashSale/featured/topRated/seasonal/B2B…)
+  from `products`; **no cross-bucket dedupe** (parity gap vs web `5868f4c`).
+- `src/screens/CartScreen.tsx` — **redesigned (2026-09-07)**: per-vendor sections (dark primary
+  header bar + store icon badge + vendor name + count), item cards with 80×80 image, reduced
+  detail type (`bodyMd`/`labelSm`/`bodyLg`), per-item `Delivery: {formatUGX(deliveryFee × qty)}`
+  tag, quantity stepper + line totals + item separators + remove button, and an Order Summary card
+  (subtotal, per-vendor delivery fee rows, divider, total, checkout button). Smaller fonts
+  throughout; icon bug fixed (`delete-sweep` → `delete-outline`, absent from `Icon.tsx`).
+- `src/components/EmptyState.tsx` — **NEW shared empty/error/signed-out state** (56px icon in
+  `outlineVariant` + `headlineLg` title + `bodyMd` subtitle + full-width primary CTA via
+  `<Button>`). Replaced ~40 duplicated inline `center*`/`empty*` blocks across 12 screens:
+  Orders, OrderTracking, Messages, Wishlist, CreditHistory, MyReviews, BuyCredits,
+  CollectionProducts, AddressBook, PaymentMethods, HelpCenter, EditProfile. Dead style entries
+  (`centerTitle`/`centerSub`/`centerBtn`/`emptyTitle`/`emptySubtitle`/`emptyBtn`) and fully
+  unused `Button`/`Icon` imports removed where appropriate (net −725 lines).
+- `src/components/SurfaceCard.tsx` — **NEW canonical card surface** (white + `borderWidth: 1` +
+  `borderLight` + `radius.xl` + `padding: spacing.lg`, with optional `onPress`/pressed state).
+  Cards across all screens already use identical tokens; this is the canonical reference going
+  forward (not bulk-applied to avoid churn).
+- Section titles verified uniform: all screens use `headlineMd`/`primary`; Home and Marketplace use
+  the shared `SectionHeader` component. Wishlist's list-header aligned to Cart's muted `bodyMd`
+  style. Checkout's compact `radius.lg` / `padding: spacing.md` cards are a deliberate dense-form
+  choice for that form-heavy screen.
 - `src/screens/CheckoutScreen.tsx` — **vendor-grouped order summary**, delivery fees per vendor,
   **coupon/promo code input** with live validation via `apiApplyVoucher`, discount applied to
-  total, **auto-fills default address** from server on mount, compact UI (smaller fonts/cards),
-  platform fee 1500, voucher fields sent with order creation.
+  total, **pickup-point redesign (2026-09-07)**: removed the shipping-details form; new
+  `PICKUP_POINTS` const (default **Jemina Point · Jemina Official · Kampala**) with a "Pickup
+  Point & Delivery" selector section (`fulfilment: 'pickup' | 'delivery'`, pickup is default).
+  Delivery address auto-sourced from `apiGetAddresses()` (default address visualized under the
+  option); no default → tap "Deliver to my address" redirects to `AddressBook` plus a persistent
+  "Add a delivery address" link (lines 347-396). Order notes kept as its own small section.
+  `buildShippingAddress()` mints the `ApiShippingAddress` from the pickup point (name/address/
+  city Kampala/state Central/zip 256/country Uganda/phone) or the saved address; `validate()`
+  errors if delivery is chosen with no address. Order payload sends `pickup_point` +
+  `fulfilment` (backend ignores unknown pickup fields for now — web `ApiOrderController` still
+  requires `shipping_address`; site pickup support is the next phase). **Total label** reduced
+  `headlineMd` → `bodyLg` (16px, matching Cart's canonical `totalLabel`); `totalValue` stays
+  `headlineMd` (20px). platform fee 1500, voucher fields sent with order creation.
 - `src/screens/MarketplaceScreen.tsx` — **Featured Stores from live `apiGetVendors()`** (falls back
   to DEFAULT_STORES if API fails). Search bar triggers `SearchResults`.
 - `src/screens/HomeScreen.tsx` — **restructured (2026-09-02)**: search bar section pinned at top
@@ -115,12 +208,23 @@ Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes 
   (2026-09-02)**: 64x64 thumb, 2-line title, price + strikethrough compare, rating + star,
   36px circular add button, "{N} results found" header, empty state.
 - `src/screens/ProfileScreen.tsx` — **shows default address card** (auto-fetched from server),
-  JEMINA credits balance, menu items (Orders/Wishlist/Reviews/Surveys/Settings).
-  Profile menu "Surveys" entry links to `SurveysScreen` ("Earn credits with feedback").
+  JEMINA credits balance, menu items (Orders/Wishlist/Reviews/Surveys/Account Settings/Track Order/
+  Messages/Help & Support). Profile menu "Surveys" entry links to `SurveysScreen`.
+- `src/screens/AccountSettingsScreen.tsx` — tabbed settings hub: `EditProfileScreen` (`apiUpdateProfile`),
+  `PaymentMethodsScreen`, `AddressBookScreen` (all embedded-capable).
+- `src/screens/AddressBookScreen.tsx` — full CRUD + set-default via `/api/v1/addresses*`.
+- `src/screens/PaymentMethodsScreen.tsx` — full CRUD + set-default via `/api/v1/payment-methods*`.
+- `src/screens/OrderTrackingScreen.tsx` — order list + dispatch-to-delivery timeline (`GET /api/v1/orders`).
+- `src/screens/MessagesScreen.tsx` — in-app messages via `/api/v1/messages`, mark-read.
+- `src/screens/HelpCenterScreen.tsx` — help categories + support tickets via `/api/v1/help/tickets*`.
+- `src/screens/SearchScreen.tsx` — recent searches → results; `SearchResultsScreen` dense list.
+- `src/screens/CollectionProductsScreen.tsx` — category tap → full product drill-down.
+- `src/components/ChatView.tsx` — JVA assistant + vendor shop chat UI (wired to `/chat/*`, `/vendor-chat/*`).
 - `src/screens/SurveysScreen.tsx` — loads surveys via `GET /api/v1/surveys`, opens detail via
   `GET /surveys/{id}`, submits via `POST /surveys/{id}/submit`. **Server returns
   `credit_awarded: 0`** (rewards disabled `fb22f1c`); app shows fallback "Thank you for
-  your feedback!" toast. Survey cards still display `credit_reward` field from API.
+  your feedback!" toast. Survey cards still display `credit_reward` field from API
+  (render `Reward: {formatUGX}` on list + detail — copy NOT yet aligned).
 - `src/screens/VendorActionsScreen.tsx` — vendor journey gating: user survey must complete
   before vendor survey; vendor registration form. Entry from `SurveysScreen` completion
   and sidebar.
@@ -173,6 +277,50 @@ Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes 
 - APK built + installed on device (`0794415254003308`) and emulator (`emulator-5554`) — all 8 tasks complete.
 - TypeScript: `npx tsc --noEmit` clean (0 errors).
 
+### Verified (2026-09-07)
+
+- **Login/session fix confirmed from public internet** after vhost `SetEnvIf` change: fresh login
+  with the existing `4|T0pA4lMX2LZkGlJGBx32Po6V4Joi9QQjjFzTh4jr` token → `GET /profile/wishlist`
+  (200, id 4), `/credits/balance` (200, UGX 2094516), `/addresses` (200, 1 address), `/cart` (200).
+  DB query: `personal_access_tokens` `last_used_at` populated on the two latest `m_jemina_app`
+  tokens (`2026-09-07 14:31:09` and `14:17:33` UTC) — older tokens still NULL. User confirmed
+  signed-in on their phone; no 401 loop, no auto sign-out.
+- **CartScreen + uniform-styling refactor verified:** `npx tsc --noEmit` + `npx eslint src/screens
+  src/components` both green (0 errors) at end of session. Icon name fixed during refactor
+  (`delete-sweep` not in `Icon.tsx` → `delete-outline`).
+- **Checkout pickup-point redesign verified (2026-09-07):** `npx tsc --noEmit` + `npx eslint
+  src/screens/CheckoutScreen.tsx src/data/api.ts` both green (0 errors). Shipping-details form
+  removed (`FIELDS`/`FieldDef`/`form`/`setField` deleted); `ApiShippingAddress` import added to
+  the type import; `buildShippingAddress()`/`validate()`/order-placement updated; new pickup
+  styles (`pickupOption`, `pickupIcon`, `addressLink`, `radio*`) added and unused `label`/
+  `fieldGroup` styles removed. `bodySm` did NOT exist in `typography.ts` — used `labelMd` for the
+  address-link text.
+- **Git stash incident (safe):** one subagent ran `git stash`/`git stash pop` mid-task; stash list
+  confirmed empty, no file corruption. All prior app working-tree changes intact (MEMORY.md, TODO.md,
+  many screen files already modified from prior sessions).
+- **Working tree status:** UNCOMMITTED at `2032ccf`. Modified files include app screens, state,
+  components, android config, plus the two new shared components (`EmptyState.tsx`, `SurfaceCard.tsx`),
+  and (2026-09-07) the new push layer: `NotificationContext.tsx`, `lib/promo.ts`, rewritten
+  `lib/notifications.ts`, `App.tsx` (`NotificationProvider` + `PushBridge`), `HomeScreen.tsx`
+  (auto-promo popup).
+- **Push + promo popup verified (2026-09-07):** `npx tsc --noEmit` green; `npx eslint src App.tsx`
+  green (0 errors). Server side (`C:\xampp\htdocs\dev\jemina`): `PushNotificationService` gained
+  `sendOrderUpdate`/`sendPromotion`/`notifyNewMessage`/`sendBroadcast`; hooks in `OrderController::updateStatus`,
+  `PromotionController::store|update|toggleStatus|approve` (`broadcastIfActive` helper), `MessagingController::sendDirectMessage|
+  vendorSendMessage`. All four files `php -l` clean; `sendBroadcast` smoke-tested via tinker (graceful no-op).
+  **Live FCM delivery NOT yet verified** — needs VPS FCM creds + a real registered token (see Remaining).
+
+### Audit (2026-09-06)
+
+- App code @ `2032ccf` is **ahead** of MEMORY/TODO docs (docs written at `f304f90`, many screens
+  added since). Address book, payment methods, account settings, order tracking, messages, help
+  center, chat, surveys + vendor journey/agreement/store — all wired and committed.
+- Web repo `f5e2a53` exposes `package` in vendor show response; app does NOT surface it.
+- Release keystore configured: `android/app/jemina-keystore.properties` + `jemina-release.keystore`
+  exist; `build.gradle` release signingConfig wired. `versionCode` still 1, no `app.json` icon.
+- Confirm: `GET /api/v1/promotions` public but NOT consumed by app; `CatalogContext` has no dedupe;
+  survey reward copy still shows "Reward: UGX 500,000" when submit returns `credit_awarded: 0`.
+
 Note: gateway init on the live server currently fails gracefully — VPS `.env` has NO Stripe/MTN/
 Flutterwave keys and Bitcoin is unimplemented server-side, so `initiate` returns
 "Payment gateway is not available"/"not fully implemented". App shows the error + Retry + Orders.
@@ -201,17 +349,19 @@ Model cannot view screenshots, so on-device checks used `uiautomator dump` + reg
 
 ## Repo checks
 
-`npx tsc --noEmit`, `npx eslint src App.tsx` — both green. `npx jest` not run this session.
+`npx tsc --noEmit` — green (0 errors). `npx eslint src/screens src/components src/state` — green
+(0 errors). `npx jest` not run this session.
 
 ## Website parity audit (2026-09-06)
 
 Read against web repo HEAD `f5e2a53` (all deployed on VPS). App status: clean @ `f304f90`.
 
-- **Promotions API exists, app not consuming it.** Public `GET /api/v1/promotions`,
-  `GET /promotions/{id}`, `POST /promotions/{id}/view`, `POST /promotions/{id}/click`
+- **Promotions API exists + app consumes it for the promo popup (2026-09-07).** Public
+  `GET /api/v1/promotions`, `GET /promotions/{id}`, `POST /promotions/{id}/view`, `POST /promotions/{id}/click`
   (`routes/api.php` L81–87). Website `5868f4c` added admin-managed promos with `placement`
-  enum (`seasonal`, `popular`, `new_arrivals`…). App Home "Seasonal & Promotional" section
-  derives from product `seasonal`/`holiday_special` flags, NOT the Promotions API.
+  enum (`sidebar`, `banner`, `inline`, `popup`, `seasonal`). App Home's auto-popup fetches the
+  seasonal placement (seasonal fallback) once per launch; the "Seasonal & Promotional" section
+  itself still derives from product `seasonal`/`holiday_special` flags.
 - **Homepage feed dedupe** (web `5868f4c`): website dedupes products across homepage blocks;
   app carousels can repeat products. Mirror in `CatalogContext` buckets.
 - **Surveys API live + wired in app:** `GET /api/v1/surveys`, `GET /surveys/{id}` (locked/vendor
@@ -229,17 +379,43 @@ Read against web repo HEAD `f5e2a53` (all deployed on VPS). App status: clean @ 
 
 ## Next
 
-**Completed (this session, 2026-09-02):** Home/browse UI polish, dense search results,
-build + on-device verify.
-**Documentation refresh (2026-09-06):** TODO.md + MEMORY.md reconciled with website changes
-(promos API, surveys endpoint, signup-bonus removal, survey reward=0, vendor subscription,
-login role gate). No code changes this pass.
+**Completed (2026-09-07):** Server-side login/session fix (Apache `SetEnvIf` Authorization header
+forwarding in mod_php vhost); CartScreen redesign (vendor sections, smaller type, per-product
+delivery fees, professional card UI); uniform styling roll-out across all screens (shared
+`EmptyState`/`SurfaceCard` components; 12 screens refactored, −725 net lines); **Checkout pickup-point
+redesign (APP side):** removed shipping-details form, auto-sourced delivery address from the address
+book (default address), new "Pickup Point & Delivery" section — "Jemina Point" default pickup or
+delivery-to-address, "Add a delivery address" link → `AddressBook` when no default; `apiCreateOrder`
+payload extended with `pickup_point`/`fulfilment` (backend ignores for now); Total label reduced to
+`bodyLg` (16px, matching Cart).
+**Prior completed:** Home/browse UI polish + build (2026-09-02); docs reconciliation (2026-09-06).
 
 **Remaining / next when user returns:**
-- PlayStore release config (keystore, versionCode, AAB, listing, privacy policy).
-- Website-parity TODO.md items: Home admin-promo banner from `GET /api/v1/promotions` +
-  view/click tracking; homepage feed dedupe; promo "Reserve → info modal" parity; survey
-  reward copy alignment; vendor subscription status audit.
-- Gateway keys on VPS for live payment processing.
-- Optional: address/payment method editors in Profile (currently read-only for address).
-- Optional: vendor-specific delivery fee config per vendor (currently product-level delivery_fee).
+- **Verify push round-trip live** (blocked): VPS needs `FIREBASE_CREDENTIALS_JSON` or
+  `FIREBASE_CREDENTIALS_PATH` in `.env` (service account for `FCM_SERVICE` project), a registered
+  `user_device_tokens` row (either via live sign-in, or insert one pointing to a real FCM token),
+  and at least one working customer account — both documented test accounts
+  (`mjemina.test.*`, `mjemina.credit.*`) currently return `Invalid credentials`. Without FCM creds
+  the server logs `FCM not configured; skipping …` and pushes no-op gracefully. Until then, verify:
+  toggle a promotion → `PromotionController` broadcasts; order status change → customer push;
+  admin direct message / vendor message → recipient push.
+- **Website pickup-point system (NEXT PHASE):** backend `GET/POST/PUT/DELETE /api/v1/pickup-points`
+  + admin CRUD + `pickup_point` handling in `ApiOrderController` (map the `pickup_point`/
+  `fulfilment` fields the app already sends, decide pickup vs delivery fee model). App-side
+  `PICKUP_POINTS` is hardcoded for now — wire it to the new endpoint once live.
+- Commit the app working tree (currently UNCOMMITTED at `2032ccf`; prior + this session's app
+  changes all pending user review).
+- PlayStore release config: bump `versionCode`/`versionName` in `android/app/build.gradle`,
+  `./gradlew bundleRelease` → AAB, smoke-test `assembleRelease` APK, install on both devices,
+  Play Console listing (description, category Shopping, privacy policy URL, screenshots, IARC
+  content-rating, data-safety form), internal → closed → production rollout.
+- Website-parity gaps (see TODO.md): Home admin-promo banner from `GET /api/v1/promotions` +
+  view/click tracking; homepage feed dedupe across carousels; promo card "Reserve → info modal";
+  survey reward copy alignment (`credit_awarded: 0` on submit but list/detail still shows
+  `credit_reward: 500000`).
+- Vendor subscription status audit (`package` exposed in vendor API; no app surfacing yet).
+- VPS gateway keys (Stripe/MTN/Flutterwave) in `.env` for live payment processing.
+- Update `docs/DESIGN.md` endpoint map (orders/credits/payments/vendors/search/promotions/surveys/
+  help/messages/chat/payment-methods).
+- Optional: address/payment-method editor screens in Profile; vendor-specific delivery fee config
+  (currently product-level `delivery_fee`).

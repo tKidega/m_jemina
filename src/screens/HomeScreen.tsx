@@ -18,14 +18,24 @@ import { ProductCard } from '../components/ProductCard';
 import { HeroCarousel, type HeroSlide } from '../components/HeroCarousel';
 import { ProductCarousel } from '../components/ProductCarousel';
 import { CategoryCarousel } from '../components/CategoryCarousel';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useCart } from '../state/CartContext';
 import { useCatalog } from '../state/CatalogContext';
+import { useNotification } from '../state/NotificationContext';
+import { promoImageUrl } from '../lib/promo';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
 import { images } from '../data/images';
-import { apiGetVendors, ApiVendorSummary } from '../data/api';
+import {
+  apiGetPromotions,
+  apiGetVendors,
+  apiTrackPromotionClick,
+  apiTrackPromotionView,
+  ApiPromotion,
+  ApiVendorSummary,
+} from '../data/api';
 import type { Product } from '../components/ProductCard';
 import type { IconName } from '../components/Icon';
 
@@ -33,6 +43,10 @@ const HERO_SLIDES: HeroSlide[] = images.heroBanners.map((image, i) => ({
   id: `hero-${i + 1}`,
   image,
 }));
+
+let promoPopupShownThisLaunch = false;
+
+const PROMO_POPUP_INDEX_KEY = '@jemina/promoPopupIndex';
 
 const TRUST_INDICATORS = [
   { icon: 'local-shipping' as const, title: 'Shipping', subtitle: 'Flexible Transport' },
@@ -108,6 +122,48 @@ export function HomeScreen() {
   const { width } = useWindowDimensions();
   const [liveVendors, setLiveVendors] = useState<StoreData[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [promotions, setPromotions] = useState<ApiPromotion[]>([]);
+  const { showPromo } = useNotification();
+
+  const loadPromotions = useCallback(async () => {
+    try {
+      const promos = await apiGetPromotions();
+      setPromotions(promos);
+      promos.slice(0, 10).forEach(p => apiTrackPromotionView(p.id));
+    } catch {
+      setPromotions([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPromotions();
+  }, [loadPromotions]);
+
+  const autoShowPopup = useCallback(
+    (next: ApiPromotion[]): void => {
+      if (promoPopupShownThisLaunch || next.length === 0) {
+        return;
+      }
+      promoPopupShownThisLaunch = true;
+      AsyncStorage.getItem(PROMO_POPUP_INDEX_KEY)
+        .then(raw => {
+          const parsed = Number(raw);
+          const lastIndex =
+            raw !== null && Number.isFinite(parsed) && parsed >= 0 ? parsed : -1;
+          const idx = (lastIndex + 1) % next.length;
+          showPromo(next[idx]);
+          AsyncStorage.setItem(PROMO_POPUP_INDEX_KEY, String(idx)).catch(() => {});
+        })
+        .catch(() => {
+          showPromo(next[0]);
+        });
+    },
+    [showPromo],
+  );
+
+  useEffect(() => {
+    autoShowPopup(promotions);
+  }, [promotions, autoShowPopup]);
 
   const loadVendors = useCallback(() => {
     apiGetVendors()
@@ -163,11 +219,16 @@ export function HomeScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([refresh(), loadVendors()]);
+      await Promise.all([refresh(), loadVendors(), loadPromotions()]);
     } finally {
       setRefreshing(false);
     }
-  }, [refresh, loadVendors]);
+  }, [refresh, loadVendors, loadPromotions]);
+
+  const openPromo = (promo: ApiPromotion) => {
+    apiTrackPromotionClick(promo.id).catch(() => {});
+    showPromo(promo);
+  };
 
   const stores = liveVendors.length > 0 ? liveVendors : DEFAULT_STORES;
 
@@ -379,9 +440,21 @@ export function HomeScreen() {
             subtitle="Products relevant to the current season and holidays."
             actionLabel="View All"
             onAction={() => navigate('AllProducts', { title: 'Seasonal & Promotional', subtitle: 'Products relevant to the current season and holidays.', products: seasonalProducts })}
-            trailing={<Badge label={`${seasonalProducts.length} OFFERS`} variant="flash" style={styles.dealsBadge} />}
+            trailing={<Badge label={`${(promotions.length || seasonalProducts.length)} OFFERS`} variant="flash" style={styles.dealsBadge} />}
           />
-          {seasonalProducts.length > 0 ? (
+
+          {promotions.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flashRow}>
+              {promotions.slice(0, 8).map(promo => (
+                <PromoFlashCard
+                  key={promo.id}
+                  promo={promo}
+                  width={flashCardWidth}
+                  onPress={() => openPromo(promo)}
+                />
+              ))}
+            </ScrollView>
+          ) : seasonalProducts.length > 0 ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flashRow}>
             {seasonalProducts.slice(0, 8).map(p => (
               <Pressable key={p.id} style={[styles.flashCard, { width: flashCardWidth }]} onPress={() => navigate('ProductDetails', { product: p })}>
@@ -538,6 +611,58 @@ export function HomeScreen() {
       </ScrollView>
       <BottomNav />
     </View>
+  );
+}
+
+function PromoFlashCard({
+  promo,
+  width,
+  onPress,
+}: {
+  promo: ApiPromotion;
+  width: number;
+  onPress: () => void;
+}) {
+  const [imageRatio, setImageRatio] = useState<number | null>(null);
+  return (
+    <Pressable style={[styles.promoCard, { width }]} onPress={onPress}>
+      <View style={styles.flashImageWrap}>
+        {promo.image_url ? (
+          <Image
+            source={{ uri: promoImageUrl(promo.image_url) }}
+            style={[
+              styles.flashImage,
+              imageRatio ? styles.flashImageSized : null,
+              imageRatio ? { aspectRatio: imageRatio } : null,
+            ]}
+            resizeMode="cover"
+            onLoad={e => {
+              const { width: w, height: h } = e.nativeEvent.source;
+              if (w && h) {
+                setImageRatio(w / h);
+              }
+            }}
+          />
+        ) : (
+          <View style={styles.promoNoImage}>
+            <Icon name="auto-awesome" size={32} color={colors.secondary} />
+          </View>
+        )}
+        <View style={styles.flashBadge}>
+          <Badge label="PROMO" variant="flash" />
+        </View>
+      </View>
+      <View style={styles.flashBody}>
+        <Text style={styles.flashCategory}>{promo.vendor?.name ?? 'JEMINA'}</Text>
+        <Text style={styles.flashTitle} numberOfLines={2}>{promo.title}</Text>
+        {promo.description ? (
+          <Text style={styles.promoDesc} numberOfLines={2}>{promo.description}</Text>
+        ) : null}
+        <Pressable style={styles.flashAddBtn} onPress={onPress}>
+          <Text style={styles.flashAddText}>View Promo</Text>
+        </Pressable>
+      </View>
+    </Pressable>
   );
 }
 
@@ -732,12 +857,15 @@ const styles = StyleSheet.create({
   },
   flashImageWrap: {
     position: 'relative',
-    height: 140,
+    overflow: 'hidden',
     backgroundColor: colors.surfaceContainerHigh,
   },
   flashImage: {
     width: '100%',
-    height: '100%',
+    height: 140,
+  },
+  flashImageSized: {
+    width: '100%',
   },
   flashBadge: {
     position: 'absolute',
@@ -811,6 +939,27 @@ const styles = StyleSheet.create({
     ...typography.labelMd,
     color: colors.onSurfaceVariant,
     marginTop: 2,
+  },
+  promoCard: {
+    flexShrink: 0,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.xl,
+    overflow: 'hidden',
+  },
+  promoNoImage: {
+    flex: 1,
+    height: 140,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceContainerHigh,
+  },
+  promoDesc: {
+    ...typography.labelSm,
+    color: colors.onSurfaceVariant,
+    marginTop: 4,
+    lineHeight: 16,
   },
   brandRow: {
     gap: spacing.gutter,

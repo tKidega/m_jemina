@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "141983448439",
+    "project_id": "m-jemina",
+    "storage_bucket": "m-jemina.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:141983448439:android:a7ee51b679f114c4523572",
+        "android_client_info": {
+          "package_name": "com.m_jemina"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDECWa2et00x_Yx89a-kHL0eJvGjTcCv28"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

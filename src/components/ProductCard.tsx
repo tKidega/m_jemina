@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { radius } from '../theme/spacing';
 import { Icon } from './Icon';
 import { Badge } from './Badge';
+import { useNavigation } from '../navigation/NavigationContext';
+import { useWishlist } from '../state/WishlistContext';
 
 export interface ProductSpecifications {
   features?: string[];
@@ -61,13 +63,30 @@ interface ProductCardProps {
   onPress?: () => void;
   onAddToCart?: () => void;
   onInquiry?: () => void;
+  onToggleWishlist?: () => void;
+  saved?: boolean;
   imageHeight?: number;
   compact?: boolean;
   actionVariant?: 'addToCart' | 'inquiry';
   actionLabel?: string;
 }
 
-export function ProductCard({ product, onPress, onAddToCart, onInquiry, imageHeight = 128, compact, actionVariant: actionVariantProp, actionLabel: actionLabelProp }: ProductCardProps) {
+export function ProductCard({ product, onPress, onAddToCart, onInquiry, onToggleWishlist, saved, imageHeight = 128, compact, actionVariant: actionVariantProp, actionLabel: actionLabelProp }: ProductCardProps) {
+  const { isSaved, toggle } = useWishlist();
+  const { navigate } = useNavigation();
+  const savedState = saved ?? isSaved(product.id);
+  const handleWishlistToggle = useCallback(() => {
+    if (onToggleWishlist) {
+      onToggleWishlist();
+      return;
+    }
+    toggle(product.id).then(ok => {
+      if (!ok) {
+        navigate('Login');
+      }
+    }).catch(() => {});
+  }, [onToggleWishlist, toggle, product.id, navigate]);
+
   const { image, category, title, price, originalPrice, discount, rating, reviews, minOrder, unitLabel, badge, badgeBottom, actionLabel, actionVariant = 'addToCart' } = product;
   const variant = actionVariantProp ?? actionVariant;
   const label = actionLabelProp ?? actionLabel;
@@ -141,9 +160,18 @@ export function ProductCard({ product, onPress, onAddToCart, onInquiry, imageHei
             <Pressable style={styles.addToCartBtn} onPress={onAddToCart} accessibilityRole="button" accessibilityLabel={`Add ${title} to cart`}>
               <Text style={styles.addToCartText}>{actionLabel ?? 'Add to Cart'}</Text>
             </Pressable>
-            <Pressable style={styles.favBtn} onPress={onAddToCart} accessibilityRole="button" accessibilityLabel={`Add ${title} to cart`}>
-              <Icon name="favorite-border" size={18} color={colors.primary} />
-            </Pressable>
+            {onToggleWishlist || product.actionVariant !== 'inquiry' ? (
+              <Pressable
+                style={[styles.favBtn, savedState && styles.favBtnActive]}
+                onPress={handleWishlistToggle}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel={savedState ? `Remove ${title} from wishlist` : `Add ${title} to wishlist`}
+                accessibilityState={{ selected: savedState }}
+              >
+                <Icon name={savedState ? 'favorite' : 'favorite-border'} size={18} color={savedState ? colors.statusFlash : colors.primary} />
+              </Pressable>
+            ) : null}
           </View>
         )}
       </View>
@@ -297,6 +325,9 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  favBtnActive: {
+    backgroundColor: colors.secondaryContainer,
   },
   actionBtn: {
     borderRadius: 6,

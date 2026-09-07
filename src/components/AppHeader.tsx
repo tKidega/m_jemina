@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from './Icon';
 import { useNavigation } from '../navigation/NavigationContext';
 import { colors } from '../theme/colors';
@@ -16,11 +17,12 @@ interface HeaderProps {
 }
 
 export function AppHeader({ title = 'JEMINA', showBack, onBack, onMenu, right, style }: HeaderProps) {
+	const insets = useSafeAreaInsets();
 	const { openSidebar } = useNavigation();
 	const handleMenu = onMenu ?? openSidebar;
 
 	return (
-		<View style={[styles.container, style]}>
+		<View style={[styles.container, { paddingTop: insets.top + spacing.sm }, style]}>
 			<View style={styles.left}>
 				{showBack ? (
 					<Pressable style={styles.iconBtn} onPress={onBack} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
@@ -75,7 +77,7 @@ const styles = StyleSheet.create({
 		justifyContent: 'space-between',
 		backgroundColor: colors.primary,
 		paddingHorizontal: spacing.lg,
-		paddingVertical: spacing.sm,
+		paddingBottom: spacing.sm,
 		minHeight: 48,
 	},
 	left: {

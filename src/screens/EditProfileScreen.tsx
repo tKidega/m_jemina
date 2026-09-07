@@ -3,6 +3,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { AppHeader } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
+import { EmptyState } from '../components/EmptyState';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { apiUpdateProfile } from '../data/api';
@@ -128,11 +129,7 @@ export function EditProfileScreen({ embedded = false }: { embedded?: boolean }) 
     return (
       <View style={styles.root}>
         {!embedded ? <AppHeader title="Edit Profile" showBack onBack={goBack} /> : null}
-        <View style={styles.center}>
-          <Icon name="person-outline" size={56} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>Sign in to edit your profile</Text>
-          <Button label="Sign In" variant="primary" fullWidth onPress={() => navigate('Login')} style={styles.centerBtn} />
-        </View>
+        <EmptyState icon="person-outline" title="Sign in to edit your profile" actionLabel="Sign In" onAction={() => navigate('Login')} />
       </View>
     );
   }
@@ -295,22 +292,6 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.lg,
     paddingBottom: spacing.xxl,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xxl,
-  },
-  centerTitle: {
-    ...typography.headlineLg,
-    color: colors.primary,
-    textAlign: 'center',
-    marginTop: spacing.lg,
-    marginBottom: spacing.xl,
-  },
-  centerBtn: {
-    width: '100%',
   },
   sectionTitle: {
     ...typography.headlineMd,

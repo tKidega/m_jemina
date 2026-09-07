@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
@@ -28,6 +28,17 @@ export function CategoryCarousel({
   const { width } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
   const pageRef = useRef(0);
+  const [reduceMotion, setReduceMotion] = React.useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled().then(enabled => {
+      if (mounted) setReduceMotion(enabled);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const tileWidth = 88;
   const step = tileWidth + spacing.gutter;
@@ -35,7 +46,7 @@ export function CategoryCarousel({
   const pageCount = Math.max(1, Math.ceil(categories.length / perView));
 
   useEffect(() => {
-    if (!autoPlay || categories.length === 0 || pageCount <= 1) {
+    if (!autoPlay || reduceMotion || categories.length === 0 || pageCount <= 1) {
       return;
     }
     const timer = setInterval(() => {
@@ -45,7 +56,7 @@ export function CategoryCarousel({
     }, autoPlayInterval);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoPlay, autoPlayInterval, pageCount, categories.length]);
+  }, [autoPlay, reduceMotion, autoPlayInterval, pageCount, categories.length]);
 
   if (categories.length === 0) {
     return null;

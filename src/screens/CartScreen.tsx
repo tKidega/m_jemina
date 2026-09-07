@@ -50,9 +50,10 @@ export function CartScreen() {
           >
             <View style={styles.itemsHeader}>
               <Text style={styles.itemsHeaderText}>
-                {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                {itemCount} {itemCount === 1 ? 'item' : 'items'} in cart
               </Text>
-              <Pressable onPress={clearCart}>
+              <Pressable onPress={clearCart} style={styles.clearBtn}>
+                <Icon name="delete-outline" size={14} color={colors.statusFlash} />
                 <Text style={styles.clearText}>Clear All</Text>
               </Pressable>
             </View>
@@ -60,72 +61,109 @@ export function CartScreen() {
             {vendorGroups.map(group => (
               <View key={group.vendorId ?? group.vendorName} style={styles.vendorSection}>
                 <View style={styles.vendorHeader}>
-                  <Icon name="store" size={16} color={colors.primary} />
-                  <Text style={styles.vendorName} numberOfLines={1}>{group.vendorName}</Text>
-                  <Text style={styles.fulfilledBy}>Fulfilled by {group.vendorName}</Text>
+                  <View style={styles.vendorBadge}>
+                    <Icon name="store" size={14} color={colors.white} />
+                  </View>
+                  <View style={styles.vendorInfo}>
+                    <Text style={styles.vendorName} numberOfLines={1}>{group.vendorName}</Text>
+                    <Text style={styles.vendorMeta}>
+                      {group.items.length} {group.items.length === 1 ? 'product' : 'products'}
+                      {' \u00B7 '}
+                      Delivery: {formatUGX(group.deliveryFee)}
+                    </Text>
+                  </View>
                 </View>
 
-                {group.items.map(item => (
-                  <View key={item.product.id} style={styles.cartItem}>
-                    <Pressable
-                      style={styles.itemImageWrap}
-                      onPress={() => navigate('ProductDetails', { product: item.product })}
-                    >
-                      {item.product.image ? (
-                        <Image source={{ uri: item.product.image }} style={styles.itemImage} resizeMode="cover" />
-                      ) : (
-                        <View style={[styles.itemImage, styles.imagePlaceholder]}>
-                          <Icon name="store" size={28} color={colors.outlineVariant} />
-                        </View>
-                      )}
-                    </Pressable>
-                    <View style={styles.itemBody}>
-                      <Text style={styles.itemCategory} numberOfLines={1}>{item.product.category}</Text>
-                      <Text style={styles.itemTitle} numberOfLines={2}>{item.product.title}</Text>
-                      <Text style={styles.itemPrice}>{formatUGX(item.product.priceValue * item.quantity)}</Text>
-                      <View style={styles.itemActions}>
-                        <View style={styles.qtyStepper}>
-                          <Pressable style={styles.qtyBtn} onPress={() => updateQuantity(item.product.id, item.quantity - 1)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Decrease quantity of ${item.product.title}`}>
-                            <Icon name="remove" size={18} color={colors.primary} />
-                          </Pressable>
-                          <Text style={styles.qtyText}>{item.quantity}</Text>
-                          <Pressable style={styles.qtyBtn} onPress={() => updateQuantity(item.product.id, item.quantity + 1)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Increase quantity of ${item.product.title}`}>
-                            <Icon name="add" size={18} color={colors.primary} />
+                {group.items.map((item, idx) => (
+                  <React.Fragment key={item.product.id}>
+                    <View style={styles.cartItem}>
+                      <Pressable
+                        style={styles.itemImageWrap}
+                        onPress={() => navigate('ProductDetails', { product: item.product })}
+                      >
+                        {item.product.image ? (
+                          <Image source={{ uri: item.product.image }} style={styles.itemImage} resizeMode="cover" />
+                        ) : (
+                          <View style={[styles.itemImage, styles.imagePlaceholder]}>
+                            <Icon name="store" size={24} color={colors.outlineVariant} />
+                          </View>
+                        )}
+                      </Pressable>
+                      <View style={styles.itemBody}>
+                        <View style={styles.itemTopRow}>
+                          <View style={styles.itemTitleWrap}>
+                            <Text style={styles.itemTitle} numberOfLines={2}>{item.product.title}</Text>
+                            <Text style={styles.itemCategory} numberOfLines={1}>{item.product.category}</Text>
+                          </View>
+                          <Pressable onPress={() => removeItem(item.product.id)} hitSlop={8} style={styles.removeBtn} accessibilityRole="button" accessibilityLabel={`Remove ${item.product.title} from cart`}>
+                            <Icon name="close" size={18} color={colors.outline} />
                           </Pressable>
                         </View>
-                        <Pressable style={styles.removeBtn} onPress={() => removeItem(item.product.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Remove ${item.product.title} from cart`}>
-                          <Icon name="delete-outline" size={20} color={colors.outline} />
-                        </Pressable>
+
+                        <View style={styles.priceRow}>
+                          <Text style={styles.itemPrice}>{formatUGX(item.product.priceValue)}</Text>
+                          {item.quantity > 1 && (
+                            <Text style={styles.pricePerUnit}>each</Text>
+                          )}
+                        </View>
+
+                        {item.product.deliveryFee != null && item.product.deliveryFee > 0 && (
+                          <View style={styles.deliveryTag}>
+                            <Icon name="local-shipping" size={12} color={colors.onSurfaceVariant} />
+                            <Text style={styles.deliveryTagText}>
+                              Delivery: {formatUGX(item.product.deliveryFee * item.quantity)}
+                            </Text>
+                          </View>
+                        )}
+
+                        <View style={styles.itemActions}>
+                          <View style={styles.qtyStepper}>
+                            <Pressable style={[styles.qtyBtn, item.quantity <= 1 && styles.qtyBtnDisabled]} onPress={() => updateQuantity(item.product.id, item.quantity - 1)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Decrease quantity of ${item.product.title}`}>
+                              <Icon name="remove" size={16} color={item.quantity <= 1 ? colors.outlineVariant : colors.primary} />
+                            </Pressable>
+                            <Text style={styles.qtyText}>{item.quantity}</Text>
+                            <Pressable style={styles.qtyBtn} onPress={() => updateQuantity(item.product.id, item.quantity + 1)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Increase quantity of ${item.product.title}`}>
+                              <Icon name="add" size={16} color={colors.primary} />
+                            </Pressable>
+                          </View>
+                          <Text style={styles.lineTotal}>{formatUGX(item.product.priceValue * item.quantity)}</Text>
+                        </View>
                       </View>
                     </View>
-                  </View>
+                    {idx < group.items.length - 1 && <View style={styles.itemSeparator} />}
+                  </React.Fragment>
                 ))}
-
-                <View style={styles.deliveryRow}>
-                  <Icon name="local-shipping" size={14} color={colors.onSurfaceVariant} />
-                  <Text style={styles.deliveryLabel}>Delivery ({group.vendorName})</Text>
-                  <Text style={styles.deliveryValue}>{formatUGX(group.deliveryFee)}</Text>
-                </View>
               </View>
             ))}
-          </ScrollView>
 
-          <View style={styles.summary}>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Subtotal</Text>
-              <Text style={styles.summaryValue}>{formatUGX(subtotal)}</Text>
+            {/* Transaction summary */}
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryTitle}>Order Summary</Text>
+
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Subtotal ({itemCount} items)</Text>
+                <Text style={styles.summaryValue}>{formatUGX(subtotal)}</Text>
+              </View>
+
+              {vendorGroups.map(g => (
+                <View key={g.vendorId ?? g.vendorName} style={styles.summaryRow}>
+                  <Text style={styles.summaryLabelSub}>
+                    Delivery \u2014 {g.vendorName}
+                  </Text>
+                  <Text style={styles.summaryValue}>{formatUGX(g.deliveryFee)}</Text>
+                </View>
+              ))}
+
+              <View style={styles.divider} />
+
+              <View style={styles.summaryRow}>
+                <Text style={styles.totalLabel}>Total</Text>
+                <Text style={styles.totalValue}>{formatUGX(subtotal + totalDeliveryFees)}</Text>
+              </View>
+
+              <Button label="Proceed to Checkout" variant="primary" onPress={() => navigate('Checkout')} fullWidth style={styles.checkoutBtn} />
             </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Delivery ({vendorGroups.length} {vendorGroups.length === 1 ? 'vendor' : 'vendors'})</Text>
-              <Text style={styles.summaryValue}>{formatUGX(totalDeliveryFees)}</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.summaryRow}>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>{formatUGX(subtotal + totalDeliveryFees)}</Text>
-            </View>
-            <Button label="Proceed to Checkout" variant="primary" onPress={() => navigate('Checkout')} fullWidth style={styles.checkoutBtn} />
-          </View>
+          </ScrollView>
         </>
       )}
       <BottomNav />
@@ -149,50 +187,69 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   itemsHeaderText: {
-    ...typography.headlineMd,
-    color: colors.onSurface,
+    ...typography.bodyMd,
+    color: colors.onSurfaceVariant,
+    fontWeight: '600',
+  },
+  clearBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   clearText: {
-    ...typography.labelMd,
+    ...typography.labelSm,
     color: colors.statusFlash,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   vendorSection: {
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
   vendorHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.primaryContainer,
+    backgroundColor: colors.primary,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    marginBottom: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    marginBottom: spacing.sm,
+  },
+  vendorBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vendorInfo: {
+    flex: 1,
   },
   vendorName: {
     ...typography.labelMd,
-    color: colors.onPrimaryContainer,
+    color: colors.white,
     fontWeight: '700',
-    flex: 1,
   },
-  fulfilledBy: {
+  vendorMeta: {
     ...typography.labelSm,
-    color: colors.onPrimaryContainer,
-    opacity: 0.7,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 1,
   },
   cartItem: {
     flexDirection: 'row',
     gap: spacing.md,
     backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
     borderRadius: radius.xl,
     padding: spacing.md,
-    marginBottom: spacing.md,
+  },
+  itemSeparator: {
+    height: 1,
+    backgroundColor: colors.borderLight,
+    marginVertical: spacing.sm,
+    marginLeft: spacing.md + 80 + spacing.md,
   },
   itemImageWrap: {
     width: 80,
@@ -211,77 +268,143 @@ const styles = StyleSheet.create({
   },
   itemBody: {
     flex: 1,
+    gap: 4,
+  },
+  itemTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  itemTitleWrap: {
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  itemTitle: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    fontWeight: '600',
   },
   itemCategory: {
     ...typography.labelSm,
     color: colors.onSurfaceVariant,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
-  },
-  itemTitle: {
-    ...typography.bodyLg,
-    color: colors.onSurface,
-    fontWeight: '700',
     marginTop: 2,
   },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: spacing.sm,
+  },
   itemPrice: {
-    ...typography.headlineMd,
+    ...typography.bodyLg,
     color: colors.secondary,
     fontWeight: '700',
-    marginTop: spacing.sm,
+  },
+  pricePerUnit: {
+    ...typography.labelSm,
+    color: colors.onSurfaceVariant,
+  },
+  deliveryTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  deliveryTagText: {
+    ...typography.labelSm,
+    color: colors.onSurfaceVariant,
   },
   itemActions: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
   },
   qtyStepper: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
     borderWidth: 1,
     borderColor: colors.borderLight,
     borderRadius: radius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
+    overflow: 'hidden',
   },
   qtyBtn: {
-    width: 36,
-    height: 36,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceContainer,
-    borderRadius: 18,
+    backgroundColor: colors.surfaceContainerLow,
+  },
+  qtyBtnDisabled: {
+    opacity: 0.4,
   },
   qtyText: {
     ...typography.labelMd,
     color: colors.onSurface,
     fontWeight: '700',
-    minWidth: 20,
+    minWidth: 28,
     textAlign: 'center',
   },
   removeBtn: {
-    padding: spacing.sm,
+    padding: 4,
   },
-  deliveryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  deliveryLabel: {
-    ...typography.labelMd,
-    color: colors.onSurfaceVariant,
-    flex: 1,
-  },
-  deliveryValue: {
-    ...typography.labelMd,
+  lineTotal: {
+    ...typography.bodyMd,
     color: colors.onSurface,
     fontWeight: '700',
+  },
+  summaryCard: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    padding: spacing.lg,
+    marginTop: spacing.sm,
+  },
+  summaryTitle: {
+    ...typography.labelMd,
+    color: colors.onSurfaceVariant,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: spacing.md,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  summaryLabel: {
+    ...typography.bodyMd,
+    color: colors.onSurfaceVariant,
+  },
+  summaryLabelSub: {
+    ...typography.labelSm,
+    color: colors.onSurfaceVariant,
+  },
+  summaryValue: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    fontWeight: '600',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.borderLight,
+    marginVertical: spacing.md,
+  },
+  totalLabel: {
+    ...typography.bodyLg,
+    color: colors.onSurface,
+    fontWeight: '700',
+  },
+  totalValue: {
+    ...typography.headlineMd,
+    color: colors.secondary,
+    fontWeight: '700',
+  },
+  checkoutBtn: {
+    marginTop: spacing.md,
   },
   empty: {
     flex: 1,
@@ -311,45 +434,5 @@ const styles = StyleSheet.create({
   },
   emptyBtn: {
     width: '100%',
-  },
-  summary: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
-    padding: spacing.lg,
-    paddingBottom: spacing.lg,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.sm,
-  },
-  summaryLabel: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-  },
-  summaryValue: {
-    ...typography.bodyLg,
-    color: colors.onSurface,
-    fontWeight: '700',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.borderLight,
-    marginVertical: spacing.sm,
-  },
-  totalLabel: {
-    ...typography.headlineMd,
-    color: colors.onSurface,
-    fontWeight: '700',
-  },
-  totalValue: {
-    ...typography.headlineLg,
-    color: colors.secondary,
-    fontWeight: '700',
-  },
-  checkoutBtn: {
-    marginTop: spacing.lg,
   },
 });

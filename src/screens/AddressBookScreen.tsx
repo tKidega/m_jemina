@@ -14,6 +14,7 @@ import {
 import { AppHeader } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
+import { EmptyState } from '../components/EmptyState';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { apiGetAddresses, apiSaveAddress, apiUpdateAddress, apiDeleteAddress, apiSetDefaultAddress, ApiAddress } from '../data/api';
@@ -88,7 +89,7 @@ function AddressCard({ address, onEdit, onDelete, onSetDefault }: {
 
 export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) {
   const { token, isAuthenticated } = useAuth();
-  const { goBack } = useNavigation();
+  const { goBack, navigate } = useNavigation();
   const [addresses, setAddresses] = useState<ApiAddress[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -226,12 +227,7 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
     return (
       <View style={styles.root}>
         {!embedded ? <AppHeader title="Address Book" showBack onBack={goBack} /> : null}
-        <View style={styles.center}>
-          <Icon name="home" size={56} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>Sign in to manage addresses</Text>
-          <Text style={styles.centerSub}>Add and manage your delivery addresses after signing in.</Text>
-          <Button label="Sign In" variant="primary" fullWidth onPress={() => {}} style={styles.centerBtn} />
-        </View>
+        <EmptyState icon="home" title="Sign in to manage addresses" subtitle="Add and manage your delivery addresses after signing in." actionLabel="Sign In" onAction={() => navigate('Login')} />
       </View>
     );
   }
@@ -247,19 +243,9 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
           <Text style={styles.loadingText}>Loading addresses...</Text>
         </View>
       ) : error ? (
-        <View style={styles.center}>
-          <Icon name="error-outline" size={48} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>Couldn't load addresses</Text>
-          <Text style={styles.centerSub}>{error}</Text>
-          <Button label="Try Again" variant="primary" fullWidth onPress={() => load()} style={styles.centerBtn} />
-        </View>
+        <EmptyState icon="error-outline" title="Couldn't load addresses" subtitle={error} actionLabel="Try Again" onAction={() => load()} />
       ) : addresses.length === 0 ? (
-        <View style={styles.center}>
-          <Icon name="home" size={56} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>No addresses yet</Text>
-          <Text style={styles.centerSub}>Add a delivery address to make checkout faster.</Text>
-          <Button label="Add Address" variant="primary" fullWidth onPress={openCreate} style={styles.centerBtn} />
-        </View>
+        <EmptyState icon="home" title="No addresses yet" subtitle="Add a delivery address to make checkout faster." actionLabel="Add Address" onAction={openCreate} />
       ) : (
         <ScrollView
           style={styles.scroll}
@@ -334,22 +320,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xxl,
-  },
-  centerTitle: {
-    ...typography.headlineLg,
-    color: colors.primary,
-    textAlign: 'center',
-    marginTop: spacing.lg,
-  },
-  centerSub: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-    marginBottom: spacing.xl,
-  },
-  centerBtn: {
-    width: '100%',
   },
   topBar: {
     paddingHorizontal: spacing.lg,

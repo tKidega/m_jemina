@@ -8,8 +8,8 @@ import {
   View,
 } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
+import { EmptyState } from '../components/EmptyState';
 import { Icon } from '../components/Icon';
-import { Button } from '../components/Button';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { apiGetMessages, apiMarkMessageRead, ApiMessage } from '../data/api';
@@ -36,7 +36,7 @@ function formatDateTime(value?: string | null): string {
 
 export function MessagesScreen() {
   const { token, isAuthenticated } = useAuth();
-  const { goBack } = useNavigation();
+  const { goBack, navigate } = useNavigation();
   const [messages, setMessages] = useState<ApiMessage[]>([]);
   const [newCount, setNewCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -92,12 +92,13 @@ export function MessagesScreen() {
     return (
       <View style={styles.root}>
         <AppHeader title="Messages" showBack onBack={goBack} />
-        <View style={styles.center}>
-          <Icon name="mail" size={56} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>Sign in to view messages</Text>
-          <Text style={styles.centerSub}>Receive order updates, offers, and support replies here.</Text>
-          <Button label="Sign In" variant="primary" fullWidth onPress={() => {}} style={styles.centerBtn} />
-        </View>
+        <EmptyState
+          icon="mail"
+          title="Sign in to view messages"
+          subtitle="Receive order updates, offers, and support replies here."
+          actionLabel="Sign In"
+          onAction={() => navigate('Login')}
+        />
       </View>
     );
   }
@@ -146,18 +147,19 @@ export function MessagesScreen() {
           <Text style={styles.loadingText}>Loading messages...</Text>
         </View>
       ) : error ? (
-        <View style={styles.center}>
-          <Icon name="error-outline" size={48} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>Couldn't load messages</Text>
-          <Text style={styles.centerSub}>{error}</Text>
-          <Button label="Try Again" variant="primary" fullWidth onPress={() => loadMessages()} style={styles.centerBtn} />
-        </View>
+        <EmptyState
+          icon="error-outline"
+          title="Couldn't load messages"
+          subtitle={error}
+          actionLabel="Try Again"
+          onAction={() => loadMessages()}
+        />
       ) : messages.length === 0 ? (
-        <View style={styles.center}>
-          <Icon name="mail" size={56} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>No messages</Text>
-          <Text style={styles.centerSub}>Order confirmations and support replies will appear here.</Text>
-        </View>
+        <EmptyState
+          icon="mail"
+          title="No messages"
+          subtitle="Order confirmations and support replies will appear here."
+        />
       ) : (
         <ScrollView
           style={styles.scroll}
@@ -208,22 +210,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xxl,
-  },
-  centerTitle: {
-    ...typography.headlineLg,
-    color: colors.primary,
-    textAlign: 'center',
-    marginTop: spacing.lg,
-  },
-  centerSub: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-    marginBottom: spacing.xl,
-  },
-  centerBtn: {
-    width: '100%',
   },
   loadingText: {
     ...typography.bodyMd,

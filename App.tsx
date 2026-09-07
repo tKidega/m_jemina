@@ -5,6 +5,15 @@ import { NavigationProvider, useNavigation } from './src/navigation/NavigationCo
 import { CartProvider } from './src/state/CartContext';
 import { AuthProvider } from './src/state/AuthContext';
 import { CatalogProvider } from './src/state/CatalogContext';
+import { WishlistProvider } from './src/state/WishlistContext';
+import { NotificationProvider, useNotification } from './src/state/NotificationContext';
+import {
+  getInitialPush,
+  requestNotificationPermission,
+  subscribeToPushEvents,
+  subscribeToPushOpened,
+  PushEvent,
+} from './src/lib/notifications';
 import { Sidebar } from './src/components/Sidebar';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { MarketplaceScreen } from './src/screens/MarketplaceScreen';
@@ -13,6 +22,7 @@ import { ProductInquiryScreen } from './src/screens/ProductInquiryScreen';
 import { VendorProfileScreen } from './src/screens/VendorProfileScreen';
 import { CartScreen } from './src/screens/CartScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
+import { TwoFactorScreen } from './src/screens/TwoFactorScreen';
 import { RegisterScreen } from './src/screens/RegisterScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { CheckoutScreen } from './src/screens/CheckoutScreen';
@@ -122,6 +132,9 @@ function Router() {
   if (route === 'Login') {
     return <LoginScreen />;
   }
+  if (route === 'TwoFactor') {
+    return <TwoFactorScreen />;
+  }
   if (route === 'Register') {
     return <RegisterScreen />;
   }
@@ -154,19 +167,68 @@ function HardwareBackButton() {
   return null;
 }
 
+function PushBridge() {
+  const { navigate } = useNavigation();
+  const { showPromo, showNotice } = useNotification();
+
+  useEffect(() => {
+    requestNotificationPermission();
+
+    const raiseEvent = (event: PushEvent) => {
+      if (event.type === 'promo') {
+        showPromo(event.promo);
+      } else if (event.type === 'order_status') {
+        showNotice({
+          title: event.title,
+          body: event.body,
+          kind: 'order',
+          onPress: () => navigate('Orders'),
+        });
+      } else if (event.type === 'message') {
+        showNotice({
+          title: event.title,
+          body: event.body,
+          kind: 'message',
+          onPress: () => navigate('Messages'),
+        });
+      }
+    };
+
+    const unsubForeground = subscribeToPushEvents(raiseEvent);
+    const unsubOpened = subscribeToPushOpened(raiseEvent);
+    getInitialPush().then(event => {
+      if (event) {
+        raiseEvent(event);
+      }
+    });
+
+    return () => {
+      unsubForeground();
+      unsubOpened();
+    };
+  }, [navigate, showPromo, showNotice]);
+
+  return null;
+}
+
 function App() {
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
       <AuthProvider>
         <CartProvider>
-          <CatalogProvider>
-            <NavigationProvider>
-              <HardwareBackButton />
-              <Router />
-              <Sidebar />
-            </NavigationProvider>
-          </CatalogProvider>
+          <WishlistProvider>
+            <CatalogProvider>
+              <NavigationProvider>
+                <NotificationProvider>
+                  <HardwareBackButton />
+                  <PushBridge />
+                  <Router />
+                  <Sidebar />
+                </NotificationProvider>
+              </NavigationProvider>
+            </CatalogProvider>
+          </WishlistProvider>
         </CartProvider>
       </AuthProvider>
     </SafeAreaProvider>

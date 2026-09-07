@@ -1,5 +1,6 @@
 ﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Image,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -14,6 +15,7 @@ import { BottomNav } from '../components/BottomNav';
 import { Icon } from '../components/Icon';
 import { SectionHeader } from '../components/SectionHeader';
 import { Button } from '../components/Button';
+import { HeroCarousel, type HeroSlide } from '../components/HeroCarousel';
 import { ProductCard, Product } from '../components/ProductCard';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useCart } from '../state/CartContext';
@@ -22,8 +24,17 @@ import { apiGetVendors } from '../data/api';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
+import b2bHero1 from '../assets/banners/b2b-hero-1.jpg';
+import b2bHero2 from '../assets/banners/b2b-hero-2.jpg';
 
 const FILTERS = ['All', 'Wholesale', 'Bulk Orders', 'Corporate', 'Enterprise'];
+
+const B2B_HERO_SLIDES: HeroSlide[] = [
+  { id: 'b2b-hero-1', image: b2bHero1 },
+  { id: 'b2b-hero-2', image: b2bHero2 },
+];
+
+const formatCount = (n: number) => n.toLocaleString();
 
 interface StoreData {
   id: string;
@@ -68,6 +79,7 @@ export function MarketplaceScreen() {
   const {
     flashSale,
     products,
+    categories,
     wholesale,
     bulkOrder,
     corporateReady,
@@ -174,16 +186,29 @@ export function MarketplaceScreen() {
         }
       >
         {/* B2B hero */}
-        <View style={styles.hero}>
-          <View style={styles.heroPill}>
-            <Icon name="business-center" size={14} color={colors.onSecondary} />
-            <Text style={styles.heroPillText}>B2B Marketplace</Text>
+        <HeroCarousel slides={B2B_HERO_SLIDES} aspectRatio={672 / 288} resizeMode="cover" showDots />
+
+        {/* Live stats */}
+        <View style={styles.statsRow}>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{formatCount(products.length)}</Text>
+            <Text style={styles.statLabel}>Products</Text>
           </View>
-          <Text style={styles.heroTitle}>Procurement & Wholesale</Text>
-          <Text style={styles.heroText}>
-            Sourcing for your business? Browse wholesale, bulk and corporate-ready products and send an
-            inquiry to the vendor directly.
-          </Text>
+          <View style={styles.statDivider} />
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{formatCount(b2bProducts.length)}</Text>
+            <Text style={styles.statLabel}>B2B Deals</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{formatCount(categories.length)}</Text>
+            <Text style={styles.statLabel}>Categories</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{formatCount(stores.length)}</Text>
+            <Text style={styles.statLabel}>Vendors</Text>
+          </View>
         </View>
 
         {/* Search & filters */}
@@ -213,6 +238,46 @@ export function MarketplaceScreen() {
             </Pressable>
           ))}
         </ScrollView>
+
+        {/* Browse categories */}
+        {categories.length > 0 ? (
+          <View style={styles.section}>
+            <SectionHeader
+              title="Browse by Category"
+              subtitle="Shop departments with live product counts."
+            />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catRow}>
+              {categories.slice(0, 12).map(cat => {
+                const list = products.filter(p => p.category.toLowerCase() === cat.name.toLowerCase());
+                return (
+                  <Pressable
+                    key={cat.id}
+                    style={styles.catCard}
+                    onPress={() =>
+                      navigate('AllProducts', {
+                        title: cat.name,
+                        subtitle: `${cat.name} products`,
+                        products: list.length > 0 ? list : products,
+                      })
+                    }
+                  >
+                    {cat.image ? (
+                      <Image source={{ uri: cat.image }} style={styles.catImage} resizeMode="cover" />
+                    ) : (
+                      <View style={[styles.catImage, styles.catImagePlaceholder]}>
+                        <Icon name="inventory" size={22} color={colors.outlineVariant} />
+                      </View>
+                    )}
+                    <Text style={styles.catName} numberOfLines={1}>{cat.name}</Text>
+                    <Text style={styles.catCount}>
+                      {formatCount(cat.product_count ?? 0)} product{cat.product_count === 1 ? '' : 's'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        ) : null}
 
         {/* B2B carousels */}
         {b2bSections.map(section => {
@@ -393,51 +458,76 @@ const styles = StyleSheet.create({
   content: {
     paddingBottom: 24,
   },
-  heroImage: {
-    width: '100%',
-    aspectRatio: 500 / 325,
-    marginTop: spacing.lg,
-    marginBottom: spacing.lg,
-  },
-  hero: {
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.lg,
-    backgroundColor: colors.secondaryContainer,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-  },
-  heroPill: {
+  statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 6,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 4,
-  },
-  heroPillText: {
-    ...typography.labelSm,
-    color: colors.secondary,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  heroTitle: {
-    ...typography.headlineLg,
-    color: colors.onSecondary,
-    fontWeight: '800',
+    marginHorizontal: spacing.lg,
     marginTop: spacing.md,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.xl,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
   },
-  heroText: {
-    ...typography.bodyMd,
-    color: colors.onSecondary,
-    opacity: 0.92,
-    marginTop: spacing.sm,
-    lineHeight: 20,
+  stat: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+  },
+  statValue: {
+    ...typography.headlineMd,
+    color: colors.primary,
+    fontWeight: '800',
+  },
+  statLabel: {
+    ...typography.labelSm,
+    color: colors.onSurfaceVariant,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  statDivider: {
+    width: 1,
+    alignSelf: 'stretch',
+    backgroundColor: colors.borderLight,
   },
   productCardWrap: {
     marginBottom: spacing.sm,
+  },
+  catRow: {
+    gap: spacing.md,
+    paddingRight: spacing.lg,
+    paddingBottom: spacing.sm,
+  },
+  catCard: {
+    width: 132,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.xl,
+    overflow: 'hidden',
+  },
+  catImage: {
+    width: '100%',
+    height: 88,
+    backgroundColor: colors.surfaceContainerHigh,
+  },
+  catImagePlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  catName: {
+    ...typography.labelMd,
+    color: colors.onSurface,
+    fontWeight: '700',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+  },
+  catCount: {
+    ...typography.labelSm,
+    color: colors.outline,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
   },
   searchRow: {
     flexDirection: 'column',

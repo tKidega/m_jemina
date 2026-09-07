@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   NativeScrollEvent,
   NativeSyntheticEvent,
   ScrollView,
@@ -45,6 +46,17 @@ export function ProductCarousel({
   const { width } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
   const [active, setActive] = useState(0);
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled().then(enabled => {
+      if (mounted) setReduceMotion(enabled);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const itemWidth = cardWidth ?? Math.round(width * 0.46);
   const step = itemWidth + spacing.gutter;
@@ -52,7 +64,7 @@ export function ProductCarousel({
   const pageCount = Math.max(1, Math.ceil(products.length / perView));
 
   useEffect(() => {
-    if (!autoPlay || products.length === 0 || pageCount <= 1) {
+    if (!autoPlay || reduceMotion || products.length === 0 || pageCount <= 1) {
       return;
     }
     const timer = setInterval(() => {
@@ -60,7 +72,7 @@ export function ProductCarousel({
     }, autoPlayInterval);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoPlay, loop, autoPlayInterval, pageCount, products.length, active]);
+  }, [autoPlay, reduceMotion, loop, autoPlayInterval, pageCount, products.length, active]);
 
   if (products.length === 0) {
     return (

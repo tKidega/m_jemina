@@ -15,7 +15,26 @@ buildscript {
         classpath("com.android.tools.build:gradle")
         classpath("com.facebook.react:react-native-gradle-plugin")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+        classpath("com.google.gms:google-services:4.4.2")
     }
 }
 
 apply plugin: "com.facebook.react.rootproject"
+
+// @react-native-firebase, @react-native-google-signin and other autolinked
+// modules do not set Java source/target compatibility; align every Android
+// subproject with the Java 21 bytecode the rest of the project produces so
+// javac and Kotlin/KSP stay consistent.
+gradle.projectsEvaluated {
+    allprojects { p ->
+        if (p.name == null || p.name == 'gradle-plugin' || p.name == 'settings-plugin' || p.name == 'shared') {
+            return
+        }
+        if (p.hasProperty('android')) {
+            p.android.compileOptions {
+                sourceCompatibility JavaVersion.VERSION_21
+                targetCompatibility JavaVersion.VERSION_21
+            }
+        }
+    }
+}

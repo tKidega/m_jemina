@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
-import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
+import { EmptyState } from '../components/EmptyState';
+import { Icon } from '../components/Icon';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { apiGetCreditHistory, ApiCreditTransaction } from '../data/api';
@@ -90,14 +91,13 @@ export function CreditHistoryScreen() {
     return (
       <View style={styles.root}>
         <AppHeader title="JEMINA Credits" showBack onBack={goBack} />
-        <View style={styles.empty}>
-          <View style={styles.emptyIcon}>
-            <Icon name="local-atm" size={56} color={colors.outlineVariant} />
-          </View>
-          <Text style={styles.emptyTitle}>Sign in to see your credits</Text>
-          <Text style={styles.emptySubtitle}>Your balance and transaction history live here.</Text>
-          <Button label="Sign In" variant="primary" fullWidth onPress={() => navigate('Login')} style={styles.emptyBtn} />
-        </View>
+        <EmptyState
+          icon="local-atm"
+          title="Sign in to see your credits"
+          subtitle="Your balance and transaction history live here."
+          actionLabel="Sign In"
+          onAction={() => navigate('Login')}
+        />
       </View>
     );
   }
@@ -290,36 +290,6 @@ const styles = StyleSheet.create({
   emptyHistoryText: {
     ...typography.bodyMd,
     color: colors.onSurfaceVariant,
-  },
-  empty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xxl,
-  },
-  emptyIcon: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: colors.surfaceContainerHigh,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xl,
-  },
-  emptyTitle: {
-    ...typography.headlineLg,
-    color: colors.primary,
-    textAlign: 'center',
-    marginBottom: spacing.sm,
-  },
-  emptySubtitle: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-    marginBottom: spacing.xl,
-  },
-  emptyBtn: {
-    width: '100%',
   },
   loading: {
     flex: 1,

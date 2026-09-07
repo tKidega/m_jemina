@@ -1,7 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { apiLogin, apiLogout, apiRegister } from '../data/api';
-import type { ApiUser } from '../data/api';
+import { apiGetUser, apiGoogleLogin, apiLogin, apiLogout, apiRegister, apiVerifyTwoFactor, subscribeUnauthorized, UnauthorizedError, TwoFactorRequiredError } from '../data/api';
+import type { ApiUser, LoginResult, TwoFactorChallenge } from '../data/api';
+import { clearDeviceToken, removeDeviceTokenFromServer, syncDeviceToken } from '../lib/notifications';
 
 export interface User {
   id: string;
@@ -18,9 +19,11 @@ interface AuthContextValue {  user: User | null;
   isAuthenticated: boolean;
   isHydrated: boolean;
   login: (email: string, password: string) => Promise<User>;
-  loginWithGoogle: () => Promise<User>;
+  loginWithGoogle: (idToken: string) => Promise<User>;
+  completeTwoFactorLogin: (email: string, code: string) => Promise<User>;
   register: (name: string, email: string, password: string) => Promise<User>;
   logout: () => void;
+  expireSession: () => void;
   updateUser: (user: User) => void;
 }
 
@@ -62,6 +65,10 @@ function apiUserToUser(api: ApiUser): User {
   };
 }
 
+function isTwoFactorChallenge(result: LoginResult): result is TwoFactorChallenge {
+  return 'two_factor_required' in result && result.two_factor_required === true;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -83,6 +90,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setToken(parsed.token ?? null);
           setAuthMode(parsed.authMode ?? null);
         }
+        if (parsed?.token && parsed.authMode === 'live') {
+          apiGetUser(parsed.token)
+            .then(() => {})
+            .catch(e => {
+              if (cancelled) {
+                return;
+              }
+              if (e instanceof UnauthorizedError) {
+                setUser(null);
+                setToken(null);
+                setAuthMode(null);
+              }
+            });
+        }
       })
       .catch(() => {})
       .finally(() => {
@@ -94,6 +115,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, [persistKey]);
+
+  const expireSession = useCallback(() => {
+    setUser(null);
+    setToken(null);
+    setAuthMode(null);
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribeUnauthorized(() => {
+      expireSession();
+    });
+    return unsubscribe;
+  }, [expireSession]);
+
+  useEffect(() => {
+    if (!isHydrated || authMode !== 'live' || !token || !user) {
+      return;
+    }
+    syncDeviceToken(token);
+  }, [isHydrated, authMode, token, user]);
+
+  useEffect(() => {
+    if (!isHydrated || (authMode === 'live' && token && user)) {
+      return;
+    }
+    clearDeviceToken();
+  }, [isHydrated, authMode, token, user]);
 
   useEffect(() => {
     if (!isHydrated) {
@@ -119,10 +167,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     const normalized = email.trim().toLowerCase();
     try {
-      const { user: apiUser, token: apiToken } = await apiLogin(normalized, password);
-      const account = apiUserToUser(apiUser);
+      const result = await apiLogin(normalized, password);
+      if (isTwoFactorChallenge(result)) {
+        throw new TwoFactorRequiredError(result.email, result.resendAfter, result.message);
+      }
+      const account = apiUserToUser(result.user);
       setUser(account);
-      setToken(apiToken);
+      setToken(result.token);
       setAuthMode('live');
       return account;
     } catch (liveError) {
@@ -133,11 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           liveError instanceof Error ? liveError.message : '',
         );
       if (!isNetworkFailure) {
-        throw new Error(
-          liveError instanceof Error
-            ? liveError.message
-            : 'Login failed. Please try again.',
-        );
+        throw liveError;
       }
       const account = registeredUsers.get(normalized);
       if (!account) {
@@ -153,12 +200,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const loginWithGoogle = useCallback(async () => {
-    await delay(600);
-    setUser(DEMO_USER);
-    setToken(null);
-    setAuthMode('demo');
-    return DEMO_USER;
+  const loginWithGoogle = useCallback(async (idToken: string) => {
+    const result = await apiGoogleLogin(idToken);
+    if (isTwoFactorChallenge(result)) {
+      throw new TwoFactorRequiredError(result.email, result.resendAfter, result.message);
+    }
+    const account = apiUserToUser(result.user);
+    setUser(account);
+    setToken(result.token);
+    setAuthMode('live');
+    return account;
+  }, []);
+
+  const completeTwoFactorLogin = useCallback(async (email: string, code: string) => {
+    const { user: apiUser, token: apiToken } = await apiVerifyTwoFactor(
+      email.trim().toLowerCase(),
+      code.trim(),
+    );
+    const account = apiUserToUser(apiUser);
+    setUser(account);
+    setToken(apiToken);
+    setAuthMode('live');
+    return account;
   }, []);
 
   const register = useCallback(async (name: string, email: string, password: string) => {
@@ -199,6 +262,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     if (token) {
       apiLogout(token).catch(() => {});
+      removeDeviceTokenFromServer(token).catch(() => {});
     }
     setUser(null);
     setToken(null);
@@ -218,11 +282,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isHydrated,
       login,
       loginWithGoogle,
+      completeTwoFactorLogin,
       register,
       logout,
+      expireSession,
       updateUser,
     }),
-    [user, token, authMode, isHydrated, login, loginWithGoogle, register, logout, updateUser],
+    [user, token, authMode, isHydrated, login, loginWithGoogle, completeTwoFactorLogin, register, logout, expireSession, updateUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

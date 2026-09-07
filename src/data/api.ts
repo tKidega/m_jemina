@@ -273,11 +273,63 @@ export interface AuthUserResult {
   token: string;
 }
 
+export interface TwoFactorChallenge {
+  two_factor_required: true;
+  email: string;
+  resendAfter: number;
+  message: string;
+}
+
+export type LoginResult = AuthUserResult | TwoFactorChallenge;
+
+export class TwoFactorRequiredError extends Error {
+  readonly email: string;
+  readonly resendAfter: number;
+
+  constructor(email: string, resendAfter: number, message: string) {
+    super(message || 'A verification code has been sent to your email.');
+    this.name = 'TwoFactorRequiredError';
+    this.email = email || '';
+    this.resendAfter = resendAfter || 0;
+  }
+}
+
+export class UnauthorizedError extends Error {
+  constructor(message = 'Your session has expired. Please sign in again.') {
+    super(message);
+    this.name = 'UnauthorizedError';
+  }
+}
+
+type UnauthorizedListener = () => void;
+
+let unauthorizedListeners: UnauthorizedListener[] = [];
+
+export function subscribeUnauthorized(listener: UnauthorizedListener): () => void {
+  unauthorizedListeners.push(listener);
+  return () => {
+    unauthorizedListeners = unauthorizedListeners.filter(l => l !== listener);
+  };
+}
+
+function emitUnauthorized() {
+  for (const listener of unauthorizedListeners) {
+    try {
+      listener();
+    } catch {
+      // A failing listener must not break the request flow.
+    }
+  }
+}
+
 interface ApiEnvelope<T> {
   success: boolean;
   message?: string;
   errors?: Record<string, string[]>;
   data?: T;
+  two_factor_required?: boolean;
+  two_factor_email?: string;
+  resend_after?: number;
 }
 
 type ApiMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -286,11 +338,12 @@ interface RequestOptions {
   method?: ApiMethod;
   token?: string | null;
   body?: unknown;
+  allowFailed?: boolean;
 }
 
 async function request<T = unknown>(
   path: string,
-  { method = 'GET', token, body }: RequestOptions = {},
+  { method = 'GET', token, body, allowFailed = false }: RequestOptions = {},
 ): Promise<ApiEnvelope<T>> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) {
@@ -304,8 +357,13 @@ async function request<T = unknown>(
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
+  if (response.status === 401 && token) {
+    emitUnauthorized();
+    throw new UnauthorizedError();
+  }
   const json = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
-  if (!response.ok || !json || json.success === false) {
+  const isChallenge = allowFailed && json?.two_factor_required === true;
+  if (!response.ok || !json || (json.success === false && !isChallenge)) {
     const detail =
       json?.message ||
       (json?.errors ? Object.values(json.errors).flat().join(' ') : undefined) ||
@@ -315,12 +373,55 @@ async function request<T = unknown>(
   return json;
 }
 
-export async function apiLogin(email: string, password: string): Promise<AuthUserResult> {
+function toLoginResult(
+  json: ApiEnvelope<AuthUserResult>,
+): LoginResult {
+  if (json.two_factor_required === true) {
+    return {
+      two_factor_required: true,
+      email: json.two_factor_email ?? '',
+      resendAfter: json.resend_after ?? 0,
+      message: json.message ?? 'A verification code has been sent to your email.',
+    };
+  }
+  return json.data as AuthUserResult;
+}
+
+export async function apiLogin(email: string, password: string): Promise<LoginResult> {
   const json = await request<AuthUserResult>('/auth/login', {
     method: 'POST',
     body: { email, password, device_name: 'm_jemina_app' },
+    allowFailed: true,
+  });
+  return toLoginResult(json);
+}
+
+export async function apiGoogleLogin(idToken: string): Promise<LoginResult> {
+  const json = await request<AuthUserResult>('/auth/google', {
+    method: 'POST',
+    body: { id_token: idToken, device_name: 'm_jemina_app' },
+    allowFailed: true,
+  });
+  return toLoginResult(json);
+}
+
+export async function apiVerifyTwoFactor(
+  email: string,
+  code: string,
+): Promise<AuthUserResult> {
+  const json = await request<AuthUserResult>('/auth/two-factor/verify', {
+    method: 'POST',
+    body: { email, code, device_name: 'm_jemina_app' },
   });
   return json.data as AuthUserResult;
+}
+
+export async function apiResendTwoFactorCode(email: string): Promise<number> {
+  const json = await request<{ resend_after?: number }>('/auth/two-factor/resend', {
+    method: 'POST',
+    body: { email },
+  });
+  return json.resend_after ?? 30;
 }
 
 export async function apiRegister(name: string, email: string, password: string): Promise<ApiUser> {
@@ -333,6 +434,22 @@ export async function apiRegister(name: string, email: string, password: string)
 
 export async function apiLogout(token: string): Promise<void> {
   await request('/auth/logout', { method: 'POST', token });
+}
+
+export async function apiRegisterDeviceToken(
+  fcmToken: string,
+  platform: string,
+  token: string,
+): Promise<void> {
+  await request('/auth/device-token', {
+    method: 'POST',
+    token,
+    body: { token: fcmToken, platform },
+  });
+}
+
+export async function apiRemoveDeviceToken(fcmToken: string, token: string): Promise<void> {
+  await request('/auth/device-token', { method: 'DELETE', token, body: { token: fcmToken } });
 }
 
 export async function apiGetUser(token: string): Promise<ApiUser> {
@@ -456,6 +573,8 @@ export async function apiCreateOrder(
     voucher_id?: number;
     voucher_code?: string;
     discount_amount?: number;
+    pickup_point?: { name: string; location: string } | null;
+    fulfilment?: 'pickup' | 'delivery';
   },
 ): Promise<ApiOrder> {
   const json = await request<{ order: ApiOrder }>('/orders', {
@@ -1175,4 +1294,89 @@ export async function apiVendorChatNotify(
     body: { vendor_id: Number(vendorId), message },
   });
   return json as unknown as ApiChatReply;
+}
+
+// ---------------------------------------------------------------------------
+// Promotions API (public — admin-managed seasonal banner on Home)
+// ---------------------------------------------------------------------------
+
+export type ApiPromotionPlacement =
+  | 'seasonal'
+  | 'popular'
+  | 'new_arrivals'
+  | 'flash'
+  | 'homepage'
+  | string;
+
+export interface ApiPromotion {
+  id: number;
+  title: string;
+  description: string | null;
+  image_url: string | null;
+  placement: ApiPromotionPlacement;
+  type?: string | null;
+  link_url?: string | null;
+  target_url?: string | null;
+  has_shop: boolean;
+  vendor?: { id: number; name: string } | null;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  stats?: {
+    views: number;
+    clicks: number;
+    unique_views: number;
+    unique_clicks: number;
+    engagement_rate: number;
+  };
+}
+
+interface PromotionsResponse {
+  success: boolean;
+  data: {
+    promotions: ApiPromotion[];
+    pagination: { current_page: number; per_page: number; total: number; last_page: number };
+  };
+}
+
+/** Public POST with JSON body (no auth) for promo view/click tracking. */
+async function publicPost<T>(path: string, body?: unknown): Promise<T> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+  }
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  const json = (await response.json().catch(() => null)) as { success?: boolean; data?: T } | null;
+  if (!response.ok || !json || json.success === false) {
+    throw new Error(`API error ${response.status}`);
+  }
+  return json.data as T;
+}
+
+/** Fetch active promotions, optionally filtered by placement (e.g. 'seasonal'). */
+export async function apiGetPromotions(
+  placement?: ApiPromotionPlacement,
+): Promise<ApiPromotion[]> {
+  const qs = placement ? `?placement=${encodeURIComponent(placement)}` : '';
+  const data = await getJson<PromotionsResponse>(`/promotions${qs}`);
+  return data.data.promotions ?? [];
+}
+
+/** Record a promo view (fire-and-forget). Source = 'app'. */
+export function apiTrackPromotionView(id: number | string): void {
+  publicPost<{ views: number }>(`/promotions/${id}/view`, { source: 'app' }).catch(() => {});
+}
+
+/** Record a promo click; resolves to (clicks, target_url). */
+export async function apiTrackPromotionClick(
+  id: number | string,
+): Promise<{ clicks: number; target_url?: string | null }> {
+  const data = await publicPost<{ clicks: number; target_url?: string | null }>(
+    `/promotions/${id}/click`,
+    { source: 'app' },
+  );
+  return data;
 }

@@ -15,7 +15,8 @@ import { Button } from '../components/Button';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useCart } from '../state/CartContext';
 import { useAuth } from '../state/AuthContext';
-import { apiAddReview, apiAddToWishlist, apiGetWishlist, apiRemoveFromWishlist, apiProductToProduct, fetchProductDetail } from '../data/api';
+import { useWishlist } from '../state/WishlistContext';
+import { apiAddReview, apiProductToProduct, fetchProductDetail } from '../data/api';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
@@ -84,10 +85,10 @@ export function ProductDetailsScreen() {
   const { goBack, params, navigate, switchTab } = useNavigation();
   const { addItem, itemCount } = useCart();
   const { token, isAuthenticated } = useAuth();
+  const { isSaved, toggle } = useWishlist();
   const [activeTab, setActiveTab] = useState(0);
   const [activeImage, setActiveImage] = useState(0);
   const [added, setAdded] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [wishlistError, setWishlistError] = useState<string | null>(null);
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState('');
@@ -101,6 +102,7 @@ export function ProductDetailsScreen() {
   const gallery = resolved.gallery?.length ? resolved.gallery : resolved.image ? [resolved.image] : [];
   const thumbnails = gallery.slice(0, 3);
   const reviewCount = resolved.reviews ?? 0;
+  const saved = isSaved(resolved.id);
 
   const handleAddToCart = () => {
     addItem(product);
@@ -115,41 +117,11 @@ export function ProductDetailsScreen() {
     }
     setWishlistError(null);
     try {
-      if (saved) {
-        await apiRemoveFromWishlist(token, product.id);
-        setSaved(false);
-      } else {
-        await apiAddToWishlist(token, product.id);
-        setSaved(true);
-      }
+      await toggle(resolved.id);
     } catch (e) {
       setWishlistError(e instanceof Error ? e.message : 'Could not update wishlist.');
     }
-  }, [token, saved, product.id, navigate]);
-
-  useEffect(() => {
-    setSaved(false);
-    setWishlistError(null);
-  }, [product.id]);
-
-  useEffect(() => {
-    if (!token || !product.id) {
-      return;
-    }
-    let cancelled = false;
-    apiGetWishlist(token)
-      .then(items => {
-        if (!cancelled && items.some(item => String(item.product.id) === String(product.id))) {
-          setSaved(true);
-        }
-      })
-      .catch(() => {
-        // Wishlist preload is best-effort; silently ignore failures.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [token, product.id]);
+  }, [token, resolved.id, toggle, navigate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -237,7 +209,7 @@ export function ProductDetailsScreen() {
 
           <View style={styles.titleRow}>
             <Text style={[styles.title, styles.titleFlex]}>{resolved.title}</Text>
-            <Pressable style={[styles.favBtn, saved && styles.favBtnActive]} onPress={toggleWishlist} hitSlop={6}>
+            <Pressable style={[styles.favBtn, saved && styles.favBtnActive]} onPress={toggleWishlist} hitSlop={8}>
               <Icon
                 name={saved ? 'favorite' : 'favorite-border'}
                 size={22}
@@ -455,7 +427,7 @@ export function ProductDetailsScreen() {
                   <Text style={styles.reviewFormTitle}>Write a review</Text>
                   <View style={styles.reviewStars}>
                     {[1, 2, 3, 4, 5].map(n => (
-                      <Pressable key={n} onPress={() => setReviewRating(n)} hitSlop={4}>
+                      <Pressable key={n} onPress={() => setReviewRating(n)} hitSlop={6}>
                         <Icon name={reviewRating >= n ? 'star' : 'star-border'} size={30} color={colors.secondary} />
                       </Pressable>
                     ))}

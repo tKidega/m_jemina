@@ -53,26 +53,43 @@ Radius scale: `2 / 4 / 8 / 12 / 999` (sm → full).
 
 Custom router in `src/navigation/NavigationContext.tsx` — a React Context + state-based router (no `react-navigation` dependency). `App.tsx` wraps the app in `NavigationProvider` and renders a `Router` that switches on the current route.
 
-Current route map:
+Current route map (31 routes):
 
 | Route | Screen | Source file |
 |-------|--------|-------------|
-| home | HomeScreen | `src/screens/HomeScreen.tsx` |
-| marketplace | MarketplaceScreen | `src/screens/MarketplaceScreen.tsx` |
-| product-details | ProductDetailsScreen | `src/screens/ProductDetailsScreen.tsx` |
-| vendor-profile | VendorProfileScreen | `src/screens/VendorProfileScreen.tsx` |
-| cart | CartScreen | `src/screens/CartScreen.tsx` |
-| profile | ProfileScreen | `src/screens/ProfileScreen.tsx` |
-| login | LoginScreen | `src/screens/LoginScreen.tsx` |
-| register | RegisterScreen | `src/screens/RegisterScreen.tsx` |
-| checkout | CheckoutScreen | `src/screens/CheckoutScreen.tsx` |
-| orders | OrdersScreen | `src/screens/OrdersScreen.tsx` |
-| payment | PaymentScreen | `src/screens/PaymentScreen.tsx` |
-| about | AboutScreen | `src/screens/AboutScreen.tsx` |
-| services | ServicesScreen | `src/screens/ServicesScreen.tsx` |
-| terms-of-service | TermsOfServiceScreen | `src/screens/TermsOfServiceScreen.tsx` |
-| privacy-policy | PrivacyPolicyScreen | `src/screens/PrivacyPolicyScreen.tsx` |
-| contact | ContactScreen | `src/screens/ContactScreen.tsx` |
+| Home | HomeScreen | `src/screens/HomeScreen.tsx` |
+| Marketplace | MarketplaceScreen | `src/screens/MarketplaceScreen.tsx` |
+| ProductDetails | ProductDetailsScreen | `src/screens/ProductDetailsScreen.tsx` |
+| VendorProfile | VendorProfileScreen | `src/screens/VendorProfileScreen.tsx` |
+| Cart | CartScreen | `src/screens/CartScreen.tsx` |
+| Profile | ProfileScreen | `src/screens/ProfileScreen.tsx` |
+| Login | LoginScreen | `src/screens/LoginScreen.tsx` |
+| Register | RegisterScreen | `src/screens/RegisterScreen.tsx` |
+| Checkout | CheckoutScreen | `src/screens/CheckoutScreen.tsx` |
+| Orders | OrdersScreen | `src/screens/OrdersScreen.tsx` |
+| OrderTracking | OrderTrackingScreen | `src/screens/OrderTrackingScreen.tsx` |
+| Payment | PaymentScreen | `src/screens/PaymentScreen.tsx` |
+| Payments → PaymentMethods | PaymentMethodsScreen | `src/screens/PaymentMethodsScreen.tsx` |
+| AddressBook | AddressBookScreen | `src/screens/AddressBookScreen.tsx` |
+| AccountSettings | AccountSettingsScreen | `src/screens/AccountSettingsScreen.tsx` |
+| EditProfile | EditProfileScreen | `src/screens/EditProfileScreen.tsx` |
+| Messages | MessagesScreen | `src/screens/MessagesScreen.tsx` |
+| HelpCenter | HelpCenterScreen | `src/screens/HelpCenterScreen.tsx` |
+| Wishlist | WishlistScreen | `src/screens/WishlistScreen.tsx` |
+| MyReviews | MyReviewsScreen | `src/screens/MyReviewsScreen.tsx` |
+| CreditHistory | CreditHistoryScreen | `src/screens/CreditHistoryScreen.tsx` |
+| BuyCredits | BuyCreditsScreen | `src/screens/BuyCreditsScreen.tsx` |
+| SearchResults | SearchResultsScreen | `src/screens/SearchResultsScreen.tsx` |
+| Search | SearchScreen | `src/screens/SearchScreen.tsx` |
+| ProductInquiry | ProductInquiryScreen | `src/screens/ProductInquiryScreen.tsx` |
+| Surveys | SurveysScreen | `src/screens/SurveysScreen.tsx` |
+| VendorActions | VendorActionsScreen | `src/screens/VendorActionsScreen.tsx` |
+| AllProducts | CollectionProductsScreen | `src/screens/CollectionProductsScreen.tsx` |
+| About | AboutScreen | `src/screens/AboutScreen.tsx` |
+| Services | ServicesScreen | `src/screens/ServicesScreen.tsx` |
+| TermsOfService | TermsOfServiceScreen | `src/screens/TermsOfServiceScreen.tsx` |
+| PrivacyPolicy | PrivacyPolicyScreen | `src/screens/PrivacyPolicyScreen.tsx` |
+| Contact | ContactScreen | `src/screens/ContactScreen.tsx` |
 
 Bottom navigation is rendered by `src/components/BottomNav.tsx` (Home / Marketplace / Cart / Profile tabs).
 
@@ -94,7 +111,7 @@ Reusable components in `src/components/`:
 
 ### 2.3 Screens
 
-- **HomeScreen** — hero, trust indicators, featured product, flash-sale cards, top-rated product grid, newsletter.
+- **HomeScreen** — search bar, hero carousel, admin-managed promo carousel (live `GET /promotions?placement=seasonal`, tap → info modal → vendor/link), browse collections, featured brands, smart picks, top rated (deduped server-side in `CatalogContext`), seasonal & promotional, featured stores, trust indicators, flash & deals, and extra B2B/lifestyle sections.
 - **MarketplaceScreen** — hero, search/filters, corporate/B2B section, flash-sale carousel, featured stores.
 - **ProductDetailsScreen** — image gallery, price/discount, vendor row, tabbed specs/description/reviews, add-to-cart.
 - **VendorProfileScreen** — vendor header, stats, services, product grid.
@@ -105,27 +122,40 @@ Reusable components in `src/components/`:
 - **OrdersScreen** — order list with expandable details and pull-to-refresh.
 - **PaymentScreen** — gateway handoff: calls `POST /payments/initiate` for the chosen gateway, shows the transaction reference and payment link (openable), and polls `GET /payments/{transactionId}/status` every 5s.
 - **AboutScreen / ServicesScreen / TermsOfServiceScreen / PrivacyPolicyScreen / ContactScreen** — company & legal pages whose content mirrors the website (`resources/views/home/about|services|terms-of-service|privacy-policy|contact.blade.php` + partials). ContactScreen includes the contact info, business hours, and a mailto-based message form.
+- **WishlistScreen / MyReviewsScreen** — wishlist (server-backed via `/profile/wishlist`) and the user's product reviews (`/profile/reviews`), both auth-gated from the Profile menu.
+- **CreditHistoryScreen / BuyCreditsScreen** — credit transactions feed (`GET /credits/history`) and a credit purchase flow (`POST /payments/initiate` with `metadata.type=credit_purchase`, opens a gateway link).
+- **SearchScreen / SearchResultsScreen** — recent-searches picker plus dense single-column results from `GET /products/search?q=`.
+- **ProductInquiryScreen** — B2B inquiry form posting to `/inquiries` (inquiry-only products show a gated INQUIRE instead of add-to-cart).
+- **SurveysScreen** — lists surveys (`GET /surveys`), records answers (`POST /surveys/{id}/submit`). Server returns `credit_awarded: 0` (rewards disabled) so the UI copy avoids promising a specific credit amount.
+- **VendorActionsScreen** — vendor journey gating (user survey → vendor survey → agreement) and store creation (`POST /vendor/agreement/accept`, `POST /vendor/store`).
+- **AccountSettingsScreen / EditProfileScreen / AddressBookScreen / PaymentMethodsScreen** — account hub with profile edits (`PUT /profile`), address CRUD (`/addresses*`), and saved payment methods CRUD (`/payment-methods*`), each with modal add/edit forms and default flags.
+- **MessagesScreen / HelpCenterScreen** — in-app admin messages (`GET /messages`, mark-read) and support tickets (`/help/tickets` CRUD).
+- **OrderTrackingScreen** — order/tracking-number lookup rendering the dispatch-to-delivery timeline from `/orders` + `/orders/{id}`.
+- **ChatView (component)** — JVA assistant (`POST /chat/ask`) and vendor shop chat (`POST /vendor-chat/ask`, `/vendor-chat/notify`).
 
 ### 2.4 Data Layer (current)
 
 Product data is fetched live from the website REST API, with a bundled offline fallback:
 
-- `src/data/api.ts` — typed API client for `https://jemi-na.com/api/v1`. Catalog: `fetchProducts`, `fetchProductDetail`, `fetchCategories` plus `apiProductToProduct()`, which maps the server's product shape (price, `discounted_price`, flat discount amount, min-order, stock, category, vendor, images) to the app's `Product` type. Broken/relative image paths are filtered out; products without images fall back to a local slug-matched image. Auth + cart: `apiLogin`, `apiRegister`, `apiLogout`, `apiGetUser`, `apiGetCart`, `apiAddToCart`, `apiUpdateCartItem`, `apiRemoveCartItem`, `apiClearCart` — all backed by a small `request<T>()` fetch helper that attaches the bearer token, parses the `{ success, message, errors? }` envelope, and throws on non-2xx.
+- `src/data/api.ts` — typed API client for `https://jemi-na.com/api/v1`. Catalog: `fetchProducts`, `fetchProductDetail`, `fetchCategories` plus `apiProductToProduct()`, which maps the server's product shape (price, `discounted_price`, flat discount amount, min-order, stock, category, vendor, images, `delivery_fee`) to the app's `Product` type. 50+ authenticated helpers built on a `request<T>()` wrapper (attaches bearer token, parses the `{ success, message, errors? }` envelope, throws on non-2xx): auth, cart, orders, payments, credits, wishlist, reviews, search, vendors, addresses, payment methods, vouchers, surveys + vendor journey/agreement/store, help tickets, messages, inquiries, chat (JVA + vendor), promotions (`apiGetPromotions` + view/click tracking), and profile updates.
 - `src/data/products.ts` — the hardcoded fallback catalog (15 products) used only when the API is unreachable.
 - `src/data/images.ts` — image URL constants.
-- `src/state/CatalogContext.tsx` — fetches products + categories on mount, exposes derived lists (`flashSale`, `featured`, `wholesale`, `topRated`), `getProductById` / `findProductByQuery`, plus `loading` / `error` / `refresh`. On failure it falls back to `products.ts` and screens show a tap-to-retry banner.
-- `src/state/CartContext.tsx` — cart state (items, add/remove/update quantity, subtotal, item count) via React Context, mirroring the `NavigationContext` pattern. When a user token is present it loads the server cart (`apiGetCart`) and mirrors every mutation to the API optimistically (`cartSource: 'server'`); otherwise it operates as a local cart (`cartSource: 'local'`).
+- `src/state/CatalogContext.tsx` — fetches products + categories on mount, exposes derived lists (`flashSale`, `featured`, `wholesale`, `topRated`, `seasonal`), `getProductById` / `findProductByQuery`, plus `loading` / `error` / `refresh`. Derived buckets are deduped across the overlapping homepage sections (featured → topRated → flash → seasonal priority). On failure it falls back to `products.ts` and screens show a tap-to-retry banner.
+- `src/state/CartContext.tsx` — cart state (items, add/remove/update quantity, subtotal, item count) via React Context, mirroring the `NavigationContext` pattern. When a user token is present it loads the server cart (`apiGetCart`) and mirrors every mutation to the API optimistically (`cartSource: 'server'`); otherwise it operates as a local cart (`cartSource: 'local'`). Exposes `vendorGroups` (items grouped per vendor with each vendor's delivery fee).
 - `src/state/AuthContext.tsx` — auth (register/login/logout) wired to the Sanctum API first (`authMode: 'live'`, keeps the bearer token in context); falls back to the in-memory seeded mock (`authMode: 'demo'`) only when the API is unreachable or the credentials aren't a live account. Demo account: `user@email.com` / `customer@420`.
 
 Persistence is via the server cart/account when signed in; without a token the cart is in-memory only (AsyncStorage not installed).
 
-## 3. Implemented Features & Data Flow
-
-Implemented features:
-
-1. **Live catalog** — Home, Marketplace and ProductDetails render products from the production API (51 products, real UGX prices/discounts/min-orders/stock), fetched at startup with an offline fallback catalog.
-2. **Cart** — add-to-cart from ProductDetails, ProductCard, Home and Marketplace; Cart screen with quantity steppers and totals; live cart badge on every header. Signed-in carts persist to the server.
+1. **Live catalog** — Home, Marketplace and ProductDetails render products from the production API (real UGX prices/discounts/min-orders/stock), fetched at startup with an offline fallback catalog.
+2. **Cart** — add-to-cart from ProductDetails, ProductCard, Home and Marketplace; Cart screen with quantity steppers and totals; live cart badge on every header. Signed-in carts persist to the server; items are grouped by vendor with per-vendor delivery fees (10k UGX minimum).
 3. **Auth + User Dashboard** — register/login/logout wired to the Sanctum API (live accounts), Profile/Dashboard screen showing account info, stats and account menu; demo fallback when offline.
+4. **Orders + Checkout** — vendor-grouped checkout with saved default address, coupon/promo redemption (`apiApplyVoucher`), platform fee, JEMINA credit payment, then order list/detail and dispatch-to-delivery tracking.
+5. **JEMINA Credits** — balance + history in Profile, spendable at checkout, and a credit-purchase flow through the payment gateway.
+6. **Addresses & payment methods** — full CRUD with set-default via the account settings hub.
+7. **Wishlist, reviews, search, product inquiry** — server-backed wishlist heart, review form, search results + recent searches, and B2B inquiries.
+8. **Surveys & vendor journey** — user/vendor surveys with completion gating, vendor agreement acceptance, and vendor store creation.
+9. **Promotions** — Home consumes the public `GET /promotions?placement=seasonal` feed with view/click analytics; fallback to product-flag seasonal when the feed is empty.
+10. **Messages, help tickets, chat** — in-app admin messages, support tickets, JVA assistant chat, and vendor shop chat.
 
 ## 4. Backend Integration
 
@@ -139,13 +169,23 @@ The Laravel website (deployed to the VPS at `https://jemi-na.com`, local repo `C
 | Categories | `GET /categories` | **Wired** (fetched on mount) |
 | Auth | `POST /auth/login`, `POST /auth/register`, `POST /auth/logout`, `POST /auth/forgot-password`, `POST /auth/reset-password` | **Wired** (live-first with demo fallback) |
 | Cart | `GET /cart`, `POST /cart`, `PUT /cart/{item_id}`, `DELETE /cart/{item_id}`, `DELETE /cart` (clear) | **Wired** (server-synced when signed in) |
-| Orders | `GET /orders`, `POST /orders`, `GET /orders/{id}`, `PUT /orders/{id}/cancel` | **Wired** (checkout + order list/detail) |
+| Orders | `GET /orders`, `POST /orders`, `GET /orders/{id}`, `PUT /orders/{id}/cancel` | **Wired** (checkout + order list/detail/tracking; order store accepts `voucher_id`/`voucher_code`/`discount_amount`) |
 | JEMINA Credits | `GET /credits/balance`, `GET /credits/history` | **Wired** (balance in Profile + Checkout; credit payment) |
-| Payments | `POST /payments/initiate`, `GET /payments/{transactionId}/status` | **Wired** (gateway handoff screen after checkout for non-credit methods) |
-| Profile | `GET /profile`, `PUT /profile`, `GET /profile/wishlist`, `POST /profile/wishlist`, `DELETE /profile/wishlist/{product_id}` | **Wired** (wishlist screen + product-detail heart; auth-gated) |
+| Payments | `POST /payments/initiate`, `GET /payments/{transactionId}/status` | **Wired** (gateway handoff screen; also credit-purchase) |
+| Payment methods | `GET/POST /payment-methods`, `PUT/DELETE /payment-methods/{id}`, `PUT /payment-methods/{id}/default` | **Wired** (`PaymentMethodsScreen` + checkout selection) |
+| Addresses | `GET/POST /addresses`, `PUT/DELETE /addresses/{id}`, `PUT /addresses/{id}/default` | **Wired** (`AddressBookScreen` + checkout auto-fill) |
+| Profile | `GET /profile`, `PUT /profile`, `GET /profile/wishlist`, `POST /profile/wishlist`, `DELETE /profile/wishlist/{product_id}` | **Wired** (wishlist screen + product-detail heart; edit profile; auth-gated) |
 | Reviews | `GET /profile/reviews`, `POST /products/{id}/reviews` | **Wired** (My Reviews screen + review form on product details) |
 | Vendors | `GET /vendors`, `GET /vendors/{id}` | **Wired** (live vendor storefront in `VendorProfileScreen`) |
-| Search | `GET /products/search?q=` | **Wired** (`SearchResultsScreen` from the Marketplace search bar) |
+| Vouchers | `POST /vouchers/validate`, `POST /vouchers/apply` | **Wired** (coupon field at checkout with live discount) |
+| Search | `GET /products/search?q=` | **Wired** (`SearchResultsScreen` from the Marketplace search bar + `SearchScreen`) |
+| Promotions | `GET /promotions`, `GET /promotions/{id}`, `POST /promotions/{id}/view`, `POST /promotions/{id}/click` | **Wired** (Home seasonal banner, view/click analytics) |
+| Surveys | `GET /surveys`, `GET /surveys/{id}`, `POST /surveys/{id}/submit` | **Wired** (`SurveysScreen`; server awards 0 credits) |
+| Vendor journey | `GET /vendor/actions`, `GET /vendor/agreement`, `POST /vendor/agreement/accept`, `POST /vendor/store` | **Wired** (`VendorActionsScreen`) |
+| Help tickets | `GET/POST /help/tickets`, `GET /help/tickets/{id}` | **Wired** (`HelpCenterScreen`) |
+| Messages | `GET /messages`, `GET /messages/{id}`, `PUT /messages/{id}/read` | **Wired** (`MessagesScreen`) |
+| Inquiries | `POST /inquiries` | **Wired** (`ProductInquiryScreen`) |
+| Chat | `POST /chat/ask`, `POST /chat/clear`, `POST /vendor-chat/ask`, `POST /vendor-chat/notify` | **Wired** (`ChatView` component) |
 
 Authentication uses **Laravel Sanctum bearer tokens** (`Authorization: Bearer {token}`) with a standard error envelope (`{ success, message, errors? }`) and pagination wrapper.
 
@@ -161,6 +201,7 @@ Authentication uses **Laravel Sanctum bearer tokens** (`Authorization: Bearer {t
 - **JEMINA credits:** new `ApiCreditController` (`GET /credits/balance`, `GET /credits/history`). API register now awards the signup bonus (`config('credit.signup_bonus')`, default 1,000,000) via `UserCredit::getOrCreateForUser`, mirroring the web `RegisterController`. `ApiOrderController::store` accepts `payment_method: 'credit'`, which locks the user's `UserCredit`, deducts the total, writes a `spend` `CreditTransaction`, and flips the order to `payment_status='paid'` / `status='processing'`. Live-verified: user 10 received 1,000,000 credits on register and paid 46,510 for an order via credits.
 - **Vendor storefront API:** new `ApiVendorController` — `GET /vendors` (index: active vendors + business card + `product_count`) and `GET /vendors/{id}` (vendor + business card, rating from approved reviews, active products). `ApiProductController::formatProduct` was made `public` so the vendor controller reuses the exact product shape. Both controllers filter products by `where('status','true')` (matching the product/category controllers). Note: the `vendors` table has no `is_featured` column (it's on `vendor_business_cards`); the VPS working copy carries the `'true'` status fix while git HEAD has the stale `'active'` — see MEMORY.md deploy warning.
 - Known server quirk: login/profile return `name` null for accounts registered via the API because `ApiAuthController` reads `first_name` while register writes `name`. The app falls back to `JEMINA Customer` for display.
+- **Additional server APIs added for app parity:** `ApiAddressController` (`/addresses*` CRUD + set-default), `ApiVoucherController` (`/vouchers/validate`, `/vouchers/apply`), `ApiPaymentMethodController` (`/payment-methods*`), `ApiPromotionController` (`/promotions*` incl. view/click analytics — public routes), `ApiSurveyController` (`/surveys`, `/surveys/{id}/submit` — currently returns `credit_awarded: 0`), `ApiHelpController` (`/help/tickets*`), `ApiMessageController` (`/messages*`), `ApiInquiryController` (`/inquiries`), chatbot routes (`/chat/*`, `/vendor-chat/*`). All registered in `routes/api.php`.
 
 ## 5. Design System Files
 

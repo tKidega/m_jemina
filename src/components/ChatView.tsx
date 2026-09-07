@@ -198,7 +198,7 @@ export function ChatView({ assistantName, greeting, onSend, onNotifyVendor }: Ch
           style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
           onPress={() => send(input)}
           disabled={!input.trim() || sending}
-          hitSlop={4}
+          hitSlop={8}
         >
           <Icon name="send" size={20} color={input.trim() && !sending ? colors.onSecondary : colors.outline} />
         </Pressable>

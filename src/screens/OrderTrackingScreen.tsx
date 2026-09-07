@@ -11,8 +11,9 @@ import {
   View,
 } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
-import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
+import { EmptyState } from '../components/EmptyState';
+import { Icon } from '../components/Icon';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { apiGetOrder, apiGetOrders, ApiOrder, ApiTrackingInfo } from '../data/api';
@@ -197,12 +198,13 @@ export function OrderTrackingScreen() {
     return (
       <View style={styles.root}>
         <AppHeader title="Track Orders" showBack onBack={goBack} />
-        <View style={styles.center}>
-          <Icon name="my-location" size={56} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>Sign in to track orders</Text>
-          <Text style={styles.centerSub}>Follow your packages from dispatch to delivery.</Text>
-          <Button label="Sign In" variant="primary" fullWidth onPress={() => setOrders([])} style={styles.centerBtn} />
-        </View>
+        <EmptyState
+          icon="my-location"
+          title="Sign in to track orders"
+          subtitle="Follow your packages from dispatch to delivery."
+          actionLabel="Sign In"
+          onAction={() => setOrders([])}
+        />
       </View>
     );
   }
@@ -266,18 +268,19 @@ export function OrderTrackingScreen() {
           <Text style={styles.loadingMain}>Loading your orders...</Text>
         </View>
       ) : error ? (
-        <View style={styles.center}>
-          <Icon name="error-outline" size={48} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>Couldn't load orders</Text>
-          <Text style={styles.centerSub}>{error}</Text>
-          <Button label="Try Again" variant="primary" fullWidth onPress={() => loadOrders()} style={styles.centerBtn} />
-        </View>
+        <EmptyState
+          icon="error-outline"
+          title="Couldn't load orders"
+          subtitle={error}
+          actionLabel="Try Again"
+          onAction={() => loadOrders()}
+        />
       ) : orders.length === 0 ? (
-        <View style={styles.center}>
-          <Icon name="my-location" size={56} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>No orders to track</Text>
-          <Text style={styles.centerSub}>Orders you place will appear here with live tracking.</Text>
-        </View>
+        <EmptyState
+          icon="my-location"
+          title="No orders to track"
+          subtitle="Orders you place will appear here with live tracking."
+        />
       ) : (
         <ScrollView
           style={styles.scroll}
@@ -329,22 +332,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xxl,
-  },
-  centerTitle: {
-    ...typography.headlineLg,
-    color: colors.primary,
-    textAlign: 'center',
-    marginTop: spacing.lg,
-  },
-  centerSub: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-    marginBottom: spacing.xl,
-  },
-  centerBtn: {
-    width: '100%',
   },
   searchWrap: {
     flexDirection: 'row',

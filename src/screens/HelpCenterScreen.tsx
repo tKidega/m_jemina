@@ -14,6 +14,7 @@ import {
 import { AppHeader } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
+import { EmptyState } from '../components/EmptyState';
 import { ChatView } from '../components/ChatView';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
@@ -95,7 +96,7 @@ function TicketCard({ ticket }: { ticket: ApiHelpTicket }) {
 
 export function HelpCenterScreen() {
   const { token, isAuthenticated } = useAuth();
-  const { goBack } = useNavigation();
+  const { goBack, navigate } = useNavigation();
   const [mode, setMode] = useState<'chat' | 'tickets'>('chat');
   const [tickets, setTickets] = useState<ApiHelpTicket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -191,12 +192,7 @@ export function HelpCenterScreen() {
     return (
       <View style={styles.root}>
         <AppHeader title="Help & Support" showBack onBack={goBack} />
-        <View style={styles.center}>
-          <Icon name="support-agent" size={56} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>Sign in to contact support</Text>
-          <Text style={styles.centerSub}>Reach our support team for orders, billing, and technical help.</Text>
-          <Button label="Sign In" variant="primary" fullWidth onPress={() => {}} style={styles.centerBtn} />
-        </View>
+        <EmptyState icon="support-agent" title="Sign in to contact support" subtitle="Reach our support team for orders, billing, and technical help." actionLabel="Sign In" onAction={() => navigate('Login')} />
       </View>
     );
   }
@@ -232,19 +228,9 @@ export function HelpCenterScreen() {
               <Text style={styles.loadingText}>Loading tickets...</Text>
             </View>
           ) : error ? (
-            <View style={styles.center}>
-              <Icon name="error-outline" size={48} color={colors.outlineVariant} />
-              <Text style={styles.centerTitle}>Couldn't load tickets</Text>
-              <Text style={styles.centerSub}>{error}</Text>
-              <Button label="Try Again" variant="primary" fullWidth onPress={() => loadTickets()} style={styles.centerBtn} />
-            </View>
+            <EmptyState icon="error-outline" title="Couldn't load tickets" subtitle={error} actionLabel="Try Again" onAction={() => loadTickets()} />
           ) : tickets.length === 0 ? (
-            <View style={styles.center}>
-              <Icon name="support-agent" size={56} color={colors.outlineVariant} />
-              <Text style={styles.centerTitle}>No support requests yet</Text>
-              <Text style={styles.centerSub}>Need help? Send us a request and we'll respond promptly.</Text>
-              <Button label="Contact Support" variant="primary" fullWidth onPress={openCreate} style={styles.centerBtn} />
-            </View>
+            <EmptyState icon="support-agent" title="No support requests yet" subtitle="Need help? Send us a request and we'll respond promptly." actionLabel="Contact Support" onAction={openCreate} />
           ) : (
             <ScrollView
               style={styles.scroll}
@@ -354,22 +340,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xxl,
-  },
-  centerTitle: {
-    ...typography.headlineLg,
-    color: colors.primary,
-    textAlign: 'center',
-    marginTop: spacing.lg,
-  },
-  centerSub: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-    marginBottom: spacing.xl,
-  },
-  centerBtn: {
-    width: '100%',
   },
   topBar: {
     paddingHorizontal: spacing.lg,

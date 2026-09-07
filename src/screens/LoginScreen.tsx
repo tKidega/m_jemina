@@ -1,13 +1,23 @@
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { AppHeader } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
 import { useAuth } from '../state/AuthContext';
+import { TwoFactorRequiredError } from '../data/api';
 import { useNavigation } from '../navigation/NavigationContext';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
+
+const GOOGLE_WEB_CLIENT_ID =
+  '866135422582-6d1joa5old61o8re0k3uv10ok4kc538u.apps.googleusercontent.com';
+
+GoogleSignin.configure({
+  webClientId: GOOGLE_WEB_CLIENT_ID,
+  offlineAccess: false,
+});
 
 export function LoginScreen() {
   const { login, loginWithGoogle } = useAuth();
@@ -26,6 +36,10 @@ export function LoginScreen() {
       await login(email, password);
       goBack();
     } catch (e) {
+      if (e instanceof TwoFactorRequiredError) {
+        navigate('TwoFactor', { email: e.email, resendAfter: e.resendAfter });
+        return;
+      }
       setError(e instanceof Error ? e.message : 'Login failed. Please try again.');
     } finally {
       setLoading(false);
@@ -36,9 +50,22 @@ export function LoginScreen() {
     setError(null);
     setGoogleLoading(true);
     try {
-      await loginWithGoogle();
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      if (userInfo.type === 'cancelled') {
+        return;
+      }
+      const idToken = userInfo.data?.idToken;
+      if (!idToken) {
+        throw new Error('Google sign-in did not return an authentication token.');
+      }
+      await loginWithGoogle(idToken);
       goBack();
     } catch (e) {
+      if (e instanceof TwoFactorRequiredError) {
+        navigate('TwoFactor', { email: e.email, resendAfter: e.resendAfter });
+        return;
+      }
       setError(e instanceof Error ? e.message : 'Google sign-in failed. Please try again.');
     } finally {
       setGoogleLoading(false);
@@ -113,11 +140,6 @@ export function LoginScreen() {
               onPress={handleLogin}
               style={styles.submitBtn}
             />
-
-            <View style={styles.demoBox}>
-              <Text style={styles.demoText}>Continue with Google to sign in as the Demo Account</Text>
-              <Text style={styles.demoSubtext}>No Google account needed — instant demo access</Text>
-            </View>
 
             <View style={styles.dividerRow}>
               <View style={styles.divider} />
@@ -256,23 +278,6 @@ const styles = StyleSheet.create({
   submitBtn: {
     marginTop: spacing.xl,
     paddingVertical: spacing.lg,
-  },
-  demoBox: {
-    marginTop: spacing.lg,
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    alignItems: 'center',
-  },
-  demoText: {
-    ...typography.labelMd,
-    color: colors.onSurface,
-    fontWeight: '700',
-  },
-  demoSubtext: {
-    ...typography.labelSm,
-    color: colors.onSurfaceVariant,
-    marginTop: 2,
   },
   dividerRow: {
     flexDirection: 'row',
