@@ -19,9 +19,19 @@ The app is a **UI-first prototype**: screens, components and a design system are
 - **Sidebar menu** — slide-in drawer from the JEMINA header menu icon with Shop / Account / Company / Legal links
 - **Company & legal pages** — About Us, Services, Terms of Service, Privacy Policy and Contact Us (content mirrored from the website)
 - **Shopping cart** — add-to-cart from anywhere, quantity steppers, totals, live cart badge; **persists to the server when signed in**
-- **Checkout & orders** — shipping form + payment method + place order against the live API, order list with expandable details and pull-to-refresh
+- **Checkout & orders** — **Pickup Point & Delivery** (default "Jemina Point" pickup at Jemina Official's
+  Gulu address, or delivery to your address-book default), coupon/promo-code redemption, vendor-grouped
+  order summary, and payment via saved method / Cash on Delivery / Bitcoin / JEMINA Credits; order list
+  with expandable details and pull-to-refresh
+- **Promotions** — the app auto-opens a **promo popup on launch** that cycles a different promotion each
+  time (all active promos from `GET /api/v1/promotions`), plus a Seasonal & Promotional carousel on Home
+  with crop-free aspect-ratio images and a "View Promo" action
+- **Push notifications** — Promo/order-status/message pushes via FCM (r-n-firebase); promo pushes open
+  the in-app popup, order/message pushes show a tap-to-navigate banner
 - **Payment gateway handoff** — after checkout, non-credit payments open a gateway screen that initiates `POST /api/v1/payments/initiate`, shows the reference / payment link, and polls `GET /payments/{transactionId}/status`
-- **JEMINA credits** — signup bonus credited on registration, balance shown in Profile and at Checkout, **pay for orders with credits**; credit purchase screen + transaction history (`BuyCreditsScreen`, `CreditHistoryScreen`)
+- **JEMINA credits** — live balance shown in Profile and at Checkout, **pay for orders with credits**
+  (credit orders route straight to My Orders), plus a credit purchase screen + transaction history
+  (`BuyCreditsScreen`, `CreditHistoryScreen`)
 - **Wishlist & reviews** — save products from details / browse your wishlist, and review purchased products — wired to `profile/wishlist` + `profile/reviews`
 - **Live product search** — Marketplace search bar hits `GET /api/v1/products/search` (`SearchResultsScreen`)
 - **User authentication** — register/login/logout wired to the **live Sanctum API**, plus a user dashboard (orders, wishlist, reviews, account); falls back to the seeded demo account when offline

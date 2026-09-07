@@ -111,14 +111,25 @@ Reusable components in `src/components/`:
 
 ### 2.3 Screens
 
-- **HomeScreen** — search bar, hero carousel, admin-managed promo carousel (live `GET /promotions?placement=seasonal`, tap → info modal → vendor/link), browse collections, featured brands, smart picks, top rated (deduped server-side in `CatalogContext`), seasonal & promotional, featured stores, trust indicators, flash & deals, and extra B2B/lifestyle sections.
+- **HomeScreen** — search bar, hero carousel, admin-managed promo row (live `GET /promotions`,
+  cards via `PromoFlashCard` with crop-free aspect-ratio images and a "View Promo" action), browse
+  collections, featured brands, smart picks, top rated, **seasonal & promotional** (Promotions API
+  with seasonal product-flag fallback), featured stores, trust indicators, flash & deals, and extra
+  B2B/lifestyle sections. On launch it also auto-opens the **promo popup** — cycles a different
+  promotion per launch (AsyncStorage index), promo-data-only modal (see `NotificationContext`).
 - **MarketplaceScreen** — hero, search/filters, corporate/B2B section, flash-sale carousel, featured stores.
 - **ProductDetailsScreen** — image gallery, price/discount, vendor row, tabbed specs/description/reviews, add-to-cart.
 - **VendorProfileScreen** — vendor header, stats, services, product grid.
-- **CartScreen** — line items with quantity steppers, subtotal/total, empty state.
+- **CartScreen** — line items with quantity steppers, subtotal/total, empty state, per-vendor sections.
 - **LoginScreen / RegisterScreen** — email/password forms with validation, show/hide password, demo account hint.
 - **ProfileScreen** — signed-out prompt or user dashboard (account header, stats, account menu, logout).
-- **CheckoutScreen** — order summary, shipping form, payment method selection (incl. JEMINA Credits with live balance), submits the order, then routes credits payments to Orders and gateway payments to PaymentScreen.
+- **CheckoutScreen** — **Pickup Point & Delivery**: pickup (default "Jemina Point · Jemina Official ·
+  789 Commerce Street, Building A, Gulu) or delivery to the address book's default address; "Add a
+  delivery address" link when none; coupon/promo-code input with live validation; vendor-grouped
+  order summary + platform fee. **Payment options** resolve to the default saved method + Cash on
+  Delivery + Bitcoin + JEMINA Credits (COD/credit orders go straight to Orders; gateway methods
+  route to `PaymentScreen` with the mapped gateway). Submits the order with `pickup_point`/
+  `fulfilment`, then routes to Orders or the payment gateway.
 - **OrdersScreen** — order list with expandable details and pull-to-refresh.
 - **PaymentScreen** — gateway handoff: calls `POST /payments/initiate` for the chosen gateway, shows the transaction reference and payment link (openable), and polls `GET /payments/{transactionId}/status` every 5s.
 - **AboutScreen / ServicesScreen / TermsOfServiceScreen / PrivacyPolicyScreen / ContactScreen** — company & legal pages whose content mirrors the website (`resources/views/home/about|services|terms-of-service|privacy-policy|contact.blade.php` + partials). ContactScreen includes the contact info, business hours, and a mailto-based message form.
@@ -143,8 +154,15 @@ Product data is fetched live from the website REST API, with a bundled offline f
 - `src/state/CatalogContext.tsx` — fetches products + categories on mount, exposes derived lists (`flashSale`, `featured`, `wholesale`, `topRated`, `seasonal`), `getProductById` / `findProductByQuery`, plus `loading` / `error` / `refresh`. Derived buckets are deduped across the overlapping homepage sections (featured → topRated → flash → seasonal priority). On failure it falls back to `products.ts` and screens show a tap-to-retry banner.
 - `src/state/CartContext.tsx` — cart state (items, add/remove/update quantity, subtotal, item count) via React Context, mirroring the `NavigationContext` pattern. When a user token is present it loads the server cart (`apiGetCart`) and mirrors every mutation to the API optimistically (`cartSource: 'server'`); otherwise it operates as a local cart (`cartSource: 'local'`). Exposes `vendorGroups` (items grouped per vendor with each vendor's delivery fee).
 - `src/state/AuthContext.tsx` — auth (register/login/logout) wired to the Sanctum API first (`authMode: 'live'`, keeps the bearer token in context); falls back to the in-memory seeded mock (`authMode: 'demo'`) only when the API is unreachable or the credentials aren't a live account. Demo account: `user@email.com` / `customer@420`.
+- `src/state/NotificationContext.tsx` — `NotificationProvider` renders the global **promo popup**
+  Modal + top floating in-app notice banner (5s auto-dismiss, tap navigates); `useNotification`
+  exposes `showPromo(promo)` / `showNotice(...)`. The popup is promo-data only (image, title,
+  vendor, description) with a centered, aspect-ratio-aware, uncropped image; promotion pushes and
+  `promo` in-app events surface here. `App.tsx` `PushBridge` wires FCM events (foreground/opened/
+  initial) into it via `src/lib/notifications.ts`.
 
-Persistence is via the server cart/account when signed in; without a token the cart is in-memory only (AsyncStorage not installed).
+Persistence is via the server cart/account when signed in, and AsyncStorage for client-side
+preferences (promo-popup cycle index, recent searches) and session restore.
 
 1. **Live catalog** — Home, Marketplace and ProductDetails render products from the production API (real UGX prices/discounts/min-orders/stock), fetched at startup with an offline fallback catalog.
 2. **Cart** — add-to-cart from ProductDetails, ProductCard, Home and Marketplace; Cart screen with quantity steppers and totals; live cart badge on every header. Signed-in carts persist to the server; items are grouped by vendor with per-vendor delivery fees (10k UGX minimum).
@@ -154,7 +172,10 @@ Persistence is via the server cart/account when signed in; without a token the c
 6. **Addresses & payment methods** — full CRUD with set-default via the account settings hub.
 7. **Wishlist, reviews, search, product inquiry** — server-backed wishlist heart, review form, search results + recent searches, and B2B inquiries.
 8. **Surveys & vendor journey** — user/vendor surveys with completion gating, vendor agreement acceptance, and vendor store creation.
-9. **Promotions** — Home consumes the public `GET /promotions?placement=seasonal` feed with view/click analytics; fallback to product-flag seasonal when the feed is empty.
+9. **Promotions** — Home consumes the public `GET /promotions` feed (all active placements) for
+   the Seasonal & Promotional row AND the launch popup, which **cycles one promotion per launch**
+   (AsyncStorage `@jemina/promoPopupIndex`) with view/click analytics; falls back to the
+   product-flag seasonal list when the feed is empty.
 10. **Messages, help tickets, chat** — in-app admin messages, support tickets, JVA assistant chat, and vendor shop chat.
 
 ## 4. Backend Integration
@@ -179,7 +200,7 @@ The Laravel website (deployed to the VPS at `https://jemi-na.com`, local repo `C
 | Vendors | `GET /vendors`, `GET /vendors/{id}` | **Wired** (live vendor storefront in `VendorProfileScreen`) |
 | Vouchers | `POST /vouchers/validate`, `POST /vouchers/apply` | **Wired** (coupon field at checkout with live discount) |
 | Search | `GET /products/search?q=` | **Wired** (`SearchResultsScreen` from the Marketplace search bar + `SearchScreen`) |
-| Promotions | `GET /promotions`, `GET /promotions/{id}`, `POST /promotions/{id}/view`, `POST /promotions/{id}/click` | **Wired** (Home seasonal banner, view/click analytics) |
+| Promotions | `GET /promotions`, `GET /promotions/{id}`, `POST /promotions/{id}/view`, `POST /promotions/{id}/click` | **Wired** (Seasonal & Promotional row + launch popup cycling all active promos; view/click analytics) |
 | Surveys | `GET /surveys`, `GET /surveys/{id}`, `POST /surveys/{id}/submit` | **Wired** (`SurveysScreen`; server awards 0 credits) |
 | Vendor journey | `GET /vendor/actions`, `GET /vendor/agreement`, `POST /vendor/agreement/accept`, `POST /vendor/store` | **Wired** (`VendorActionsScreen`) |
 | Help tickets | `GET/POST /help/tickets`, `GET /help/tickets/{id}` | **Wired** (`HelpCenterScreen`) |

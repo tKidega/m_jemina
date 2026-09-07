@@ -4,17 +4,22 @@ Goal: ship the app as "fully functional like the website" and publish to the Pla
 Epic (core loop): **sign in → browse → cart → checkout → pay → track orders**, with **JEMINA credits**
 earned at surveys and spendable at checkout.
 
-**Status (2026-09-07):** Core shopping loop fully wired to live Sanctum API (`https://jemi-na.com/api/v1`).
-Login/session bug fixed server-side: Apache mod_php vhost now forwards the `Authorization` header via
-`SetEnvIf` (see MEMORY.md deployed change #11); app stays signed in. Cart screen redesigned (vendor
-sections, smaller type, per-product delivery fees) and uniform styling rolled out across all screens
-(shared `EmptyState`/`SurfaceCard`; 12 screens refactored, −725 lines). Checkout redesigned to a
-**Pickup Point & Delivery** model (2026-09-07): shipping form removed, delivery address auto-sourced
-from the address book, default "Jemina Point" pickup option, "Add a delivery address" link →
-`AddressBook` when none exists. Working tree UNCOMMITTED at
-`2032ccf` (this + prior sessions pending review). Release keystore + signing configured (versionCode
-still 1). **Push notifications + promo/ad popup DONE (app + server, 2026-09-07)** — see the section
-below; live FCM round-trip pending (VPS creds). Remaining: PlayStore listing/config, 3 website-parity
+**Status (2026-09-08):** Core shopping loop fully wired to live Sanctum API
+(`https://jemi-na.com/api/v1`). **App working tree COMMITTED + pushed (`3df19c1`, 52 files).**
+Login/session bug fixed server-side: Apache mod_php vhost now forwards the `Authorization` header
+via `SetEnvIf` (see MEMORY.md deployed change #11); app stays signed in. Cart screen redesigned
+(vendor sections, smaller type, per-product delivery fees) and uniform styling rolled out across
+all screens (shared `EmptyState`/`SurfaceCard`; 12 screens refactored, −725 lines). Checkout uses
+a **Pickup Point & Delivery** model — shipping form removed, delivery address auto-sourced from the
+address book, default "Jemina Point" pickup at Jemina Official's **Gulu** address, "Add a delivery
+address" link → `AddressBook` when none exists. **Checkout payment methods reworked (2026-09-08):**
+only the default saved method + Cash on Delivery + Bitcoin + JEMINA Credits (no generic
+MTN/Stripe/Flutterwave rows); COD/credit orders go straight to Orders, gateway orders route to
+`PaymentScreen` with the correct gateway. **Promo popup (2026-09-08):** auto-opens on launch and
+cycles a different promotion per launch (AsyncStorage index); promo-data-only modal (no action
+buttons) with centered, uncropped full-width image. **Push notifications + promo/ad popup DONE
+(app + server, 2026-09-07)** — live FCM round-trip still pending (VPS creds). Release keystore +
+signing configured (versionCode still 1). Remaining: PlayStore listing/config, 3 website-parity
 gaps (admin promo banner, homepage dedupe, promo info modal), the **website pickup-point system**,
 survey reward copy, VPS FCM creds, and VPS gateway keys for live payments.
 
@@ -29,10 +34,15 @@ Legend: `[x]` done · `[ ]` pending.
 - [x] Server-synced cart — `CartContext` (`cartSource: 'server'`) — vendor-grouped with per-vendor delivery fees
 - [x] **Cart screen redesign (2026-09-07)** — `CartScreen.tsx`: per-vendor sections (dark header + store badge), item cards with 80×80 image + reduced detail type, per-item `Delivery: {formatUGX(fee×qty)}` tag, qty stepper, line totals + separators, Order Summary card (subtotal, per-vendor delivery rows, total, checkout). Smaller, professional fonts.
 - [x] Checkout screen — **pickup-point redesign (2026-09-07)** — `CheckoutScreen`
-  (removed shipping form; "Pickup Point & Delivery" section with default "Jemina Point" pickup or
-  delivery-to-address; delivery address auto-sourced from address book; "Add a delivery address"
-  link → `AddressBook` when none; `apiCreateOrder` sends `pickup_point`/`fulfilment`; Total label
-  reduced to `bodyLg`)
+  (removed shipping form; "Pickup Point & Delivery" section with default "Jemina Point" pickup at
+  Jemina Official's Gulu address (`789 Commerce Street, Building A`); delivery address auto-sourced
+  from address book; "Add a delivery address" link → `AddressBook` when none; `apiCreateOrder`
+  sends `pickup_point`/`fulfilment`; Total label reduced to `bodyLg`)
+- [x] **Checkout payment options rework (2026-09-08)** — `PaymentOption` whitelist: default saved
+  method + COD + Bitcoin + JEMINA Credits; defaults `'cod'`, auto-selects `'saved'` when a default
+  saved method exists; `handlePlaceOrder` submits `option.method` and routes COD/credit → `Orders`,
+  gateway → `PaymentScreen` (custom `gatewayForSavedMethod`: card→`stripe`, mtn→`mtn_mobile_money`,
+  else→`flutterwave`); "X saved · tap to manage" label; old `PAYMENT_METHODS` const deleted
 - [x] Orders list + order detail — `GET /api/v1/orders`, `GET /api/v1/orders/{id}` — `OrdersScreen`
 - [x] Order tracking UI — `OrderTrackingScreen` (dispatch → delivery timeline)
 - [x] Server-side `ApiOrderController` fixed to real schema + voucher_id/voucher_code/discount_amount support
@@ -84,23 +94,26 @@ Legend: `[x]` done · `[ ]` pending.
 - [x] Browse Collections reworked with custom icons; "Home & Living" added, "Auto & Machinery" removed
 - [x] SearchResultsScreen dense single-column thumbnail list (64x64 thumb, price + compare, add button, empty state)
 - [x] B2B product inquiry flow — `ProductInquiryScreen`, inquiry-only cards, gated INQUIRE on ProductDetails
-- [ ] **Admin-managed promo surface on Home (partially DONE)** — the auto promo popup now consumes
-  `GET /api/v1/promotions` (seasonal, once per launch, 2026-09-07). Remaining: the "Seasonal &
-  Promotional" *section* still derives from product `seasonal`/`holiday_special` flags instead of
-  the Promotions API (see Website Parity Gaps).
+- [x] **Admin-managed promo surface on Home (2026-09-08)** — the auto promo popup AND the
+  "Seasonal & Promotional" section now consume `GET /api/v1/promotions` (all active placements);
+  popup cycles one per launch; cards render via `PromoFlashCard` (crop-free aspect-ratio images,
+  "View Promo" action) with seasonal-product-flag fallback when the feed is empty. See Website
+  Parity Gaps for what's still open (info-modal parity, banner).
 
 ## Pickup Point / Delivery (app-side shipped, site pending)
 
 - [x] **Checkout pickup-point redesign (2026-09-07)** — `CheckoutScreen.tsx`: removed the
   shipping-details form + `FIELDS`/`form`/`setField`; new `PICKUP_POINTS` const (default "Jemina
-  Point · Jemina Official · Kampala"); "Pickup Point & Delivery" section with radio-select
-  cards (pickup is default). Delivery address auto-sourced via `apiGetAddresses()` (default
-  address shown under the "Deliver to my address" option); no default → tap redirects to
-  `AddressBook` + a persistent "Add a delivery address" link. Order notes kept as a small
-  section. `buildShippingAddress()` mints the `ApiShippingAddress` from pickup point or saved
-  address; `validate()` errors when delivery is chosen with no address. `apiCreateOrder` payload
-  extended with `pickup_point` + `fulfilment`. Total label `headlineMd` → `bodyLg` (16px, matches
-  Cart). `tsc`/`eslint` green.
+  Point · Jemina Official · **789 Commerce Street, Building A, Gulu**"); "Pickup Point & Delivery"
+  section with radio-select cards (pickup is default). Delivery address auto-sourced via
+  `apiGetAddresses()` (default address shown under the "Deliver to my address" option); no default
+  → tap redirects to `AddressBook` + a persistent "Add a delivery address" link. Order notes kept
+  as a small section. `buildShippingAddress()` mints the `ApiShippingAddress` from pickup point or
+  saved address; `validate()` errors when delivery is chosen with no address. `apiCreateOrder`
+  payload extended with `pickup_point` + `fulfilment`. Total label `headlineMd` → `bodyLg` (16px,
+  matches Cart). `tsc`/`eslint` green.
+- [x] **Checkout payment options (2026-09-08)** — resolved app-side to saved-default + COD +
+  Bitcoin + credits; see Core Epic row above.
 - [ ] **Website pickup-point system (NEXT PHASE)** — backend pickup-point CRUD + admin UI, and
   make `ApiOrderController` accept/map the `pickup_point`/`fulfilment` fields the app already
   sends (still ignores them today). Decide the pickup-vs-delivery fee model. When live, replace
@@ -114,13 +127,18 @@ Legend: `[x]` done · `[ ]` pending.
   (kept). FCM deps `^26.4.0` + `google-services.json` present.
 - [x] **Global notification UI** — `src/state/NotificationContext.tsx`: `NotificationProvider`
   renders the promo popup Modal + top floating in-app banner (5s auto-dismiss, tap navigates);
-  `useNotification` (`showPromo`/`showNotice`); `promoVisit` opens `target_url`/`link_url` via
-  `Linking` when no vendor shop. `src/lib/promo.ts` (`promoImageUrl`, base `https://jemi-na.com`).
+  `useNotification` (`showPromo`/`showNotice`). **2026-09-08:** popup is promo-data only
+  (header/image/title/vendor/description — `promoVisit` + "Visit Store"/"View Offer" button +
+  "Maybe later" removed); image is aspect-ratio-aware + centered (`popupImageSized`,
+  `resizeMode="cover"`, `maxHeight: 300`) so it fills the card width without cropping.
+  `src/lib/promo.ts` (`promoImageUrl`, base `https://jemi-na.com`).
 - [x] **App wiring** — `App.tsx`: `NotificationProvider` (inside `NavigationProvider`) + `PushBridge`
   (foreground/opened/initial → promo popup, order_status/message banner → `Orders`/`Messages`).
-- [x] **Auto-open promo popup on launch** — `HomeScreen.tsx`: `promoPopupShownThisLaunch` module
-  flag → shows the first seasonal promotion once per launch (no tap); centered popup with top-right
-   close X + "Maybe later"; tap still tracks `apiTrackPromotionClick`. Replaces the old bottom sheet.
+- [x] **Auto-open promo popup on launch — now CYCLES (2026-09-08)** — `HomeScreen.tsx`:
+  `promoPopupShownThisLaunch` module flag + `PROMO_POPUP_INDEX_KEY` (`@jemina/promoPopupIndex` in
+  AsyncStorage) → shows a different promotion each launch (`(lastIndex + 1) % length`, starts at
+  index 0); centered popup with top-right close X. Root fix: fetches ALL active promos
+  (`apiGetPromotions()` — DB has no `seasonal` placement). Tap still tracks `apiTrackPromotionClick`.
 - [x] **Server push channels (site repo, deployed-ready)** — `PushNotificationService`:
   `sendOrderUpdate`/`sendPromotion` (broadcast to all active `user_device_tokens`)/`notifyNewMessage`;
   hooks in `OrderController::updateStatus` (customer), `PromotionController` store/update/
@@ -137,7 +155,13 @@ Legend: `[x]` done · `[ ]` pending.
 
 ## Website Parity Gaps (2026-09-06 audit — verified against web repo `f5e2a53`)
 
-- [ ] **Admin-managed promo surface on Home** — web manages promos with `placement` enum (`sidebar`, `banner`, `inline`, `popup`, `seasonal`); public API exists (`GET /api/v1/promotions`, `GET /promotions/{id}`, `POST /promotions/{id}/view`, `POST /promotions/{id}/click`). **Done (2026-09-07):** the auto promo popup consumes it (log view on open + `apiTrackPromotionClick` on tap). **Still open:** Home's "Seasonal & Promotional" section derives from product flags, not the Promotions API.
+- [ ] **Admin-managed promo surface on Home — mostly DONE (2026-09-08)** — web manages promos with
+  `placement` enum (`sidebar`, `banner`, `inline`, `popup`, `seasonal`); public API exists
+  (`GET /api/v1/promotions`, `GET /promotions/{id}`, `POST /promotions/{id}/view`,
+  `POST /promotions/{id}/click`). **Done:** auto popup (cycles all active promos per launch, view/
+  click tracking) + the "Seasonal & Promotional" section renders the Promotions API
+  (`PromoFlashCard`, "View Promo"). **Still open:** web-style full info-modal parity for card taps
+  and the homepage admin-promo banner treatment.
 - [ ] **Homepage product dedupe across carousels** — web dedupes featured/seasonal/new/flash across homepage blocks (`5868f4c`). App `CatalogContext.derive()` buckets the same array without cross-block dedupe — a product can appear in multiple carousels.
 - [ ] **Promo card Reserve → info modal parity** — web "Reserve" opens a full info modal (`3e9e3cf`, all viewers). App promo cards are read-only product cards. Blocked on promo banner item above.
 - [x] **Vendor subscription visibility — AUDITED:** web `ApiVendorController::show` exposes `package` (e.g. `starter`) in the vendor payload; app `VendorActionsScreen`/`VendorProfileScreen` do NOT surface package/billing status. No app change needed unless we want to show plan badge.
@@ -165,8 +189,13 @@ Legend: `[x]` done · `[ ]` pending.
 
 - [x] `tsc --noEmit`, `eslint`, `jest` green
 - [x] **Uniform styles roll-out (2026-09-07)** — added shared `src/components/EmptyState.tsx` + `SurfaceCard.tsx`; refactored 12 screens (Orders, OrderTracking, Messages, Wishlist, CreditHistory, MyReviews, BuyCredits, CollectionProducts, AddressBook, PaymentMethods, HelpCenter, EditProfile) off duplicated inline empty/error/signed-out blocks (−725 net lines). Sections + cards verified uniform (`headlineMd` titles, `SurfaceCard` recipe). `tsc`, `eslint` green.
-- [x] Release APK built + installed on phone `0794415254003308` + emulator `emulator-5554` (2026-09-02) — `app-release.apk` at `D:\mApps\m_jemina\app-release.apk`
-- [ ] **Commit app working tree** — everything since `2032ccf` (incl. CartScreen redesign, EmptyState/SurfaceCard refactor, and prior sessions' screen/state work) is UNCOMMITTED pending review
-- [ ] Rebuild latest `assembleRelease` (many screens/APIs added since last install) + install on both devices
-- [ ] Verify checkout/order/cart flows against live API on device (emulator) — still open
-- [ ] Update `docs/DESIGN.md` endpoint map with orders/credits/payments/vendors/search/promotions/surveys/help/messages/chat/payment-methods
+- [x] Release APK built + installed on phone `0794415254003308` + emulator `emulator-5554`
+  (2026-09-08, current `app-release.apk` at `D:\mApps\m_jemina\app-release.apk`)
+- [x] **Commit app working tree (2026-09-08)** — committed + pushed to `main` as `3df19c1`
+  (52 files; everything since `2032ccf` incl. CartScreen redesign, EmptyState/SurfaceCard refactor,
+  push layer, checkout + promo work). Site repo must NOT be committed.
+- [x] Verify checkout/payment/popup/build with `tsc --noEmit` + `eslint` green (0 errors)
+- [ ] Verify full checkout/order/cart loop with real payment against live API on device
+  (emulator + phone) — gateway UX can't be fully exercised until VPS gateway keys are set
+- [x] **Update `docs/DESIGN.md` endpoint map (2026-09-08)** — orders/credits/payments/vendors/
+  search/promotions/surveys/help/messages/chat/payment-methods

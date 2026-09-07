@@ -8,25 +8,26 @@ what the live server looks like, and the current state.
 Wire the app to the live Jemi-na Sanctum API (`https://jemi-na.com/api/v1`) with graceful
 demo fallback, then complete the full app → PlayStore roadmap so the app is "fully
 functional like the website" (login → cart → checkout/orders → JEMINA credits).
-**Current focus (2026-09-07):** Login/session bug fixed server-side (Apache mod_php now forwards
-the `Authorization` header). Cart screen redesigned (vendor sections, smaller type, per-product
-delivery fees) and uniform styling rolled out across all screens via shared `EmptyState`/`SurfaceCard`
-primitives (12 screens refactored). **Checkout pickup-point redesign (app-side) done:** removed the
-shipping-details form, auto-source the delivery address from the address book, replaced "Shipping
-Details" with a "Pickup Point & Delivery" section (default "Jemina Point" pickup option or
-delivery-to-address; "Add a delivery address" link → `AddressBook` when none exists); Total label
-reduced to `bodyLg`. **Push notifications + promo/ad popup done (app + server):** app popup
-auto-opens on launch with the first seasonal promotion (close X at top + "Maybe later"); global
-`NotificationContext` handles `promo`/`order_status`/`message` pushes (popup or banner) and
-`two_factor` stays on `subscribeToSecurityCode`; server `PushNotificationService` gained
-`sendOrderUpdate`/`sendPromotion` (broadcast)/`notifyNewMessage`, wired into OrderController,
-PromotionController (store/update/toggle/approve → broadcast when live) and MessagingController.
-Website pickup-point system (backend + admin CRUD) is the NEXT phase.
+**Current focus (2026-09-08):** Checkout payment options reworked + promo popup finished.
+Shopping loop is fully wired to the live API; the app working tree is COMMITTED and pushed at
+`3df19c1` (`main`). This session (2026-09-08): **checkout payment methods** now resolve
+app-side to a whitelist — default saved method (only), Cash on Delivery, Bitcoin, JEMINA
+Credits — with a gateway mapping for the saved-method provider (card → `stripe`,
+`mtn` mobile_money → `mtn_mobile_money`, everything else → `flutterwave`); generic
+MTN/Stripe/Flutterwave options removed; **pickup point** fixed to Jemina Official's real
+Gulu address (`789 Commerce Street, Building A, Gulu, Northern Region`); **promo popup**
+auto-opens on launch and now CYCLES through all active promotions per launch (persisted
+index in AsyncStorage), shows the full-width uncropped image (aspect-ratio-aware,
+centered) with **promo data only** (Visit Store / Maybe later buttons removed); Seasonal &
+Promotional cards use the Promotions API (`PromoFlashCard`, crop-free aspect-ratio
+images, "View Promo" action). Server has no new changes this session. **Site repo must
+NOT be committed.** Website pickup-point system (backend + admin CRUD) is the NEXT phase.
 Remaining: 3 website-parity gaps (admin promo banner, homepage dedupe, promo info modal), site
-pickup-point system, survey reward copy, VPS gateway keys, VPS FCM service-account creds
-(FIREBASE_CREDENTIALS_JSON/_PATH — pushes degrade to no-op logs until set) + live push round-trip
-(both test accounts now return "Invalid credentials"), and the PlayStore listing/gradlew
-AAB (versionCode bump). Working tree UNCOMMITTED (this + prior sessions pending review).
+pickup-point system, survey reward copy, VPS gateway keys (flutterwave/mtn_mobile_money
+disabled server-side — saved MTN/Airtel method at checkout hits "gateway not available"),
+VPS FCM service-account creds (FIREBASE_CREDENTIALS_JSON/_PATH — pushes degrade to no-op
+logs until set) + live push round-trip (both test accounts now return "Invalid
+credentials"), and the PlayStore listing/gradlew AAB (versionCode bump).
 
 ## Live test accounts
 
@@ -131,9 +132,10 @@ Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes 
   `apiVendorChatAsk`/`apiVendorChatNotify`), **profile** (`apiUpdateProfile`). `ApiProduct`/`ApiVendor`
   types include `delivery_fee`.   Order creation accepts `voucher_id`, `voucher_code`, `discount_amount`, plus optional
   `pickup_point`/`fulfilment` (pickup-vs-delivery metadata, currently ignored by the web backend).
-  **`apiGetPromotions` exists and is consumed by the Home promo popup (2026-09-07) —
-  Home "Seasonal & Promotional" section previously product-flag based; the auto-promo popup
-  now fetches `GET /api/v1/promotions` (placement `seasonal`, seasonal fallback).**
+  **`apiGetPromotions` exists and is consumed by Home (2026-09-07/08):** the auto promo popup
+  and the Home "Seasonal & Promotional" section both use `GET /api/v1/promotions` (all active
+  placements, no `seasonal` filter — the DB has no `seasonal` placements). Section falls back to
+  product `seasonal`/`holiday_special` flags when the feed is empty.
 - `src/state/AuthContext.tsx` — live-first (`authMode: 'live'`) with demo fallback; google/logout.
 - `src/lib/notifications.ts` — **push layer (2026-09-07)**: `requestNotificationPermission`,
   `PushEvent` typed union (`two_factor` | `promo` | `order_status` | `message`), `parsePushEvent`,
@@ -144,17 +146,25 @@ Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes 
 - `src/state/NotificationContext.tsx` — **NEW (2026-09-07)**: `NotificationProvider` renders the
   global promo popup Modal + top floating in-app notice banner (5s auto-dismiss, tap navigates);
   `useNotification` exposes `showPromo(promo)` / `showNotice(title, body, navigateTo)`.
-  `promoVisit(promo)` opens the promo's `target_url`/`link_url` via `Linking` when no vendor shop.
+  **2026-09-08:** popup is promo-data only — the `promoVisit` callback and the "Visit Store /
+  View Offer" button + "Maybe later" dismiss were removed (just header, image, title, vendor,
+  description); image is aspect-ratio-aware (`promoImageRatio` from `onLoad`) and centered
+  (`popupImage`/`popupImageSized`, `resizeMode="cover"`, `maxHeight: 300`) so it fills the card
+  width without cropping or right-side whitespace.
 - `src/lib/promo.ts` — **NEW (2026-09-07)**: `promoImageUrl` (base `https://jemi-na.com`).
 - `App.tsx` — **NEW (2026-09-07)**: `NotificationProvider` wraps the app (inside
   `NavigationProvider`); `PushBridge` wires foreground/opened/initial push events: `promo` →
   `showPromo`, `order_status`/`message` → notice banner navigating `Orders`/`Messages`,
   `two_factor` ignored (handled by `subscribeToSecurityCode`).
-- `src/screens/HomeScreen.tsx` — **auto promo popup (2026-09-07)**: module flag
-  `promoPopupShownThisLaunch` → `autoShowPopup()` opens the first seasonal promo once per app
-  launch (no tap needed); old bottom sheet replaced by a centered popup with a top-right close X
-  + "Maybe later"; card tap still tracks `apiTrackPromotionClick`. Uses `useNotification()` +
-  `promoImageUrl`; local popup JSX/styles removed.
+- `src/screens/HomeScreen.tsx` — **auto promo popup (2026-09-07/08)**: module flag
+  `promoPopupShownThisLaunch` + persisted `PROMO_POPUP_INDEX_KEY` (`@jemina/promoPopupIndex` in
+  AsyncStorage) → `autoShowPopup()` opens a DIFFERENT promo each app launch
+  (`(lastIndex + 1) % promotions.length`, defaults to index 0 on first run); centered popup with
+  a top-right close X; card tap still tracks `apiTrackPromotionClick`. The "Seasonal &
+  Promotional" section renders live Promotions-API cards via the `PromoFlashCard` component
+  (per-card aspect-ratio image, no crop, "View Promo" action button); falls back to seasonal
+  product flags when the feed is empty. Uses `useNotification()` + `promoImageUrl`;
+  local popup JSX/styles removed.
 - `src/components/ProductCard.tsx` — `Product` interface includes `deliveryFee`.
 - `src/state/CartContext.tsx` — token-aware server sync (`cartSource: 'server'|'local'`);
   **groups items by vendor** via `groupByVendor()`, exposes `vendorGroups: VendorGroup[]`,
@@ -185,16 +195,25 @@ Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes 
 - `src/screens/CheckoutScreen.tsx` — **vendor-grouped order summary**, delivery fees per vendor,
   **coupon/promo code input** with live validation via `apiApplyVoucher`, discount applied to
   total, **pickup-point redesign (2026-09-07)**: removed the shipping-details form; new
-  `PICKUP_POINTS` const (default **Jemina Point · Jemina Official · Kampala**) with a "Pickup
-  Point & Delivery" selector section (`fulfilment: 'pickup' | 'delivery'`, pickup is default).
+  `PICKUP_POINTS` const (default **Jemina Point · Jemina Official · 789 Commerce Street, Building
+  A, Gulu, Northern Region**) with a "Pickup Point & Delivery" selector section
+  (`fulfilment: 'pickup' | 'delivery'`, pickup is default).
   Delivery address auto-sourced from `apiGetAddresses()` (default address visualized under the
   option); no default → tap "Deliver to my address" redirects to `AddressBook` plus a persistent
-  "Add a delivery address" link (lines 347-396). Order notes kept as its own small section.
-  `buildShippingAddress()` mints the `ApiShippingAddress` from the pickup point (name/address/
-  city Kampala/state Central/zip 256/country Uganda/phone) or the saved address; `validate()`
-  errors if delivery is chosen with no address. Order payload sends `pickup_point` +
-  `fulfilment` (backend ignores unknown pickup fields for now — web `ApiOrderController` still
-  requires `shipping_address`; site pickup support is the next phase). **Total label** reduced
+  "Add a delivery address" link. Order notes kept as its own small section.
+  `buildShippingAddress()` mints the `ApiShippingAddress` from the pickup point
+  (`point.name`/`point.location`/`point.city`/`point.state`, zip 256, Uganda, phone) or the saved
+  address; `validate()` errors if delivery is chosen with no address. Order payload sends
+  `pickup_point` + `fulfilment` (backend ignores unknown pickup fields for now — web
+  `ApiOrderController` still requires `shipping_address`; site pickup support is the next phase).
+  **Payment options reworked (2026-09-08):** `PaymentOption` list resolves to just the default
+  saved method + Cash on Delivery + Bitcoin + JEMINA Credits (`PaymentMethodKey =
+  'saved'|'cod'|'bitcoin'|'credit'`); `paymentMethod` defaults `'cod'`, auto-snaps to `'saved'`
+  when a default saved method exists; `handlePlaceOrder` submits `option.method` and for
+  `credit`/`cod` navigates straight to `Orders`, otherwise `Payment` with `option.gateway`
+  (`gatewayForSavedMethod`: card → `stripe`, mtn mobile_money → `mtn_mobile_money`, else →
+  `flutterwave`). Saved-methods card shows "X saved · tap to manage". The old `PAYMENT_METHODS`
+  constant (mtn/stripe/flutterwave/bitcoin/credit) was removed. **Total label** reduced
   `headlineMd` → `bodyLg` (16px, matching Cart's canonical `totalLabel`); `totalValue` stays
   `headlineMd` (20px). platform fee 1500, voucher fields sent with order creation.
 - `src/screens/MarketplaceScreen.tsx` — **Featured Stores from live `apiGetVendors()`** (falls back
@@ -298,17 +317,42 @@ Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes 
 - **Git stash incident (safe):** one subagent ran `git stash`/`git stash pop` mid-task; stash list
   confirmed empty, no file corruption. All prior app working-tree changes intact (MEMORY.md, TODO.md,
   many screen files already modified from prior sessions).
-- **Working tree status:** UNCOMMITTED at `2032ccf`. Modified files include app screens, state,
-  components, android config, plus the two new shared components (`EmptyState.tsx`, `SurfaceCard.tsx`),
-  and (2026-09-07) the new push layer: `NotificationContext.tsx`, `lib/promo.ts`, rewritten
-  `lib/notifications.ts`, `App.tsx` (`NotificationProvider` + `PushBridge`), `HomeScreen.tsx`
-  (auto-promo popup).
+- **Working tree status:** was UNCOMMITTED at `2032ccf` through 2026-09-07; **COMMITTED + pushed
+  as `3df19c1` on 2026-09-08** (52 files, incl. this session's checkout/popup/promo work + the new
+  shared components `EmptyState.tsx`/`SurfaceCard.tsx` and the push layer `NotificationContext.tsx`,
+  `lib/promo.ts`, rewritten `lib/notifications.ts`, `App.tsx`, `HomeScreen.tsx`).
 - **Push + promo popup verified (2026-09-07):** `npx tsc --noEmit` green; `npx eslint src App.tsx`
   green (0 errors). Server side (`C:\xampp\htdocs\dev\jemina`): `PushNotificationService` gained
   `sendOrderUpdate`/`sendPromotion`/`notifyNewMessage`/`sendBroadcast`; hooks in `OrderController::updateStatus`,
   `PromotionController::store|update|toggleStatus|approve` (`broadcastIfActive` helper), `MessagingController::sendDirectMessage|
   vendorSendMessage`. All four files `php -l` clean; `sendBroadcast` smoke-tested via tinker (graceful no-op).
   **Live FCM delivery NOT yet verified** — needs VPS FCM creds + a real registered token (see Remaining).
+
+### Verified (2026-09-08)
+
+- **Checkout payment methods rework:** payment choices are now only the default saved method,
+  Cash on Delivery, Bitcoin, and JEMINA Credits. Server-gateway reality: `stripe` + `bitcoin`
+  enabled in `config('payments.gateways')`; `flutterwave` + `mtn_mobile_money` DISABLED (empty
+  `enabled`) → saved MTN/Airtel method at checkout will surface "gateway is not available"
+  until the VPS `.env` is configured (out of scope; UI-only requirement met).
+- **Pickup point:** Jemina Official address confirmed from DB (`street_address` "789 Commerce
+  Street, Building A", `city` Gulu — the `Vendor` record's own fields are empty, so the app uses
+  hardcoded `PICKUP_POINTS`). Region "Northern Region" (DB store arg typo "Nothern Region").
+- **Promo popup cycling:** `@jemina/promoPopupIndex` persisted in AsyncStorage; each force-stop +
+  relaunch shows the next promo (index +1 mod count). Root cause of the original "popup never
+  fired" was no `seasonal` placement in the DB (all 5 active promos are `sidebar`/`banner`) —
+  fixed by `apiGetPromotions()` with no placement filter. `npx tsc --noEmit` + `npx eslint
+  src App.tsx` green (0 errors).
+- **Popup image fix:** original crop was a fixed `height: 180` overriding `aspectRatio`. Final
+  fix: `popupImageSized` has no height (only `width: '100%'`, `maxHeight: 300`, centered),
+  `resizeMode="cover"`, ratio from `onLoad`; on-device confirmed full-fill, emulator had a small
+  right gap → image centered.
+- **Home Seasonal & Promotional cards:** `PromoFlashCard` per-card aspect-ratio (`onLoad`)
+  images (no crop), "View Promo" action label (was "View Store"/"View Offer").
+- **APK rebuilt + installed** on phone `0794415254003308` and emulator `emulator-5554`
+  (force-stop + relaunch); promo popup, cycling, card images confirmed working by the user.
+- **Committed + pushed:** `main` `2032ccf..3df19c1` (52 files). Commit message amended
+  (typo fix) via `--amend` + `--force-with-lease` after push.
 
 ### Audit (2026-09-06)
 
@@ -356,12 +400,13 @@ Model cannot view screenshots, so on-device checks used `uiautomator dump` + reg
 
 Read against web repo HEAD `f5e2a53` (all deployed on VPS). App status: clean @ `f304f90`.
 
-- **Promotions API exists + app consumes it for the promo popup (2026-09-07).** Public
+- **Promotions API exists + app consumes it (2026-09-07/08).** Public
   `GET /api/v1/promotions`, `GET /promotions/{id}`, `POST /promotions/{id}/view`, `POST /promotions/{id}/click`
   (`routes/api.php` L81–87). Website `5868f4c` added admin-managed promos with `placement`
-  enum (`sidebar`, `banner`, `inline`, `popup`, `seasonal`). App Home's auto-popup fetches the
-  seasonal placement (seasonal fallback) once per launch; the "Seasonal & Promotional" section
-  itself still derives from product `seasonal`/`holiday_special` flags.
+  enum (`sidebar`, `banner`, `inline`, `popup`, `seasonal`). App Home's auto-popup fetches ALL
+  active promos (`apiGetPromotions()` — no `seasonal` placement exists in the DB) and cycles
+  through one per launch; the "Seasonal & Promotional" section renders the same Promotions-API
+  feed via `PromoFlashCard` (falls back to product `seasonal`/`holiday_special` flags when empty).
 - **Homepage feed dedupe** (web `5868f4c`): website dedupes products across homepage blocks;
   app carousels can repeat products. Mirror in `CatalogContext` buckets.
 - **Surveys API live + wired in app:** `GET /api/v1/surveys`, `GET /surveys/{id}` (locked/vendor
@@ -379,6 +424,12 @@ Read against web repo HEAD `f5e2a53` (all deployed on VPS). App status: clean @ 
 
 ## Next
 
+**Completed (2026-09-08):** Checkout payment-methods rework (saved-only whitelist + COD/Bitcoin/
+credit; gateway mapping; COD/credit order straight to Orders); pickup point → Jemina Official's
+real Gulu address; promo popup cycles all active promotions per launch (AsyncStorage index); popup
+is promo-data-only with a centered, uncropped full-width image; Seasonal & Promotional cards use
+the Promotions API (`PromoFlashCard`, aspect-ratio images, "View Promo"); tsc/eslint green; APK
+rebuilt + installed on both devices; **app repo committed + pushed (`3df19c1`)**. Docs updated.
 **Completed (2026-09-07):** Server-side login/session fix (Apache `SetEnvIf` Authorization header
 forwarding in mod_php vhost); CartScreen redesign (vendor sections, smaller type, per-product
 delivery fees, professional card UI); uniform styling roll-out across all screens (shared
@@ -403,8 +454,7 @@ payload extended with `pickup_point`/`fulfilment` (backend ignores for now); Tot
   + admin CRUD + `pickup_point` handling in `ApiOrderController` (map the `pickup_point`/
   `fulfilment` fields the app already sends, decide pickup vs delivery fee model). App-side
   `PICKUP_POINTS` is hardcoded for now — wire it to the new endpoint once live.
-- Commit the app working tree (currently UNCOMMITTED at `2032ccf`; prior + this session's app
-  changes all pending user review).
+- App working tree is committed (`3df19c1`); **site repo must NOT be committed**.
 - PlayStore release config: bump `versionCode`/`versionName` in `android/app/build.gradle`,
   `./gradlew bundleRelease` → AAB, smoke-test `assembleRelease` APK, install on both devices,
   Play Console listing (description, category Shopping, privacy policy URL, screenshots, IARC
@@ -414,8 +464,7 @@ payload extended with `pickup_point`/`fulfilment` (backend ignores for now); Tot
   survey reward copy alignment (`credit_awarded: 0` on submit but list/detail still shows
   `credit_reward: 500000`).
 - Vendor subscription status audit (`package` exposed in vendor API; no app surfacing yet).
-- VPS gateway keys (Stripe/MTN/Flutterwave) in `.env` for live payment processing.
-- Update `docs/DESIGN.md` endpoint map (orders/credits/payments/vendors/search/promotions/surveys/
-  help/messages/chat/payment-methods).
+- VPS gateway keys (Stripe/MTN/Flutterwave) in `.env` for live payment processing — includes
+  enabling `flutterwave` + `mtn_mobile_money` so the saved-method checkout path works.
 - Optional: address/payment-method editor screens in Profile; vendor-specific delivery fee config
   (currently product-level `delivery_fee`).
