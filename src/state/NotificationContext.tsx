@@ -24,6 +24,31 @@ export interface InAppNotice {
   onPress: () => void;
 }
 
+const PROMO_TYPE_LABELS: Record<string, string> = {
+  seasonal: 'Seasonal Offer',
+  flash: 'Flash Deal',
+  popular: 'Popular Pick',
+  homepage: 'Featured Promo',
+  banner: 'Featured Promo',
+  popup: 'Exclusive Deal',
+  sidebar: 'Our Offer',
+  inline: 'Special Offer',
+  new_arrivals: 'New Arrivals',
+  b2b: 'B2B Deal',
+};
+
+function promoTypeLabel(placement: ApiPromotion['placement'] | null | undefined): string {
+  if (placement && PROMO_TYPE_LABELS[placement]) {
+    return PROMO_TYPE_LABELS[placement];
+  }
+  if (placement) {
+    return placement
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase());
+  }
+  return 'Featured Promo';
+}
+
 interface NotificationContextValue {
   activePromo: ApiPromotion | null;
   showPromo: (promo: ApiPromotion) => void;
@@ -133,7 +158,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             <View style={styles.popupHeader}>
               <View style={styles.popupHeaderRow}>
                 <Icon name="auto-awesome" size={18} color={colors.secondary} />
-                <Text style={styles.popupTitle}>Featured Promo</Text>
+                <Text style={styles.popupTitle}>{promoTypeLabel(activePromo?.placement)}</Text>
               </View>
               <Pressable
                 onPress={closePromo}

@@ -44,8 +44,6 @@ const HERO_SLIDES: HeroSlide[] = images.heroBanners.map((image, i) => ({
   image,
 }));
 
-let promoPopupShownThisLaunch = false;
-
 const PROMO_POPUP_INDEX_KEY = '@jemina/promoPopupIndex';
 
 const TRUST_INDICATORS = [
@@ -141,10 +139,9 @@ export function HomeScreen() {
 
   const autoShowPopup = useCallback(
     (next: ApiPromotion[]): void => {
-      if (promoPopupShownThisLaunch || next.length === 0) {
+      if (next.length === 0) {
         return;
       }
-      promoPopupShownThisLaunch = true;
       AsyncStorage.getItem(PROMO_POPUP_INDEX_KEY)
         .then(raw => {
           const parsed = Number(raw);
