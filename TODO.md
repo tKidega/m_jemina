@@ -23,8 +23,9 @@ buttons) with centered, uncropped full-width image. **Push notifications + promo
 (`FIREBASE_PROJECT_ID=m-jemina`, `FIREBASE_CREDENTIALS_PATH=/etc/jemina/firebase-m-jemina.json`),
 `PushNotificationService::isConfigured()` = true, and a `sendToUser` push delivered to the
 emulator's real token for `bits.bytes.loko@gmail.com` — **in-app banner fired on-device
-(confirmed)**. ⚠ Deploy drift: VPS site at `0254f82` only has `sendOtpCode`/`sendToUser`; the
-newer push channels + controller hooks are local-only until the site repo is deployed. Release
+(confirmed)**. ✅ Deploy drift resolved (2026-09-08): the 4 site files (push channels + controller
+hooks) deployed to VPS via `scp` — no git commit (site repo stays uncommitted), `php -l` clean,
+caches cleared. Release
 keystore + signing configured (versionCode still 1). Remaining:
 PlayStore listing/config, 3 website-parity gaps (admin promo banner, homepage dedupe, promo info
 modal), the **website pickup-point system**, survey reward copy, and VPS gateway keys for live
@@ -162,11 +163,12 @@ Legend: `[x]` done · `[ ]` pending.
   19:25:12); `sendToUser` push delivered with no exception / no FCM error log → **in-app banner
   fired on-device (confirmed)**. Note: documented test accounts (`mjemina.test.*`,
   `mjemina.credit.*`) do NOT exist in the VPS `users` table — they are local-DB accounts, which is
-  why their logins returned `Invalid credentials`. ⚠ Deploy drift: VPS site is at `0254f82` (only
-  `sendOtpCode`/`sendToUser` live) — the newer push channels + controller hooks are currently
-  local-only, so order-status/promo/message trigger pushes fire only after the site repo is deployed.
-  Remaining after deploy: verify the real trigger paths (order status change, promo broadcast,
-  admin/vendor message) + 2FA (`two_factor`) code push + background system notification.
+  why their logins returned `Invalid credentials`. ✅ Deploy drift resolved (2026-09-08): the 4 site
+  files (`PushNotificationService` + 3 controller hooks) were deployed to the VPS via `scp` (no git
+  commit — site repo stays uncommitted); methods confirmed loaded (`sendOrderUpdate`/
+  `sendPromotion`/`notifyNewMessage`/`sendBroadcast`), `php -l` clean, config/route/cache cleared.
+  Remaining: verify the real trigger paths (order status change, promo broadcast, admin/vendor
+  message) + 2FA (`two_factor`) code push + background system notification.
 
 ## Website Parity Gaps (2026-09-06 audit — verified against web repo `f5e2a53`)
 

@@ -333,11 +333,11 @@ Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes 
   `FIREBASE_PROJECT_ID=m-jemina` + `FIREBASE_CREDENTIALS_PATH`; `isConfigured()`=true). A
   `sendToUser` test to `bits.bytes.loko@gmail.com` (user id 7) hit its real android emulator
   token (id 1, refreshed 19:25:12) with no exception and no FCM error/deactivation log → the
-  **in-app banner fired on the emulator** (user confirmed). ⚠ **DEPLOY DRIFT:** VPS server is at
-  `0254f82` — only `sendOtpCode`/`sendToUser` are deployed; `sendOrderUpdate`/`sendPromotion`/
-  `notifyNewMessage`/`sendBroadcast` + controller hooks are still local-only, so plain
-  `sendToUser` (this test) and 2FA `sendOtpCode` work live, but order-status/promo/message
-  trigger pushes will not fire until the site repo is deployed.
+  **in-app banner fired on the emulator** (user confirmed). ⚠ **DEPLOY DRIFT → RESOLVED (2026-09-08):**
+  VPS server was at `0254f82` with only `sendOtpCode`/`sendToUser`; the newer
+  `sendOrderUpdate`/`sendPromotion`/`notifyNewMessage`/`sendBroadcast` + controller hooks were deployed
+  directly via `scp` (no git commit) — `php -l` clean, ownership `webadmin:webadmin`. Site working tree
+  still holds those uncommitted changes (site repo stays uncommitted by rule).
 
 ### Verified (2026-09-08)
 
@@ -460,11 +460,12 @@ payload extended with `pickup_point`/`fulfilment` (backend ignores for now); Tot
   `/etc/jemina/firebase-m-jemina.json` — matches `D:\mApps\m-jemina-firebase-adminsdk-fbsvc-02967ca629.json`),
   `isConfigured()`=true. The two documented test accounts (`mjemina.test.*`, `mjemina.credit.*`) do NOT
   exist on the VPS, hence their `Invalid credentials` — use `bits.bytes.loko@gmail.com` for live tests.
-  **NEXT:** deploy the site repo to VPS (it is at `0254f82`; the newer `PushNotificationService` methods
-  + `OrderController`/`PromotionController`/`MessagingController` hooks are local-only) so the real trigger
-  paths fire, then verify: order status change → customer push; create a live promotion (toggle) →
-  `sendPromotion` broadcast; admin direct message / vendor message → recipient push; 2FA (`two_factor`)
-  code push. An in-background system notification test is also worth doing (this test ran in foreground).
+  **DONE (2026-09-08):** the 4 site files (`PushNotificationService` + `OrderController`/
+  `PromotionController`/`MessagingController` hooks) were deployed to the VPS via `scp` (site not
+  committed) — methods confirmed loaded, caches cleared. **NEXT:** verify the real trigger paths
+  live on-device: order status change → customer push; create a live promotion (toggle) →
+  `sendPromotion` broadcast; admin direct message / vendor message → recipient push; 2FA
+  (`two_factor`) code push; plus an in-background (app killed / screen off) system-notification test.
 - **Website pickup-point system (NEXT PHASE):** backend `GET/POST/PUT/DELETE /api/v1/pickup-points`
   + admin CRUD + `pickup_point` handling in `ApiOrderController` (map the `pickup_point`/
   `fulfilment` fields the app already sends, decide pickup vs delivery fee model). App-side
