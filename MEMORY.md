@@ -25,8 +25,9 @@ NOT be committed.** Website pickup-point system (backend + admin CRUD) is the NE
 Remaining: 3 website-parity gaps (admin promo banner, homepage dedupe, promo info modal), site
 pickup-point system, survey reward copy, VPS gateway keys (flutterwave/mtn_mobile_money
 disabled server-side — saved MTN/Airtel method at checkout hits "gateway not available"),
-confirm phone-side FCM receipt (server→FCM live send already verified 2026-09-08 against the
-real tokens for `bits.bytes.loko@gmail.com`), and the PlayStore listing/gradlew AAB
+**deploy the newer push channels to the VPS** (server is at `0254f82` — only
+`sendOtpCode`/`sendToUser` live; `sendOrderUpdate`/`sendPromotion`/`notifyNewMessage`/
+`sendBroadcast` + controller hooks not deployed yet), and the PlayStore listing/gradlew AAB
 (versionCode bump).
 
 ## Live test accounts
@@ -327,12 +328,16 @@ Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes 
   `sendOrderUpdate`/`sendPromotion`/`notifyNewMessage`/`sendBroadcast`; hooks in `OrderController::updateStatus`,
   `PromotionController::store|update|toggleStatus|approve` (`broadcastIfActive` helper), `MessagingController::sendDirectMessage|
   vendorSendMessage`. All four files `php -l` clean; `sendBroadcast` smoke-tested via tinker (graceful no-op).
-  **Live FCM delivery VERIFIED server-side (2026-09-08)** — VPS creds were already in place
+  **Live FCM delivery VERIFIED END-TO-END (2026-09-08)** — VPS creds were already in place
   (`/etc/jemina/firebase-m-jemina.json` = m-jemina service account, key_len 1704; `.env` has
   `FIREBASE_PROJECT_ID=m-jemina` + `FIREBASE_CREDENTIALS_PATH`; `isConfigured()`=true). A
-  `sendToUser` test to `bits.bytes.loko@gmail.com` (user id 7) hit its two real android device
-  tokens with no exception and no FCM error/deactivation log → FCM accepted the message.
-  Phone-side receipt + 2FA (`two_factor`) push path still to be observed.
+  `sendToUser` test to `bits.bytes.loko@gmail.com` (user id 7) hit its real android emulator
+  token (id 1, refreshed 19:25:12) with no exception and no FCM error/deactivation log → the
+  **in-app banner fired on the emulator** (user confirmed). ⚠ **DEPLOY DRIFT:** VPS server is at
+  `0254f82` — only `sendOtpCode`/`sendToUser` are deployed; `sendOrderUpdate`/`sendPromotion`/
+  `notifyNewMessage`/`sendBroadcast` + controller hooks are still local-only, so plain
+  `sendToUser` (this test) and 2FA `sendOtpCode` work live, but order-status/promo/message
+  trigger pushes will not fire until the site repo is deployed.
 
 ### Verified (2026-09-08)
 
@@ -448,17 +453,18 @@ payload extended with `pickup_point`/`fulfilment` (backend ignores for now); Tot
 **Prior completed:** Home/browse UI polish + build (2026-09-02); docs reconciliation (2026-09-06).
 
 **Remaining / next when user returns:**
-- **Confirm phone-side FCM receipt (server half DONE, 2026-09-08):** VPS `.env` already had the
-  m-jemina service-account creds (`FIREBASE_PROJECT_ID=m-jemina`,
-  `FIREBASE_CREDENTIALS_PATH=/etc/jemina/firebase-m-jemina.json`, file `/etc/jemina/
-  firebase-m-jemina.json` — matches `D:\mApps\m-jemina-firebase-adminsdk-fbsvc-02967ca629.json`),
-  so `isConfigured()` is true. Live `sendToUser` test to `bits.bytes.loko@gmail.com` (id 7, the
-  only account with real tokens) delivered with no error. The two documented test accounts
-  (`mjemina.test.*`, `mjemina.credit.*`) do not exist on the VPS, hence their `Invalid
-  credentials` — for live tests use `bits.bytes.loko@gmail.com` or create a fresh account. Next:
-  watch the popup/banner on-device, then verify the real trigger paths — toggle a promotion → no
-  broadcast unless a live promotion is created (currently none active) → better: make an order
-  status change (customer push) or admin/vendor message push while the app is foreground/background.
+- **FCM round-trip VERIFIED END-TO-END (2026-09-08):** emulator signed in as `bits.bytes.loko@gmail.com`
+  (user id 7) refreshed its device token (id 1, 19:25:12); server `sendToUser` push delivered and the
+  **in-app banner fired** (user confirmed). Creds: VPS `.env` already had the m-jemina service-account
+  (`FIREBASE_PROJECT_ID=m-jemina`, `FIREBASE_CREDENTIALS_PATH=/etc/jemina/firebase-m-jemina.json`, file
+  `/etc/jemina/firebase-m-jemina.json` — matches `D:\mApps\m-jemina-firebase-adminsdk-fbsvc-02967ca629.json`),
+  `isConfigured()`=true. The two documented test accounts (`mjemina.test.*`, `mjemina.credit.*`) do NOT
+  exist on the VPS, hence their `Invalid credentials` — use `bits.bytes.loko@gmail.com` for live tests.
+  **NEXT:** deploy the site repo to VPS (it is at `0254f82`; the newer `PushNotificationService` methods
+  + `OrderController`/`PromotionController`/`MessagingController` hooks are local-only) so the real trigger
+  paths fire, then verify: order status change → customer push; create a live promotion (toggle) →
+  `sendPromotion` broadcast; admin direct message / vendor message → recipient push; 2FA (`two_factor`)
+  code push. An in-background system notification test is also worth doing (this test ran in foreground).
 - **Website pickup-point system (NEXT PHASE):** backend `GET/POST/PUT/DELETE /api/v1/pickup-points`
   + admin CRUD + `pickup_point` handling in `ApiOrderController` (map the `pickup_point`/
   `fulfilment` fields the app already sends, decide pickup vs delivery fee model). App-side
