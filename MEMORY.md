@@ -25,15 +25,16 @@ NOT be committed.** Website pickup-point system (backend + admin CRUD) is the NE
 Remaining: 3 website-parity gaps (admin promo banner, homepage dedupe, promo info modal), site
 pickup-point system, survey reward copy, VPS gateway keys (flutterwave/mtn_mobile_money
 disabled server-side — saved MTN/Airtel method at checkout hits "gateway not available"),
-VPS FCM service-account creds (FIREBASE_CREDENTIALS_JSON/_PATH — pushes degrade to no-op
-logs until set) + live push round-trip (both test accounts now return "Invalid
-credentials"), and the PlayStore listing/gradlew AAB (versionCode bump).
+confirm phone-side FCM receipt (server→FCM live send already verified 2026-09-08 against the
+real tokens for `bits.bytes.loko@gmail.com`), and the PlayStore listing/gradlew AAB
+(versionCode bump).
 
 ## Live test accounts
 
 - `mjemina.test.20260802140339@example.com` / `TestPassw0rd!42` — user id 9, the main throwaway.
-  **⚠ 2026-09-07: both live test accounts now return `Invalid credentials` on
-  `POST /api/v1/auth/login` — status unknown; treat as not usable until re-verified.**
+  **⚠ 2026-09-08: these accounts do NOT exist in the VPS `users` table** (queried `%mjemina%`/
+  `%test%`/`%credit%` in email → none found) — they are **local-DB-only** accounts. That is why
+  `POST /api/v1/auth/login` returns `Invalid credentials` live.
 - `mjemina.credit.20260803014602@example.com` / `TestPassw0rd!42` — user id 10, used to verify
   the credits flow (signup bonus + credit payment). Started with 1,000,000 credits, spent 46,510.
 - `user@email.com` / `customer@420` — ONLY valid in the app's in-memory seeded mock, not live.
@@ -326,7 +327,12 @@ Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes 
   `sendOrderUpdate`/`sendPromotion`/`notifyNewMessage`/`sendBroadcast`; hooks in `OrderController::updateStatus`,
   `PromotionController::store|update|toggleStatus|approve` (`broadcastIfActive` helper), `MessagingController::sendDirectMessage|
   vendorSendMessage`. All four files `php -l` clean; `sendBroadcast` smoke-tested via tinker (graceful no-op).
-  **Live FCM delivery NOT yet verified** — needs VPS FCM creds + a real registered token (see Remaining).
+  **Live FCM delivery VERIFIED server-side (2026-09-08)** — VPS creds were already in place
+  (`/etc/jemina/firebase-m-jemina.json` = m-jemina service account, key_len 1704; `.env` has
+  `FIREBASE_PROJECT_ID=m-jemina` + `FIREBASE_CREDENTIALS_PATH`; `isConfigured()`=true). A
+  `sendToUser` test to `bits.bytes.loko@gmail.com` (user id 7) hit its two real android device
+  tokens with no exception and no FCM error/deactivation log → FCM accepted the message.
+  Phone-side receipt + 2FA (`two_factor`) push path still to be observed.
 
 ### Verified (2026-09-08)
 
@@ -442,14 +448,17 @@ payload extended with `pickup_point`/`fulfilment` (backend ignores for now); Tot
 **Prior completed:** Home/browse UI polish + build (2026-09-02); docs reconciliation (2026-09-06).
 
 **Remaining / next when user returns:**
-- **Verify push round-trip live** (blocked): VPS needs `FIREBASE_CREDENTIALS_JSON` or
-  `FIREBASE_CREDENTIALS_PATH` in `.env` (service account for `FCM_SERVICE` project), a registered
-  `user_device_tokens` row (either via live sign-in, or insert one pointing to a real FCM token),
-  and at least one working customer account — both documented test accounts
-  (`mjemina.test.*`, `mjemina.credit.*`) currently return `Invalid credentials`. Without FCM creds
-  the server logs `FCM not configured; skipping …` and pushes no-op gracefully. Until then, verify:
-  toggle a promotion → `PromotionController` broadcasts; order status change → customer push;
-  admin direct message / vendor message → recipient push.
+- **Confirm phone-side FCM receipt (server half DONE, 2026-09-08):** VPS `.env` already had the
+  m-jemina service-account creds (`FIREBASE_PROJECT_ID=m-jemina`,
+  `FIREBASE_CREDENTIALS_PATH=/etc/jemina/firebase-m-jemina.json`, file `/etc/jemina/
+  firebase-m-jemina.json` — matches `D:\mApps\m-jemina-firebase-adminsdk-fbsvc-02967ca629.json`),
+  so `isConfigured()` is true. Live `sendToUser` test to `bits.bytes.loko@gmail.com` (id 7, the
+  only account with real tokens) delivered with no error. The two documented test accounts
+  (`mjemina.test.*`, `mjemina.credit.*`) do not exist on the VPS, hence their `Invalid
+  credentials` — for live tests use `bits.bytes.loko@gmail.com` or create a fresh account. Next:
+  watch the popup/banner on-device, then verify the real trigger paths — toggle a promotion → no
+  broadcast unless a live promotion is created (currently none active) → better: make an order
+  status change (customer push) or admin/vendor message push while the app is foreground/background.
 - **Website pickup-point system (NEXT PHASE):** backend `GET/POST/PUT/DELETE /api/v1/pickup-points`
   + admin CRUD + `pickup_point` handling in `ApiOrderController` (map the `pickup_point`/
   `fulfilment` fields the app already sends, decide pickup vs delivery fee model). App-side

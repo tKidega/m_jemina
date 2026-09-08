@@ -18,10 +18,15 @@ MTN/Stripe/Flutterwave rows); COD/credit orders go straight to Orders, gateway o
 `PaymentScreen` with the correct gateway. **Promo popup (2026-09-08):** auto-opens on launch and
 cycles a different promotion per launch (AsyncStorage index); promo-data-only modal (no action
 buttons) with centered, uncropped full-width image. **Push notifications + promo/ad popup DONE
-(app + server, 2026-09-07)** — live FCM round-trip still pending (VPS creds). Release keystore +
-signing configured (versionCode still 1). Remaining: PlayStore listing/config, 3 website-parity
-gaps (admin promo banner, homepage dedupe, promo info modal), the **website pickup-point system**,
-survey reward copy, VPS FCM creds, and VPS gateway keys for live payments.
+(app + server, 2026-09-07)** — **live FCM round-trip VERIFIED server-side (2026-09-08):** VPS
+`/etc/jemina/firebase-m-jemina.json` holds the m-jemina service account, `.env` points to it
+(`FIREBASE_PROJECT_ID=m-jemina`, `FIREBASE_CREDENTIALS_PATH=/etc/jemina/firebase-m-jemina.json`),
+`PushNotificationService::isConfigured()` = true, and a `sendToUser` test delivered to the two real
+registered tokens for `bits.bytes.loko@gmail.com` with no exception / no FCM error (app-side phone
+receipt still to confirm). Release keystore + signing configured (versionCode still 1). Remaining:
+PlayStore listing/config, 3 website-parity gaps (admin promo banner, homepage dedupe, promo info
+modal), the **website pickup-point system**, survey reward copy, and VPS gateway keys for live
+payments.
 
 Legend: `[x]` done · `[ ]` pending.
 
@@ -147,11 +152,16 @@ Legend: `[x]` done · `[ ]` pending.
   smoke-tested. Payload `data.type` matches the app's `PushEvent` union; promotions also carry
   `promo_id`/`title`/`description`/`image_url`/`placement`/`link_url`/`target_url`/`has_shop`/
   `vendor_id`/`vendor_name`.
-- [ ] **Verify live FCM round-trip (BLOCKED)** — VPS `.env` needs `FIREBASE_CREDENTIALS_JSON` or
-  `FIREBASE_CREDENTIALS_PATH` (service account, project `FCM_SERVICE` per `config/services.php`),
-  plus at least one registered device token and a working customer login (both test accounts now
-  return `Invalid credentials`). Until creds are set, server logs `FCM not configured; skipping …`
-  and no-ops gracefully. 2FA push (`two_factor` code delivery) verifies the same path.
+- [x] **Verify live FCM round-trip (VERIFIED 2026-09-08)** — VPS credential previously believed
+  missing was already deployed: `/etc/jemina/firebase-m-jemina.json` is the m-jemina service account
+  (`firebase-adminsdk-fbsvc@m-jemina`) and `.env` already has `FIREBASE_PROJECT_ID=m-jemina` +
+  `FIREBASE_CREDENTIALS_PATH=/etc/jemina/firebase-m-jemina.json`; `isConfigured()` returns true.
+  Server→FCM send verified via a `sendToUser` test payload to the two live android tokens for
+  `bits.bytes.loko@gmail.com` (user id 7): no exception, no "Deactivated stale" / "FCM send failed"
+  log → FCM accepted the message. Note: documented test accounts (`mjemina.test.*`,
+  `mjemina.credit.*`) do NOT exist in the VPS `users` table — they are local-DB accounts, which is
+  why their logins returned `Invalid credentials`. Remaining: confirm phone-side receipt + the 2FA
+  push path (`two_factor` code delivery verifies the same channel).
 
 ## Website Parity Gaps (2026-09-06 audit — verified against web repo `f5e2a53`)
 
