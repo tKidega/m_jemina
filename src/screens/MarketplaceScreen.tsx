@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { AppHeader, HeaderCartButton, HeaderSearchButton } from '../components/AppHeader';
+import { AppHeader, HeaderCartButton, HeaderNotificationButton, HeaderSearchButton } from '../components/AppHeader';
 import { BottomNav } from '../components/BottomNav';
 import { Icon } from '../components/Icon';
 import { SectionHeader } from '../components/SectionHeader';
@@ -169,6 +169,7 @@ export function MarketplaceScreen() {
       <AppHeader
         right={
           <>
+            <HeaderNotificationButton />
             <HeaderSearchButton onPress={() => navigate('Search')} />
             <HeaderCartButton count={itemCount} onPress={() => switchTab('Cart')} />
           </>

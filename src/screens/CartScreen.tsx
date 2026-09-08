@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { AppHeader, HeaderCartButton } from '../components/AppHeader';
+import { AppHeader, HeaderActions } from '../components/AppHeader';
 import { BottomNav } from '../components/BottomNav';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
@@ -28,7 +28,7 @@ export function CartScreen() {
   return (
     <View style={styles.root}>
       <AppHeader
-        right={<HeaderCartButton count={itemCount} onPress={() => {}} />}
+        right={<HeaderActions />}
       />
       {items.length === 0 ? (
         <View style={styles.empty}>

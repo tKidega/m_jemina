@@ -8,7 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { AppHeader, HeaderCartButton } from '../components/AppHeader';
+import { AppHeader, HeaderNotificationButton, HeaderCartButton } from '../components/AppHeader';
 import { BottomNav } from '../components/BottomNav';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
@@ -121,7 +121,7 @@ export function VendorProfileScreen() {
       <AppHeader
         showBack
         onBack={goBack}
-        right={<HeaderCartButton count={itemCount} onPress={() => switchTab('Cart')} />}
+        right={<><HeaderNotificationButton /><HeaderCartButton count={itemCount} onPress={() => switchTab('Cart')} /></>}
       />
       {error ? (
         <Pressable style={styles.statusBanner} onPress={refresh}>

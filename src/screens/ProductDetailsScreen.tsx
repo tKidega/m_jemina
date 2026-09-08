@@ -8,7 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { AppHeader, HeaderCartButton } from '../components/AppHeader';
+import { AppHeader, HeaderNotificationButton, HeaderCartButton } from '../components/AppHeader';
 import { Badge } from '../components/Badge';
 import { Icon, type IconName } from '../components/Icon';
 import { Button } from '../components/Button';
@@ -168,7 +168,7 @@ export function ProductDetailsScreen() {
       <AppHeader
         showBack
         onBack={goBack}
-        right={<HeaderCartButton count={itemCount} onPress={() => switchTab('Cart')} />}
+        right={<><HeaderNotificationButton /><HeaderCartButton count={itemCount} onPress={() => switchTab('Cart')} /></>}
       />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Image gallery */}

@@ -3,6 +3,8 @@ import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from './Icon';
 import { useNavigation } from '../navigation/NavigationContext';
+import { useCart } from '../state/CartContext';
+import { useNotification } from '../state/NotificationContext';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing } from '../theme/spacing';
@@ -35,30 +37,45 @@ export function AppHeader({ title = 'JEMINA', showBack, onBack, onMenu, right, s
 				)}
 				<Text style={styles.title}>{title}</Text>
 			</View>
-			<View style={styles.right}>{right}</View>
+			<View style={styles.right}>{right ?? <HeaderActions />}</View>
 		</View>
 	);
 }
 
-export function HeaderNotificationButton({ hasBadge = false, onPress }: { hasBadge?: boolean; onPress?: () => void }) {
+export function HeaderNotificationButton({ onPress }: { onPress?: () => void }) {
+	const { unreadCount, clearUnread } = useNotification();
+	const handlePress = onPress ?? clearUnread;
 	return (
-		<Pressable style={styles.iconBtn} onPress={onPress} hitSlop={8} accessibilityRole="button" accessibilityLabel="Notifications">
+		<Pressable style={styles.iconBtn} onPress={handlePress} hitSlop={8} accessibilityRole="button" accessibilityLabel="Notifications">
 			<Icon name="notifications" size={26} color={colors.onPrimary} />
-			{hasBadge && <View style={styles.notifBadge} />}
+			{unreadCount > 0 && <View style={styles.notifBadge} />}
 		</Pressable>
 	);
 }
 
-export function HeaderCartButton({ count = 0, onPress }: { count?: number; onPress?: () => void }) {
+export function HeaderCartButton({ count, onPress }: { count?: number; onPress?: () => void }) {
+	const { itemCount } = useCart();
+	const { switchTab } = useNavigation();
+	const badgeCount = count ?? itemCount;
+	const handlePress = onPress ?? (() => switchTab('Cart'));
 	return (
-		<Pressable style={styles.iconBtn} onPress={onPress} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Cart, ${count} items`}>
+		<Pressable style={styles.iconBtn} onPress={handlePress} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Cart, ${badgeCount} items`}>
 			<Icon name="shopping-cart" size={26} color={colors.onPrimary} />
-			{count > 0 && (
+			{badgeCount > 0 && (
 				<View style={styles.cartBadge}>
-					<Text style={styles.cartBadgeText}>{count}</Text>
+					<Text style={styles.cartBadgeText}>{badgeCount}</Text>
 				</View>
 			)}
 		</Pressable>
+	);
+}
+
+export function HeaderActions() {
+	return (
+		<>
+			<HeaderNotificationButton />
+			<HeaderCartButton />
+		</>
 	);
 }
 

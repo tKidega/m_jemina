@@ -8,6 +8,7 @@ import React, {
   useState,
 } from 'react';
 import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ApiPromotion } from '../data/api';
 import { Icon } from '../components/Icon';
@@ -59,6 +60,9 @@ interface NotificationContextValue {
     kind: 'order' | 'message';
     onPress: () => void;
   }) => void;
+  unreadCount: number;
+  markUnread: () => void;
+  clearUnread: () => void;
 }
 
 const NotificationContext = createContext<NotificationContextValue | null>(null);
@@ -68,8 +72,39 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [activePromo, setActivePromo] = useState<ApiPromotion | null>(null);
   const [promoImageRatio, setPromoImageRatio] = useState<number | null>(null);
   const [notice, setNotice] = useState<InAppNotice | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadLoaded, setUnreadLoaded] = useState(false);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const noticeKey = useRef(0);
+  const unreadPersistKey = '@jemina/notifications/unread/v1';
+
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(unreadPersistKey)
+      .then(raw => {
+        if (cancelled) {
+          return;
+        }
+        const parsed = raw !== null ? Number(raw) : NaN;
+        setUnreadCount(Number.isFinite(parsed) && parsed > 0 ? parsed : 0);
+        setUnreadLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setUnreadLoaded(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!unreadLoaded) {
+      return;
+    }
+    AsyncStorage.setItem(unreadPersistKey, String(unreadCount)).catch(() => {});
+  }, [unreadCount, unreadLoaded]);
 
   const closePromo = useCallback(() => setActivePromo(null), []);
 
@@ -77,6 +112,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     setActivePromo(promo);
     setPromoImageRatio(null);
   }, []);
+
+  const markUnread = useCallback(() => setUnreadCount(n => n + 1), []);
+  const clearUnread = useCallback(() => setUnreadCount(0), []);
 
   const dismissNotice = useCallback(() => {
     if (noticeTimer.current) {
@@ -108,8 +146,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   );
 
   const value = useMemo(
-    () => ({ activePromo, showPromo, closePromo, showNotice }),
-    [activePromo, showPromo, closePromo, showNotice],
+    () => ({ activePromo, showPromo, closePromo, showNotice, unreadCount, markUnread, clearUnread }),
+    [activePromo, showPromo, closePromo, showNotice, unreadCount, markUnread, clearUnread],
   );
 
   return (

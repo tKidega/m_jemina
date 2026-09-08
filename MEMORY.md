@@ -8,27 +8,27 @@ what the live server looks like, and the current state.
 Wire the app to the live Jemi-na Sanctum API (`https://jemi-na.com/api/v1`) with graceful
 demo fallback, then complete the full app → PlayStore roadmap so the app is "fully
 functional like the website" (login → cart → checkout/orders → JEMINA credits).
-**Current focus (2026-09-08):** Checkout payment options reworked + promo popup finished.
-Shopping loop is fully wired to the live API; the app working tree is COMMITTED and pushed at
-`3df19c1` (`main`). This session (2026-09-08): **checkout payment methods** now resolve
-app-side to a whitelist — default saved method (only), Cash on Delivery, Bitcoin, JEMINA
-Credits — with a gateway mapping for the saved-method provider (card → `stripe`,
-`mtn` mobile_money → `mtn_mobile_money`, everything else → `flutterwave`); generic
-MTN/Stripe/Flutterwave options removed; **pickup point** fixed to Jemina Official's real
-Gulu address (`789 Commerce Street, Building A, Gulu, Northern Region`); **promo popup**
-auto-opens on launch and now CYCLES through all active promotions per launch (persisted
-index in AsyncStorage), shows the full-width uncropped image (aspect-ratio-aware,
-centered) with **promo data only** (Visit Store / Maybe later buttons removed); Seasonal &
-Promotional cards use the Promotions API (`PromoFlashCard`, crop-free aspect-ratio
-images, "View Promo" action). Server has no new changes this session. **Site repo must
-NOT be committed.** Website pickup-point system (backend + admin CRUD) is the NEXT phase.
+**Current focus (2026-09-08 evening):** Push notifications are fully wired and verified.
+**Live FCM round-trip VERIFIED END-TO-END on VPS (deploy drift resolved):** the 4 site push files
+(`PushNotificationService` + `OrderController`/`PromotionController`/`MessagingController` hooks)
+were deployed via `scp` (site NOT committed, by rule). All trigger paths tested live against the
+VPS and delivered to the user's phone (`bits.bytes.loko@gmail.com`, user id 7): order_status
+(`JEM-FINAL-001` paid / `-002` shipped / `-003` processing — user 7 has no real orders, demo
+payloads used), promo broadcast (active promo id 5 "Explore Market Place"), admin message
+("JEMINA Admin"), and 2FA code push (`135792`). The emulator's FCM delivery proved unreliable, so
+per user decision testing now runs on the **phone**; the emulator token stays registered but idle.
+**App-side notification badge (this evening):** `AppHeader` bell + cart buttons are now
+self-contained (context-driven) and available on ALL screens (default `right = <HeaderActions/>`;
+explicit-right screens Home/Marketplace/Wishlist/VendorProfile/ProductDetails/Profile/Cart also include
+the bell) with `PushBridge` marking unread on `order_status`/`message`; `unreadCount`
+(`markUnread`/`clearUnread`) **persists across restarts** via AsyncStorage
+`@jemina/notifications/unread/v1` (verified on both devices). Versions bumped `versionCode 3` /
+`versionName 1.1.1`, release APK rebuilt + installed on both devices. **Site repo must NOT be
+committed.** Website pickup-point system (backend + admin CRUD) is the NEXT phase.
 Remaining: 3 website-parity gaps (admin promo banner, homepage dedupe, promo info modal), site
 pickup-point system, survey reward copy, VPS gateway keys (flutterwave/mtn_mobile_money
 disabled server-side — saved MTN/Airtel method at checkout hits "gateway not available"),
-**deploy the newer push channels to the VPS** (server is at `0254f82` — only
-`sendOtpCode`/`sendToUser` live; `sendOrderUpdate`/`sendPromotion`/`notifyNewMessage`/
-`sendBroadcast` + controller hooks not deployed yet), and the PlayStore listing/gradlew AAB
-(versionCode bump).
+and the PlayStore listing/gradlew AAB (versionCode bump).
 
 ## Live test accounts
 
@@ -157,7 +157,21 @@ Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes 
 - `App.tsx` — **NEW (2026-09-07)**: `NotificationProvider` wraps the app (inside
   `NavigationProvider`); `PushBridge` wires foreground/opened/initial push events: `promo` →
   `showPromo`, `order_status`/`message` → notice banner navigating `Orders`/`Messages`,
-  `two_factor` ignored (handled by `subscribeToSecurityCode`).
+  `two_factor` ignored (handled by `subscribeToSecurityCode`). **2026-09-08 eve:** PushBridge now
+  also calls `markUnread()` on every `order_status`/`message` push (foreground, opened, or
+  cold-start via `getInitialPush`).
+- `src/state/NotificationContext.tsx` — **unread badge (2026-09-08 eve):** `unreadCount` state +
+  `markUnread()`/`clearUnread()` persisted to AsyncStorage key `@jemina/notifications/unread/v1`
+  (hydrated on mount via `unreadLoaded` gate so the initial 0 never clobbers a saved count; written
+  on every change after load). Background clears → count restores to 0 after restart (verified).
+- `src/components/AppHeader.tsx` — **header rebuilt (2026-09-08 eve):** `HeaderNotificationButton`
+  (bell w/ unread badge dot+count, `clearUnread` on tap) and `HeaderCartButton` (cart w/ count,
+  `switchTab('Cart')`) are now self-contained — they pull `unreadCount`/`clearUnread`/`itemCount`/
+  `switchTab` from `useNotification()`/`useCart()`/`useNavigation()` with optional prop overrides.
+  New `HeaderActions` = bell + cart composed together, and `AppHeader` renders `right ?
+  right : <HeaderActions/>` — so EVERY screen using `AppHeader` gets the bell + cart by default.
+  Explicit-right screens all updated to include the bell: Home, Marketplace (bell+search+cart),
+  Wishlist, VendorProfile, ProductDetails, Profile (both signed-out and signed-in states), Cart.
 - `src/screens/HomeScreen.tsx` — **auto promo popup (2026-09-07/08)**: module flag
   `promoPopupShownThisLaunch` + persisted `PROMO_POPUP_INDEX_KEY` (`@jemina/promoPopupIndex` in
   AsyncStorage) → `autoShowPopup()` opens a DIFFERENT promo each app launch
@@ -364,6 +378,27 @@ Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes 
   (force-stop + relaunch); promo popup, cycling, card images confirmed working by the user.
 - **Committed + pushed:** `main` `2032ccf..3df19c1` (52 files). Commit message amended
   (typo fix) via `--amend` + `--force-with-lease` after push.
+
+### Verified (2026-09-08 evening — push triggers + notification badge)
+
+- **All 4 live trigger paths VERIFIED on the VPS** via throwaway `/tmp` scripts (scp + ssh, removed
+  after run; no FCM errors / no stale-token deactivations in `laravel.log`). Tokens: id 1 emulator
+  (`cPzR...`, last_seen 20:41:27) + id 2 phone (`dFnM...`, last_seen 20:36:01), both active.
+  1. **order_status** — `sendOrderUpdate` → `JEM-FINAL-001` paid, `JEM-FINAL-002` shipped,
+     `JEM-FINAL-003` processing (demo payloads; user 7 has no orders). **Phone confirmed.**
+  2. **promo broadcast** — `sendPromotion` to promo id 5 "Explore Market Place" (no `is_active`
+     column in `promotions` — uses `status=1` + `approval_status='approved'`; script queried active
+     promo directly). **Phone confirmed** (system banner when app backgrounded).
+  3. **message** — "JEMINA Admin" push received. **Phone confirmed.**
+  4. **2FA** — code `135792` push received. **Phone confirmed.**
+- **Emulator unreliable:** first live batch fired only the in-app banner once; force-stop+relaunch
+  refreshed emulator token 20:41:27 but subsequent background tests (`JEM-BG-TEST-002`) showed
+  nothing on either device. **User decision: phone is the test device; emulator abandoned.**
+- **Notification badge feature verified:** unread badge increments on the bell across all screens on
+  `order_status`/`message`; tapping clears; force-quit + relaunch → count restored from AsyncStorage
+  (`@jemina/notifications/unread/v1`) on BOTH devices. `npx tsc --noEmit` green (0 errors).
+- **Release APK 1.1.1 (versionCode 3)** built (`assembleRelease`, signing configured, hermès
+  bundle) + installed on phone `0794415254003308` and emulator `emulator-5554`.
 
 ### Audit (2026-09-06)
 

@@ -169,7 +169,7 @@ function HardwareBackButton() {
 
 function PushBridge() {
   const { navigate } = useNavigation();
-  const { showPromo, showNotice } = useNotification();
+  const { showPromo, showNotice, markUnread } = useNotification();
 
   useEffect(() => {
     requestNotificationPermission();
@@ -178,6 +178,7 @@ function PushBridge() {
       if (event.type === 'promo') {
         showPromo(event.promo);
       } else if (event.type === 'order_status') {
+        markUnread();
         showNotice({
           title: event.title,
           body: event.body,
@@ -185,6 +186,7 @@ function PushBridge() {
           onPress: () => navigate('Orders'),
         });
       } else if (event.type === 'message') {
+        markUnread();
         showNotice({
           title: event.title,
           body: event.body,
@@ -206,7 +208,7 @@ function PushBridge() {
       unsubForeground();
       unsubOpened();
     };
-  }, [navigate, showPromo, showNotice]);
+  }, [navigate, showPromo, showNotice, markUnread]);
 
   return null;
 }

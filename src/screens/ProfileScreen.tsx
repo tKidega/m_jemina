@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { AppHeader, HeaderCartButton } from '../components/AppHeader';
+import { AppHeader, HeaderActions } from '../components/AppHeader';
 import { BottomNav } from '../components/BottomNav';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
@@ -91,7 +91,7 @@ export function ProfileScreen() {
     return (
       <View style={styles.root}>
         <AppHeader
-          right={<HeaderCartButton count={itemCount} onPress={() => {}} />}
+          right={<HeaderActions />}
         />
         <View style={styles.signedOut}>
           <View style={styles.avatar}>
@@ -112,7 +112,7 @@ export function ProfileScreen() {
   return (
     <View style={styles.root}>
       <AppHeader
-        right={<HeaderCartButton count={itemCount} onPress={() => {}} />}
+        right={<HeaderActions />}
       />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}
         refreshControl={

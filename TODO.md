@@ -25,8 +25,12 @@ buttons) with centered, uncropped full-width image. **Push notifications + promo
 emulator's real token for `bits.bytes.loko@gmail.com` — **in-app banner fired on-device
 (confirmed)**. ✅ Deploy drift resolved (2026-09-08): the 4 site files (push channels + controller
 hooks) deployed to VPS via `scp` — no git commit (site repo stays uncommitted), `php -l` clean,
-caches cleared. Release
-keystore + signing configured (versionCode still 1). Remaining:
+caches cleared. **All 4 trigger paths verified live on the phone (2026-09-08 eve):** order_status,
+promo broadcast, admin message, 2FA (see MEMORY "Verified 2026-09-08 evening"). **Notification
+badge + cart on ALL screens (2026-09-08 eve):** self-contained `HeaderActions` bell/cart default in
+`AppHeader`, `unreadCount` persisted via AsyncStorage — verified surviving restart on both devices.
+**Release** keystore + signing configured; **versionCode 3 / versionName 1.1.1** release APK built
++ installed on phone + emulator. Remaining:
 PlayStore listing/config, 3 website-parity gaps (admin promo banner, homepage dedupe, promo info
 modal), the **website pickup-point system**, survey reward copy, and VPS gateway keys for live
 payments.
@@ -133,6 +137,14 @@ Legend: `[x]` done · `[ ]` pending.
   (`two_factor` | `promo` | `order_status` | `message`), `parsePushEvent`, permission,
   `subscribeToPushEvents`/`subscribeToPushOpened`, `getInitialPush`, `subscribeToSecurityCode`
   (kept). FCM deps `^26.4.0` + `google-services.json` present.
+- [x] **Notification badge on all screens (2026-09-08 eve)** — `AppHeader.tsx` rebuilt:
+  `HeaderNotificationButton` + `HeaderCartButton` self-contained (context-driven) with new
+  `HeaderActions` (bell + cart) as the `AppHeader` default `right`; explicit-right screens
+  (Home, Marketplace, Wishlist, VendorProfile, ProductDetails, Profile both states, Cart) all
+  updated to include the bell. `NotificationContext` gained `unreadCount`/
+  `markUnread()`/`clearUnread()` **persisted to AsyncStorage** (`@jemina/notifications/unread/v1`,
+  `unreadLoaded` hydration gate); `PushBridge` calls `markUnread()` on every `order_status`/
+  `message` push (fg/opened/initial). Badge survives force-quit + relaunch (verified both devices).
 - [x] **Global notification UI** — `src/state/NotificationContext.tsx`: `NotificationProvider`
   renders the promo popup Modal + top floating in-app banner (5s auto-dismiss, tap navigates);
   `useNotification` (`showPromo`/`showNotice`). **2026-09-08:** popup is promo-data only
@@ -168,7 +180,11 @@ Legend: `[x]` done · `[ ]` pending.
   commit — site repo stays uncommitted); methods confirmed loaded (`sendOrderUpdate`/
   `sendPromotion`/`notifyNewMessage`/`sendBroadcast`), `php -l` clean, config/route/cache cleared.
   Remaining: verify the real trigger paths (order status change, promo broadcast, admin/vendor
-  message) + 2FA (`two_factor`) code push + background system notification.
+  message) + 2FA (`two_factor`) code push + background system notification. **✅ ALL FOUR TRIGGER PATHS +
+  2FA VERIFIED LIVE (2026-09-08 eve):** order_status (`JEM-FINAL-001` paid / `-002` shipped /
+  `-003` processing), promo broadcast (promo id 5), admin message, 2FA code `135792` all delivered
+  to the phone (`bits.bytes.loko@gmail.com`, user id 7); emulator delivery unreliable → phone is
+  the test device. Unread badge persistence verified after force-quit+relaunch.
 
 ## Website Parity Gaps (2026-09-06 audit — verified against web repo `f5e2a53`)
 
@@ -192,9 +208,11 @@ Legend: `[x]` done · `[ ]` pending.
 
 ## Release / PlayStore
 
-- [ ] Fill Android app icon/name/version in `app.json` (`name: m_jemina`, `displayName: JEMINA` set; icon entry missing) + bump `versionCode`/`versionName` in `android/app/build.gradle` (currently `1` / `1.0.0`)
+- [x] **Fill app version in `android/app/build.gradle`** — **versionCode 3 / versionName 1.1.1**
+  (bumped 2026-09-08 eve; previous 2 / 1.1.0). `app.json` still lacks an `icon` entry (icon asset
+  remains pending).
 - [x] **Configure release keystore + signing** — `android/app/jemina-keystore.properties` + `jemina-release.keystore` exist; `build.gradle` release signingConfig wired (falls back to debug keystore if props missing)
-- [ ] `./gradlew bundleRelease` → AAB; smoke test `assembleRelease` APK
+- [x] `./gradlew bundleRelease` — AAB pending; `assembleRelease` APK built + smoke-tested on both devices (1.1.1)
 - [ ] Privacy Policy URL (store requires it — auth collects email/name)
 - [ ] App screenshots (portrait, 5–8) + feature graphic
 - [ ] Content rating questionnaire (IARC)
@@ -207,7 +225,8 @@ Legend: `[x]` done · `[ ]` pending.
 - [x] `tsc --noEmit`, `eslint`, `jest` green
 - [x] **Uniform styles roll-out (2026-09-07)** — added shared `src/components/EmptyState.tsx` + `SurfaceCard.tsx`; refactored 12 screens (Orders, OrderTracking, Messages, Wishlist, CreditHistory, MyReviews, BuyCredits, CollectionProducts, AddressBook, PaymentMethods, HelpCenter, EditProfile) off duplicated inline empty/error/signed-out blocks (−725 net lines). Sections + cards verified uniform (`headlineMd` titles, `SurfaceCard` recipe). `tsc`, `eslint` green.
 - [x] Release APK built + installed on phone `0794415254003308` + emulator `emulator-5554`
-  (2026-09-08, current `app-release.apk` at `D:\mApps\m_jemina\app-release.apk`)
+  (2026-09-08 eve, **1.1.1 / versionCode 3**; `assembleRelease` successful, installed + launched
+  on both devices)
 - [x] **Commit app working tree (2026-09-08)** — committed + pushed to `main` as `3df19c1`
   (52 files; everything since `2032ccf` incl. CartScreen redesign, EmptyState/SurfaceCard refactor,
   push layer, checkout + promo work). Site repo must NOT be committed.

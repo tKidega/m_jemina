@@ -9,7 +9,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { AppHeader, HeaderCartButton, HeaderNotificationButton } from '../components/AppHeader';
+import { AppHeader, HeaderActions } from '../components/AppHeader';
 import { BottomNav } from '../components/BottomNav';
 import { Badge } from '../components/Badge';
 import { Icon } from '../components/Icon';
@@ -115,7 +115,7 @@ const DEFAULT_STORES: StoreData[] = [
 
 export function HomeScreen() {
   const { navigate, switchTab } = useNavigation();
-  const { addItem, itemCount } = useCart();
+  const { addItem } = useCart();
   const { flashSale: flashSaleProducts, featured: featuredProducts, topRated: topRatedProducts, seasonal: seasonalProducts, products, loading, error, refresh } = useCatalog();
   const { width } = useWindowDimensions();
   const [liveVendors, setLiveVendors] = useState<StoreData[]>([]);
@@ -265,12 +265,7 @@ export function HomeScreen() {
   return (
     <View style={styles.root}>
       <AppHeader
-        right={
-          <>
-            <HeaderNotificationButton hasBadge onPress={() => {}} />
-            <HeaderCartButton count={itemCount} onPress={() => switchTab('Cart')} />
-          </>
-        }
+        right={<HeaderActions />}
       />
       {error ? (
         <Pressable style={styles.statusBanner} onPress={refresh}>

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { AppHeader, HeaderCartButton } from '../components/AppHeader';
+import { AppHeader, HeaderNotificationButton, HeaderCartButton } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
 import { EmptyState } from '../components/EmptyState';
@@ -114,7 +114,7 @@ export function WishlistScreen() {
         title="Wishlist"
         showBack
         onBack={goBack}
-        right={<HeaderCartButton count={itemCount} onPress={() => switchTab('Cart')} />}
+        right={<><HeaderNotificationButton /><HeaderCartButton count={itemCount} onPress={() => switchTab('Cart')} /></>}
       />
       {loading ? (
         <View style={styles.loading}>
