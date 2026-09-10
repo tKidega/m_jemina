@@ -54,6 +54,7 @@ export const colors = {
   statusFeatured: '#007BFF',
   statusFlash: '#DC3545',
   statusSuccess: '#28A745',
+  statusPaid: '#28A745',
   white: '#ffffff',
   black: '#000000',
 };

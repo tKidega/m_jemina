@@ -58,8 +58,15 @@ function OrderCard({ order }: { order: ApiOrder }) {
       <View style={styles.orderHeader}>
         <View style={styles.orderTopRow}>
           <Text style={styles.orderNumber}>{order.order_number}</Text>
-          <View style={[styles.statusChip, { backgroundColor: statusColor(order.status) }]}>
-            <Text style={styles.statusText}>{order.status.toUpperCase()}</Text>
+          <View style={styles.statusRow}>
+            <View style={[styles.statusChip, { backgroundColor: statusColor(order.status) }]}>
+              <Text style={styles.statusText}>{order.status.toUpperCase()}</Text>
+            </View>
+            {order.payment_status === 'paid' ? (
+              <View style={[styles.statusChip, { backgroundColor: colors.statusPaid }]}>
+                <Text style={styles.statusText}>PAID</Text>
+              </View>
+            ) : null}
           </View>
         </View>
         <Text style={styles.orderDate}>{formatDate(order.created_at)}</Text>
@@ -276,6 +283,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     paddingHorizontal: spacing.md,
     paddingVertical: 4,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   statusText: {
     ...typography.labelSm,

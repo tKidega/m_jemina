@@ -55,6 +55,7 @@ export interface ApiProduct {
   quality?: string;
   origin_country?: string | null;
   delivery_fee?: number;
+  shipping_fee?: number;
   specifications?: ProductSpecifications | null;
   created_at: string;
 }
@@ -190,6 +191,7 @@ export function apiProductToProduct(api: ApiProduct): Product {
     isLocal: Boolean(api.is_local),
     handmade: Boolean(api.handmade),
     deliveryFee: api.delivery_fee ?? 0,
+    shippingFee: api.shipping_fee ?? 0,
     badge,
   };
 }
@@ -541,6 +543,7 @@ export interface ApiOrder {
   id: number;
   order_number: string;
   status: string;
+  payment_status?: string;
   total_amount: number;
   shipping_amount: number;
   tax_amount: number;
