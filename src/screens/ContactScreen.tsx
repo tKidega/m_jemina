@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Linking,
@@ -77,7 +77,7 @@ export function ContactScreen() {
       return;
     }
     const subject = encodeURIComponent(form.subject);
-    const body = encodeURIComponent(`${form.message}\n\n— ${form.name}\n${form.email}`);
+    const body = encodeURIComponent(`${form.message}\n\nâ€” ${form.name}\n${form.email}`);
     Linking.openURL(`mailto:support@jemi-na.com?subject=${subject}&body=${body}`).catch(() =>
       setError('Could not open your mail app. Please email support@jemi-na.com directly.'),
     );
@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
   },
   hero: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryContainer,
     borderRadius: radius.xl,
     padding: spacing.xl,
     marginBottom: spacing.lg,

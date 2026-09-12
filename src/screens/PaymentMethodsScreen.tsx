@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -67,7 +67,7 @@ function accountPlaceholder(type: ApiPaymentMethodType): string {
 function maskedAccount(method: ApiPaymentMethod): string {
   if (method.type === 'card') {
     const last4 = method.account_number.slice(-4);
-    return `•••• ${last4}`;
+    return `â€¢â€¢â€¢â€¢ ${last4}`;
   }
   return method.account_number;
 }
@@ -251,7 +251,7 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
         account_number: form.account_number.trim(),
         expiry_date: form.expiry_date.trim() || undefined,
         account_name: form.account_name.trim() || undefined,
-        is_default: form.is_default,
+        ...(editing ? { is_default: form.is_default } : {}),
       };
       if (editing) {
         await apiUpdatePaymentMethod(token, editing.id, payload);
@@ -434,8 +434,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: spacing.lg,
+    padding: spacing.md,
     paddingBottom: spacing.xxl,
+    gap: spacing.sm,
   },
   center: {
     flex: 1,
@@ -444,25 +445,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xxl,
   },
   topBar: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: colors.surfaceContainerHighest,
   },
   addBtn: {
     alignSelf: 'flex-start',
   },
   loadingText: {
     ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
+    color: colors.outline,
   },
   card: {
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
+    borderColor: colors.surfaceContainerHighest,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
   },
   cardTop: {
     flexDirection: 'row',
@@ -479,7 +480,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.surfaceContainer,
+    backgroundColor: colors.surfaceContainerLow,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -487,13 +488,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cardName: {
-    ...typography.headlineMd,
-    color: colors.primary,
+    ...typography.bodyMd,
+    color: colors.onSurface,
     fontWeight: '700',
   },
   cardType: {
-    ...typography.labelSm,
-    color: colors.onSurfaceVariant,
+    ...typography.bodySm,
+    color: colors.outline,
     marginTop: 1,
   },
   cardActions: {
@@ -505,10 +506,10 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   cardDetails: {
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
   },
   cardAccount: {
-    ...typography.bodyLg,
+    ...typography.bodyMd,
     color: colors.onSurface,
     fontWeight: '700',
   },
@@ -520,20 +521,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     alignSelf: 'flex-start',
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.secondaryFixed,
     borderRadius: radius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
   },
   defaultChipText: {
     ...typography.labelSm,
-    color: colors.statusSuccess,
+    color: colors.onSecondaryFixed,
     fontWeight: '700',
   },
   setDefaultText: {
-    ...typography.labelMd,
+    ...typography.labelLg,
     color: colors.secondary,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   modalOverlay: {
     flex: 1,
@@ -544,7 +545,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
-    padding: spacing.lg,
+    padding: spacing.md,
     paddingBottom: spacing.xxl,
     maxHeight: '85%',
   },
@@ -555,19 +556,19 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   modalTitle: {
-    ...typography.headlineLg,
-    color: colors.primary,
+    ...typography.headlineMd,
+    color: colors.onSurface,
     fontWeight: '700',
   },
   label: {
-    ...typography.labelMd,
+    ...typography.labelLg,
     color: colors.onSurface,
     marginBottom: spacing.xs,
     marginTop: spacing.sm,
   },
   input: {
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.surfaceContainerHighest,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
@@ -587,19 +588,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.xs,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.surfaceContainerHighest,
     borderRadius: radius.lg,
     paddingVertical: spacing.sm,
     backgroundColor: colors.surfaceContainerLowest,
   },
   typeChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: colors.secondary,
+    borderColor: colors.secondary,
   },
   typeChipText: {
-    ...typography.labelSm,
+    ...typography.labelLg,
     color: colors.onSurface,
-    fontWeight: '700',
   },
   typeChipTextActive: {
     color: colors.onSecondary,
@@ -611,7 +611,7 @@ const styles = StyleSheet.create({
   },
   providerChip: {
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.surfaceContainerHighest,
     borderRadius: radius.full,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
@@ -622,9 +622,8 @@ const styles = StyleSheet.create({
     borderColor: colors.secondaryContainer,
   },
   providerChipText: {
-    ...typography.labelSm,
+    ...typography.labelLg,
     color: colors.onSurface,
-    fontWeight: '700',
   },
   providerChipTextActive: {
     color: colors.onSecondary,
@@ -638,7 +637,7 @@ const styles = StyleSheet.create({
   checkbox: {
     width: 24,
     height: 24,
-    borderRadius: radius.lg,
+    borderRadius: radius.md,
     borderWidth: 2,
     borderColor: colors.outlineVariant,
     alignItems: 'center',

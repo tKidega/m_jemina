@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
   Image,
   Pressable,
@@ -307,7 +307,7 @@ export function ProductDetailsScreen() {
               <View style={styles.vendorMeta}>
                 <Icon name="location-on" size={14} color={colors.onSurfaceVariant} />
                 <Text style={styles.vendorMetaText}>{resolved.vendor?.location ?? 'Gulu, Uganda'}</Text>
-                <Text style={styles.vendorDot}>•</Text>
+                <Text style={styles.vendorDot}>â€¢</Text>
                 <Text style={styles.vendorVerified}>Verified Vendor</Text>
               </View>
             </View>
@@ -771,7 +771,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
   },

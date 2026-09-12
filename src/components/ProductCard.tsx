@@ -28,6 +28,7 @@ export interface Product {
   originalPrice?: string;
   originalPriceValue?: number;
   discount?: string;
+  createdAt?: string;
   rating?: number;
   reviews?: number;
   minOrder?: string;
@@ -49,6 +50,7 @@ export interface Product {
   isLocal?: boolean;
   handmade?: boolean;
   deliveryFee?: number;
+  shippingFee?: number;
   actionLabel?: string;
   actionVariant?: 'addToCart' | 'inquiry';
 }

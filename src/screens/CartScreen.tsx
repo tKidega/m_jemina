@@ -1,6 +1,6 @@
-import React, { useCallback, useState } from 'react';
+﻿import React, { useCallback, useState } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { AppHeader, HeaderActions } from '../components/AppHeader';
+import { AppHeader } from '../components/AppHeader';
 import { BottomNav } from '../components/BottomNav';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
@@ -11,10 +11,25 @@ import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
 
+const PLATFORM_ESCROW_FEE = 1500;
+
+function vendorHubLabel(name: string): string {
+  if (/solar|power/i.test(name)) return 'Direct Gulu Depot';
+  if (/agro|seed|irrigation|grain/i.test(name)) return 'Northern Hub';
+  return 'Northern Hub';
+}
+
+function vendorIcon(name: string, idx: number): 'storefront' | 'solar-power' | 'shopping-bag' {
+  if (/solar|power/i.test(name)) return 'solar-power';
+  if (/agro|irrigation|seed|grain/i.test(name)) return 'storefront';
+  return idx % 2 === 0 ? 'storefront' : 'shopping-bag';
+}
+
 export function CartScreen() {
   const { items, vendorGroups, itemCount, subtotal, totalDeliveryFees, updateQuantity, removeItem, clearCart, refresh } = useCart();
   const { navigate } = useNavigation();
   const [refreshing, setRefreshing] = useState(false);
+  const [hubPickup, setHubPickup] = useState(false);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -25,10 +40,19 @@ export function CartScreen() {
     }
   }, [refresh]);
 
+  const cartTotal = subtotal + totalDeliveryFees + PLATFORM_ESCROW_FEE;
+
   return (
     <View style={styles.root}>
       <AppHeader
-        right={<HeaderActions />}
+        title={`Shopping Cart (${itemCount} ${itemCount === 1 ? 'item' : 'items'})`}
+        right={
+          itemCount > 0 ? (
+            <Pressable onPress={clearCart} hitSlop={6}>
+              <Text style={styles.headerClear}>Clear Cart</Text>
+            </Pressable>
+          ) : undefined
+        }
       />
       {items.length === 0 ? (
         <View style={styles.empty}>
@@ -48,84 +72,96 @@ export function CartScreen() {
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
             }
           >
-            <View style={styles.itemsHeader}>
-              <Text style={styles.itemsHeaderText}>
-                {itemCount} {itemCount === 1 ? 'item' : 'items'} in cart
-              </Text>
-              <Pressable onPress={clearCart} style={styles.clearBtn}>
-                <Icon name="delete-outline" size={14} color={colors.statusFlash} />
-                <Text style={styles.clearText}>Clear All</Text>
+            {/* Delivery location selector */}
+            <View style={styles.deliveryPill}>
+              <View style={styles.deliveryIcon}>
+                <Icon name="location-on" size={16} color={colors.primaryContainer} />
+              </View>
+              <View style={styles.deliveryTextWrap}>
+                <Text style={styles.deliveryLabel}>Delivering to:</Text>
+                <Text style={styles.deliveryValue} numberOfLines={1}>Plot 14 Acholi Road, Gulu City</Text>
+              </View>
+              <Pressable onPress={() => navigate('AddressBook')} hitSlop={8}>
+                <Text style={styles.deliveryChange}>Change</Text>
               </Pressable>
             </View>
 
-            {vendorGroups.map(group => (
+            {/* Hub pickup incentive */}
+            <View style={styles.pickupBanner}>
+              <Icon name="local-shipping" size={18} color={colors.secondary} />
+              <View style={styles.pickupBody}>
+                <Text style={styles.pickupTitle}>
+                  Save {totalDeliveryFees > 0 ? formatUGX(totalDeliveryFees) : 'funds'} on delivery
+                </Text>
+                <Text style={styles.pickupDesc}>
+                  Switch to free self-pickup at the Gulu Central Hub (Owonzi Complex).
+                </Text>
+                <Pressable style={styles.pickupToggle} onPress={() => setHubPickup(v => !v)} hitSlop={6}>
+                  <Icon name={hubPickup ? 'check-box' : 'check-box-outline-blank'} size={16} color={hubPickup ? colors.primaryContainer : colors.outline} />
+                  <Text style={styles.pickupToggleText}>Switch to Gulu Hub Pickup</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Vendor groups */}
+            {vendorGroups.map((group, gi) => (
               <View key={group.vendorId ?? group.vendorName} style={styles.vendorSection}>
                 <View style={styles.vendorHeader}>
-                  <View style={styles.vendorBadge}>
-                    <Icon name="store" size={14} color={colors.white} />
-                  </View>
-                  <View style={styles.vendorInfo}>
+                  <View style={styles.vendorHeaderLeft}>
+                    <Icon name={vendorIcon(group.vendorName, gi)} size={18} color={colors.primaryContainer} />
                     <Text style={styles.vendorName} numberOfLines={1}>{group.vendorName}</Text>
-                    <Text style={styles.vendorMeta}>
-                      {group.items.length} {group.items.length === 1 ? 'product' : 'products'}
-                      {' \u00B7 '}
-                      Delivery: {formatUGX(group.deliveryFee)}
-                    </Text>
+                    <View style={styles.hubBadge}>
+                      <Icon name="verified" size={10} color={colors.onPrimary} />
+                      <Text style={styles.hubBadgeText}>{vendorHubLabel(group.vendorName)}</Text>
+                    </View>
                   </View>
+                  <Text style={styles.vendorFee}>Fee: {formatUGX(group.deliveryFee)}</Text>
                 </View>
 
                 {group.items.map((item, idx) => (
                   <React.Fragment key={item.product.id}>
-                    <View style={styles.cartItem}>
-                      <Pressable
-                        style={styles.itemImageWrap}
-                        onPress={() => navigate('ProductDetails', { product: item.product })}
-                      >
-                        {item.product.image ? (
-                          <Image source={{ uri: item.product.image }} style={styles.itemImage} resizeMode="cover" />
-                        ) : (
-                          <View style={[styles.itemImage, styles.imagePlaceholder]}>
-                            <Icon name="store" size={24} color={colors.outlineVariant} />
+                    <View style={[styles.cartItem, idx === 0 && styles.cartItemFirst]}>
+                      <View style={styles.itemRow}>
+                        <Pressable
+                          style={styles.itemImageWrap}
+                          onPress={() => navigate('ProductDetails', { product: item.product })}
+                        >
+                          {item.product.image ? (
+                            <Image source={{ uri: item.product.image }} style={styles.itemImage} resizeMode="cover" />
+                          ) : (
+                            <View style={[styles.itemImage, styles.imagePlaceholder]}>
+                              <Icon name="store" size={20} color={colors.outlineVariant} />
+                            </View>
+                          )}
+                        </Pressable>
+                        <View style={styles.itemBody}>
+                          <View style={styles.itemTopRow}>
+                            <View style={styles.catPill}>
+                              <Text style={styles.catPillText} numberOfLines={1}>{item.product.category}</Text>
+                            </View>
+                            <Pressable onPress={() => removeItem(item.product.id)} hitSlop={8} style={styles.removeBtn} accessibilityRole="button" accessibilityLabel={`Remove ${item.product.title} from cart`}>
+                              <Icon name="delete-outline" size={18} color={colors.outline} />
+                            </Pressable>
                           </View>
-                        )}
-                      </Pressable>
-                      <View style={styles.itemBody}>
-                        <View style={styles.itemTopRow}>
-                          <View style={styles.itemTitleWrap}>
-                            <Text style={styles.itemTitle} numberOfLines={2}>{item.product.title}</Text>
-                            <Text style={styles.itemCategory} numberOfLines={1}>{item.product.category}</Text>
-                          </View>
-                          <Pressable onPress={() => removeItem(item.product.id)} hitSlop={8} style={styles.removeBtn} accessibilityRole="button" accessibilityLabel={`Remove ${item.product.title} from cart`}>
-                            <Icon name="close" size={18} color={colors.outline} />
+                          <Text style={styles.itemTitle} numberOfLines={2}>{item.product.title}</Text>
+                          <Text style={styles.itemUnitPrice}>
+                            {formatUGX(item.product.priceValue)}{item.product.unitLabel ? ` / ${item.product.unitLabel}` : ''}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.itemFooter}>
+                        <View style={styles.qtyStepper}>
+                          <Pressable style={[styles.qtyBtn, item.quantity <= 1 && styles.qtyBtnDisabled]} onPress={() => updateQuantity(item.product.id, item.quantity - 1)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Decrease quantity of ${item.product.title}`}>
+                            <Icon name="remove" size={16} color={item.quantity <= 1 ? colors.outlineVariant : colors.onSurface} />
+                          </Pressable>
+                          <Text style={styles.qtyText}>{item.quantity}</Text>
+                          <Pressable style={styles.qtyBtn} onPress={() => updateQuantity(item.product.id, item.quantity + 1)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Increase quantity of ${item.product.title}`}>
+                            <Icon name="add" size={16} color={colors.onSurface} />
                           </Pressable>
                         </View>
-
-                        <View style={styles.priceRow}>
-                          <Text style={styles.itemPrice}>{formatUGX(item.product.priceValue)}</Text>
-                          {item.quantity > 1 && (
-                            <Text style={styles.pricePerUnit}>each</Text>
-                          )}
-                        </View>
-
-                        {item.product.deliveryFee != null && item.product.deliveryFee > 0 && (
-                          <View style={styles.deliveryTag}>
-                            <Icon name="local-shipping" size={12} color={colors.onSurfaceVariant} />
-                            <Text style={styles.deliveryTagText}>
-                              Delivery: {formatUGX(item.product.deliveryFee * item.quantity)}
-                            </Text>
-                          </View>
-                        )}
-
-                        <View style={styles.itemActions}>
-                          <View style={styles.qtyStepper}>
-                            <Pressable style={[styles.qtyBtn, item.quantity <= 1 && styles.qtyBtnDisabled]} onPress={() => updateQuantity(item.product.id, item.quantity - 1)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Decrease quantity of ${item.product.title}`}>
-                              <Icon name="remove" size={16} color={item.quantity <= 1 ? colors.outlineVariant : colors.primary} />
-                            </Pressable>
-                            <Text style={styles.qtyText}>{item.quantity}</Text>
-                            <Pressable style={styles.qtyBtn} onPress={() => updateQuantity(item.product.id, item.quantity + 1)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Increase quantity of ${item.product.title}`}>
-                              <Icon name="add" size={16} color={colors.primary} />
-                            </Pressable>
-                          </View>
+                        <View style={styles.lineTotalWrap}>
+                          <Text style={styles.lineTotalLabel}>Line Total</Text>
                           <Text style={styles.lineTotal}>{formatUGX(item.product.priceValue * item.quantity)}</Text>
                         </View>
                       </View>
@@ -136,34 +172,56 @@ export function CartScreen() {
               </View>
             ))}
 
-            {/* Transaction summary */}
+            {/* Order summary */}
             <View style={styles.summaryCard}>
               <Text style={styles.summaryTitle}>Order Summary</Text>
-
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Subtotal ({itemCount} items)</Text>
-                <Text style={styles.summaryValue}>{formatUGX(subtotal)}</Text>
-              </View>
-
-              {vendorGroups.map(g => (
-                <View key={g.vendorId ?? g.vendorName} style={styles.summaryRow}>
-                  <Text style={styles.summaryLabelSub}>
-                    Delivery \u2014 {g.vendorName}
-                  </Text>
-                  <Text style={styles.summaryValue}>{formatUGX(g.deliveryFee)}</Text>
+              <View style={styles.summaryBody}>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Items Subtotal ({itemCount} items, {vendorGroups.length} {vendorGroups.length === 1 ? 'vendor' : 'vendors'})</Text>
+                  <Text style={styles.summaryValue}>{formatUGX(subtotal)}</Text>
                 </View>
-              ))}
-
-              <View style={styles.divider} />
-
-              <View style={styles.summaryRow}>
-                <Text style={styles.totalLabel}>Total</Text>
-                <Text style={styles.totalValue}>{formatUGX(subtotal + totalDeliveryFees)}</Text>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Combined Delivery Fees</Text>
+                  <Text style={styles.summaryValue}>{formatUGX(totalDeliveryFees)}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <View style={styles.summaryLabelRow}>
+                    <Text style={styles.summaryLabel}>Platform Escrow Fee</Text>
+                    <Icon name="help-outline" size={14} color={colors.outline} />
+                  </View>
+                  <Text style={styles.summaryValue}>{formatUGX(PLATFORM_ESCROW_FEE)}</Text>
+                </View>
               </View>
+              <View style={styles.summaryTotalRow}>
+                <View>
+                  <Text style={styles.totalLabel}>Total Amount</Text>
+                  <Text style={styles.totalNote}>Incl. VAT &amp; Escrow Assurance</Text>
+                </View>
+                <Text style={styles.totalValue}>{formatUGX(cartTotal)}</Text>
+              </View>
+            </View>
 
-              <Button label="Proceed to Checkout" variant="primary" onPress={() => navigate('Checkout')} fullWidth style={styles.checkoutBtn} />
+            {/* Trust badges */}
+            <View style={styles.trustRow}>
+              <View style={styles.trustItem}>
+                <Icon name="verified-user" size={15} color={colors.secondary} />
+                <Text style={styles.trustText}>JEMINA Safe Escrow</Text>
+              </View>
+              <Text style={styles.trustDot}>•</Text>
+              <View style={styles.trustItem}>
+                <Icon name="receipt-long" size={15} color={colors.secondary} />
+                <Text style={styles.trustText}>EFRIS Invoicing</Text>
+              </View>
             </View>
           </ScrollView>
+
+          {/* Sticky checkout trigger */}
+          <View style={styles.stickyBar}>
+            <Pressable style={styles.checkoutBtn} onPress={() => navigate('Checkout')}>
+              <Text style={styles.checkoutBtnText}>Proceed to Checkout ({formatUGX(cartTotal)})</Text>
+              <Icon name="arrow-forward" size={20} color={colors.onSecondary} />
+            </Pressable>
+          </View>
         </>
       )}
       <BottomNav />
@@ -180,83 +238,153 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: spacing.lg,
-    paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
+    gap: spacing.md,
   },
-  itemsHeader: {
+  headerClear: {
+    ...typography.labelMd,
+    color: colors.secondaryFixedDim,
+    fontWeight: '700',
+  },
+  deliveryPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    padding: spacing.sm,
   },
-  itemsHeaderText: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-    fontWeight: '600',
-  },
-  clearBtn: {
-    flexDirection: 'row',
+  deliveryIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.surfaceContainerLow,
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'center',
   },
-  clearText: {
+  deliveryTextWrap: {
+    flex: 1,
+  },
+  deliveryLabel: {
     ...typography.labelSm,
-    color: colors.statusFlash,
+    color: colors.outline,
+  },
+  deliveryValue: {
+    ...typography.labelMd,
+    color: colors.onSurface,
     fontWeight: '600',
+  },
+  deliveryChange: {
+    ...typography.labelMd,
+    color: colors.secondary,
+    fontWeight: '700',
+  },
+  pickupBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: 'rgba(255,220,191,0.4)',
+    borderWidth: 1,
+    borderColor: 'rgba(253,173,93,0.5)',
+    borderRadius: radius.lg,
+    padding: spacing.sm,
+  },
+  pickupBody: {
+    flex: 1,
+  },
+  pickupTitle: {
+    ...typography.labelMd,
+    color: colors.secondaryFixed,
+    fontWeight: '700',
+  },
+  pickupDesc: {
+    ...typography.bodySm,
+    color: colors.onSecondaryContainer,
+    marginTop: 2,
+  },
+  pickupToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  pickupToggleText: {
+    ...typography.labelMd,
+    color: colors.primary,
+    fontWeight: '700',
   },
   vendorSection: {
-    marginBottom: spacing.lg,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
   },
   vendorHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: spacing.sm,
-    backgroundColor: colors.primary,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    marginBottom: spacing.sm,
+    backgroundColor: colors.surfaceContainerLow,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surfaceContainerHigh,
   },
-  vendorBadge: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+  vendorHeaderLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  vendorInfo: {
-    flex: 1,
+    gap: 6,
+    flexShrink: 1,
   },
   vendorName: {
-    ...typography.labelMd,
-    color: colors.white,
+    ...typography.labelLg,
+    color: colors.primary,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+  hubBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: colors.primaryContainer,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  hubBadgeText: {
+    ...typography.labelSm,
+    color: colors.onPrimary,
+    fontSize: 10,
     fontWeight: '700',
   },
-  vendorMeta: {
-    ...typography.labelSm,
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: 1,
+  vendorFee: {
+    ...typography.bodySm,
+    color: colors.outline,
+    flexShrink: 0,
   },
   cartItem: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: radius.xl,
-    padding: spacing.md,
+    padding: spacing.sm,
   },
-  itemSeparator: {
-    height: 1,
-    backgroundColor: colors.borderLight,
-    marginVertical: spacing.sm,
-    marginLeft: spacing.md + 80 + spacing.md,
+  cartItemFirst: {
+    paddingTop: spacing.sm,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    gap: 12,
   },
   itemImageWrap: {
-    width: 80,
-    height: 80,
-    borderRadius: radius.lg,
+    width: 64,
+    height: 64,
+    borderRadius: radius.md,
     overflow: 'hidden',
-    backgroundColor: colors.surfaceContainerHigh,
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
   },
   itemImage: {
     width: '100%',
@@ -268,73 +396,58 @@ const styles = StyleSheet.create({
   },
   itemBody: {
     flex: 1,
-    gap: 4,
+    minWidth: 0,
   },
   itemTopRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
-  },
-  itemTitleWrap: {
-    flex: 1,
-    marginRight: spacing.sm,
-  },
-  itemTitle: {
-    ...typography.bodyMd,
-    color: colors.onSurface,
-    fontWeight: '600',
-  },
-  itemCategory: {
-    ...typography.labelSm,
-    color: colors.onSurfaceVariant,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginTop: 2,
-  },
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
+    justifyContent: 'space-between',
     gap: spacing.sm,
   },
-  itemPrice: {
-    ...typography.bodyLg,
-    color: colors.secondary,
-    fontWeight: '700',
+  catPill: {
+    backgroundColor: colors.surfaceContainer,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    flexShrink: 1,
   },
-  pricePerUnit: {
+  catPillText: {
     ...typography.labelSm,
     color: colors.onSurfaceVariant,
   },
-  deliveryTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+  removeBtn: {
+    padding: 2,
+  },
+  itemTitle: {
+    ...typography.labelLg,
+    color: colors.onSurface,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  itemUnitPrice: {
+    ...typography.bodySm,
+    color: colors.outline,
     marginTop: 2,
   },
-  deliveryTagText: {
-    ...typography.labelSm,
-    color: colors.onSurfaceVariant,
-  },
-  itemActions: {
+  itemFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: spacing.xs,
+    marginTop: spacing.sm,
   },
   qtyStepper: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.full,
-    overflow: 'hidden',
+    borderColor: colors.outlineVariant,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceContainerLowest,
   },
   qtyBtn: {
-    width: 32,
-    height: 32,
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceContainerLow,
   },
   qtyBtnDisabled: {
     opacity: 0.4,
@@ -343,68 +456,126 @@ const styles = StyleSheet.create({
     ...typography.labelMd,
     color: colors.onSurface,
     fontWeight: '700',
-    minWidth: 28,
+    minWidth: 32,
     textAlign: 'center',
   },
-  removeBtn: {
-    padding: 4,
+  lineTotalWrap: {
+    alignItems: 'flex-end',
+  },
+  lineTotalLabel: {
+    ...typography.bodySm,
+    color: colors.outline,
   },
   lineTotal: {
-    ...typography.bodyMd,
-    color: colors.onSurface,
+    ...typography.labelLg,
+    color: colors.secondary,
     fontWeight: '700',
+  },
+  itemSeparator: {
+    height: 1,
+    backgroundColor: colors.surfaceContainerHigh,
+    marginHorizontal: spacing.sm,
   },
   summaryCard: {
     backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.borderLight,
-    padding: spacing.lg,
-    marginTop: spacing.sm,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    padding: spacing.sm,
   },
   summaryTitle: {
-    ...typography.labelMd,
-    color: colors.onSurfaceVariant,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginBottom: spacing.md,
+    ...typography.labelLg,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  summaryBody: {
+    gap: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surfaceContainerHigh,
+    paddingVertical: 10,
   },
   summaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  summaryLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   summaryLabel: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-  },
-  summaryLabelSub: {
-    ...typography.labelSm,
+    ...typography.bodySm,
     color: colors.onSurfaceVariant,
   },
   summaryValue: {
-    ...typography.bodyMd,
+    ...typography.bodySm,
     color: colors.onSurface,
     fontWeight: '600',
   },
-  divider: {
-    height: 1,
-    backgroundColor: colors.borderLight,
-    marginVertical: spacing.md,
+  summaryTotalRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingTop: 10,
+    gap: spacing.sm,
   },
   totalLabel: {
-    ...typography.bodyLg,
-    color: colors.onSurface,
+    ...typography.labelLg,
+    color: colors.primary,
     fontWeight: '700',
   },
+  totalNote: {
+    ...typography.labelSm,
+    color: colors.outline,
+    marginTop: 1,
+  },
   totalValue: {
-    ...typography.headlineMd,
+    ...typography.headlineSm,
     color: colors.secondary,
     fontWeight: '700',
   },
+  trustRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 2,
+  },
+  trustItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  trustText: {
+    ...typography.labelSm,
+    color: colors.outline,
+  },
+  trustDot: {
+    ...typography.labelSm,
+    color: colors.outline,
+  },
+  stickyBar: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceContainerHigh,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+  },
   checkoutBtn: {
-    marginTop: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    height: 48,
+    borderRadius: radius.lg,
+    backgroundColor: '#ff9817',
+  },
+  checkoutBtnText: {
+    ...typography.labelLg,
+    color: colors.onSecondary,
+    fontWeight: '700',
   },
   empty: {
     flex: 1,

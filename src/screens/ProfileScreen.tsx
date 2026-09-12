@@ -1,12 +1,13 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppHeader, HeaderActions } from '../components/AppHeader';
 import { BottomNav } from '../components/BottomNav';
-import { Icon } from '../components/Icon';
+import { Icon, IconName } from '../components/Icon';
 import { Button } from '../components/Button';
 import { useAuth } from '../state/AuthContext';
 import { useCart } from '../state/CartContext';
 import { useNavigation } from '../navigation/NavigationContext';
+import type { RouteName } from '../navigation/NavigationContext';
 import { apiGetCreditBalance, apiGetAddresses } from '../data/api';
 import type { ApiAddress } from '../data/api';
 import { formatUGX } from '../components/ProductCard';
@@ -14,28 +15,28 @@ import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
 
-const MENU_ITEMS = [
-  { icon: 'receipt-long' as const, label: 'My Orders', sub: 'Track and manage your orders', route: 'Orders' },
-  { icon: 'favorite' as const, label: 'Wishlist', sub: 'Products you saved for later', route: 'Wishlist' },
-  { icon: 'star-border' as const, label: 'My Reviews', sub: 'Ratings and reviews you have written', route: 'MyReviews' },
-  { icon: 'settings' as const, label: 'Account Settings', sub: 'Profile, payments & addresses', route: 'AccountSettings' },
-  { icon: 'edit-note' as const, label: 'Surveys', sub: 'Earn credits with feedback', route: 'Surveys' },
-  { icon: 'track-changes' as const, label: 'Track Order', sub: 'Follow your packages live', route: 'OrderTracking' },
-  { icon: 'mail' as const, label: 'Messages', sub: 'Support replies and updates', route: 'Messages' },
-  { icon: 'support-agent' as const, label: 'Help & Support', sub: 'Contact support and tickets', route: 'HelpCenter' },
-];
+interface MenuRow {
+  icon: IconName;
+  label: string;
+  sub?: string;
+  route: RouteName;
+  pill?: string;
+}
 
-const DASH_STATS = [
-  { icon: 'receipt-long' as const, label: 'Orders', value: '0' },
-  { icon: 'favorite' as const, label: 'Wishlist', value: '0' },
-  { icon: 'shopping-cart' as const, label: 'In Cart', value: '0' },
+const MENU_ITEMS: MenuRow[] = [
+  { icon: 'receipt-long', label: 'My Orders & Purchase History', route: 'Orders' },
+  { icon: 'request-quote', label: 'Wholesale Inquiries & RFQs', sub: 'B2B corporate quotes', route: 'ProductInquiry' },
+  { icon: 'favorite', label: 'My Wishlist & Saved Products', route: 'Wishlist' },
+  { icon: 'local-shipping', label: 'Track Active Order', route: 'OrderTracking' },
+  { icon: 'manage-accounts', label: 'Account Settings & Security', route: 'AccountSettings' },
+  { icon: 'rate-review', label: 'Surveys & Feedback', route: 'Surveys' },
+  { icon: 'support-agent', label: 'Support & Help Desk', sub: 'WhatsApp / Call', route: 'HelpCenter' },
 ];
 
 export function ProfileScreen() {
   const { user, token, isAuthenticated, logout } = useAuth();
   const { itemCount } = useCart();
   const { navigate } = useNavigation();
-  const [activeSection, setActiveSection] = useState(0);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [defaultAddress, setDefaultAddress] = useState<ApiAddress | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -82,17 +83,16 @@ export function ProfileScreen() {
     .join('')
     .toUpperCase();
 
-  const dashStats = DASH_STATS.map((s, i) => ({
-    ...s,
-    value: i === 2 ? String(itemCount) : '0',
-  }));
+  const dashStats = [
+    { label: 'Orders', value: '0' },
+    { label: 'Wishlist', value: '0' },
+    { label: 'In Cart', value: String(itemCount) },
+  ];
 
   if (!isAuthenticated || !user) {
     return (
       <View style={styles.root}>
-        <AppHeader
-          right={<HeaderActions />}
-        />
+        <AppHeader title="My Account" right={<HeaderActions />} />
         <View style={styles.signedOut}>
           <View style={styles.avatar}>
             <Icon name="person" size={56} color={colors.outlineVariant} />
@@ -109,124 +109,113 @@ export function ProfileScreen() {
     );
   }
 
+  const addressLine = defaultAddress
+    ? [defaultAddress.street_address, defaultAddress.city, defaultAddress.region, defaultAddress.zip_code]
+        .filter(Boolean)
+        .join(', ')
+    : null;
+
   return (
     <View style={styles.root}>
-      <AppHeader
-        right={<HeaderActions />}
-      />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}
+      <AppHeader title="My Account" right={<HeaderActions />} />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
         }
       >
-        {/* Profile header */}
-        <View style={styles.profileCard}>
+        {/* User hero card */}
+        <View style={styles.heroCard}>
           <View style={styles.avatarFilled}>
             <Text style={styles.avatarText}>{initials}</Text>
           </View>
-          <View style={styles.profileInfo}>
-            <Text style={styles.name}>{displayName}</Text>
-            <Text style={styles.email}>{user.email}</Text>
-            {user.phone ? <Text style={styles.phone}>{user.phone}</Text> : null}
+          <View style={styles.heroInfo}>
             <View style={styles.roleChip}>
-              <Icon name="verified" size={14} color={colors.secondary} />
-              <Text style={styles.roleText}>{user.role === 'vendor' ? 'Vendor' : 'Customer'}</Text>
+              <Text style={styles.roleText}>B2B Wholesale Buyer</Text>
             </View>
+            <Text style={styles.name}>{displayName}</Text>
+            <View style={styles.verifiedRow}>
+              <Icon name="verified" size={14} color={colors.secondaryContainer} />
+              <Text style={styles.email} numberOfLines={1}>{user.email}</Text>
+            </View>
+            {user.phone ? <Text style={styles.phone}>{user.phone}</Text> : null}
           </View>
         </View>
 
-        {/* Stats */}
+        {/* Quick stats */}
         <View style={styles.statsRow}>
-          {dashStats.map(s => (
+          {dashStats.map((s, i) => (
             <View key={s.label} style={styles.statCard}>
-              <Icon name={s.icon} size={24} color={colors.secondary} />
-              <Text style={styles.statValue}>{s.value}</Text>
+              <Text style={[styles.statValue, i === 2 && styles.statValueAccent]}>{s.value}</Text>
               <Text style={styles.statLabel}>{s.label}</Text>
             </View>
           ))}
         </View>
 
-        {/* Credits */}
+        {/* Credits card */}
         {creditBalance != null ? (
-          <Pressable style={styles.creditCard} onPress={() => navigate('CreditHistory')}>
-            <View style={styles.creditIcon}>
-              <Icon name="local-atm" size={26} color={colors.onSecondary} />
+          <View style={styles.creditCard}>
+            <View style={styles.creditTop}>
+              <View style={styles.creditBody}>
+                <Text style={styles.creditLabel}>JEMINA Credits Balance</Text>
+                <Text style={styles.creditValue}>{formatUGX(creditBalance)}</Text>
+              </View>
+              <Pressable style={styles.topUpBtn} onPress={() => navigate('BuyCredits')}>
+                <Icon name="add-circle" size={18} color={colors.onSecondaryContainer} />
+                <Text style={styles.topUpText}>Top Up</Text>
+              </Pressable>
             </View>
-            <View style={styles.creditBody}>
-              <Text style={styles.creditLabel}>JEMINA Credits</Text>
-              <Text style={styles.creditValue}>{formatUGX(creditBalance)}</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={colors.onPrimaryContainer} style={styles.creditChevron} />
-          </Pressable>
+            <Pressable style={styles.creditHistoryLink} onPress={() => navigate('CreditHistory')} hitSlop={8}>
+              <Text style={styles.creditHistoryText}>Credit History</Text>
+              <Icon name="chevron-right" size={16} color={colors.secondaryFixed} />
+            </Pressable>
+          </View>
         ) : null}
 
-        {/* Default Address */}
-        {defaultAddress ? (
-          <View style={styles.infoCard}>
-            <View style={styles.infoCardHeader}>
-              <Icon name="location-on" size={18} color={colors.primary} />
-              <Text style={styles.infoCardTitle}>Default Address</Text>
-            </View>
-            <Text style={styles.infoCardName}>{defaultAddress.full_name || defaultAddress.name}</Text>
-            <Text style={styles.infoCardDetail}>{defaultAddress.street_address}</Text>
-            {[defaultAddress.city, defaultAddress.region, defaultAddress.zip_code].filter(Boolean).length > 0 ? (
-              <Text style={styles.infoCardDetail}>
-                {[defaultAddress.city, defaultAddress.region, defaultAddress.zip_code].filter(Boolean).join(', ')}
-              </Text>
-            ) : null}
-            {defaultAddress.phone ? <Text style={styles.infoCardDetail}>{defaultAddress.phone}</Text> : null}
-            <Text style={[styles.infoCardType, { color: colors.primary }]}>
-              {defaultAddress.type === 'home' ? 'Home' : defaultAddress.type === 'work' ? 'Work' : defaultAddress.type}
-            </Text>
+        {/* Default address */}
+        <View style={styles.infoCard}>
+          <Icon name="location-on" size={18} color={colors.outline} style={styles.infoIcon} />
+          <View style={styles.infoBody}>
+            <Text style={styles.infoLabel}>Default Delivery Address</Text>
+            {addressLine ? (
+              <Text style={styles.infoValue}>{addressLine}</Text>
+            ) : (
+              <Text style={styles.infoEmpty}>No address saved yet</Text>
+            )}
           </View>
-        ) : (
-          <View style={styles.infoCard}>
-            <View style={styles.infoCardHeader}>
-              <Icon name="location-on" size={18} color={colors.outline} />
-              <Text style={styles.infoCardTitle}>Default Address</Text>
-            </View>
-            <Text style={styles.infoCardEmpty}>No address saved yet</Text>
-          </View>
-        )}
+          <Pressable onPress={() => navigate('AddressBook')} hitSlop={8}>
+            <Text style={styles.editBtn}>Edit</Text>
+          </Pressable>
+        </View>
 
-        {/* Quick menu */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Your Account</Text>
+        {/* Account menu */}
+        <View style={styles.menuCard}>
           {MENU_ITEMS.map((item, i) => (
             <Pressable
               key={item.label}
-              style={[styles.menuItem, i === activeSection && styles.menuItemActive]}
-              onPress={() =>
-                item.route
-                  ? navigate(item.route as 'Orders' | 'Wishlist' | 'MyReviews' | 'AccountSettings' | 'Surveys' | 'OrderTracking' | 'Messages' | 'HelpCenter')
-                  : setActiveSection(i)
-              }
+              style={[styles.menuItem, i > 0 && styles.menuItemDivider]}
+              onPress={() => navigate(item.route)}
             >
-              <View style={styles.menuIcon}>
-                <Icon name={item.icon} size={22} color={i === activeSection ? colors.secondary : colors.onSurfaceVariant} />
-              </View>
+              <Icon name={item.icon} size={22} color={colors.outline} />
               <View style={styles.menuBody}>
-                <Text style={[styles.menuLabel, i === activeSection && styles.menuLabelActive]}>{item.label}</Text>
-                <Text style={styles.menuSub}>{item.sub}</Text>
+                <Text style={styles.menuLabel}>{item.label}</Text>
+                {item.sub ? <Text style={styles.menuSub}>{item.sub}</Text> : null}
               </View>
-              <Icon name="chevron-right" size={20} color={colors.outline} style={styles.chevron} />
+              {item.pill ? (
+                <View style={styles.menuPill}>
+                  <Text style={styles.menuPillText}>{item.pill}</Text>
+                </View>
+              ) : null}
+              <Icon name="chevron-right" size={20} color={colors.outline} />
             </Pressable>
           ))}
         </View>
 
-        {/* Section placeholder */}
-        {activeSection === 0 ? (
-          <View style={styles.sectionPlaceholder}>
-            <Icon name="receipt-long" size={40} color={colors.outlineVariant} />
-            <Text style={styles.placeholderTitle}>No orders yet</Text>
-            <Text style={styles.placeholderSub}>When you place an order, it will show up here.</Text>
-            <Button label="Browse Marketplace" variant="primary" onPress={() => navigate('Marketplace')} style={styles.placeholderBtn} />
-          </View>
-        ) : null}
-
-        {/* Logout */}
+        {/* Sign out */}
         <Pressable style={styles.logoutBtn} onPress={logout}>
-          <Icon name="logout" size={20} color={colors.statusFlash} />
+          <Icon name="logout" size={18} color={colors.error} />
           <Text style={styles.logoutText}>Sign Out</Text>
         </Pressable>
       </ScrollView>
@@ -244,250 +233,246 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: spacing.lg,
+    padding: spacing.md,
     paddingBottom: spacing.xxl,
+    gap: spacing.sm,
   },
-  profileCard: {
+  heroCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.lg,
-    backgroundColor: colors.primary,
-    borderRadius: radius.xl,
-    padding: spacing.xl,
+    gap: spacing.md,
+    backgroundColor: colors.primaryContainer,
+    borderRadius: radius.lg,
+    padding: spacing.md,
   },
   avatarFilled: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: colors.secondaryContainer,
+    backgroundColor: 'rgba(224,226,232,0.2)',
+    borderWidth: 2,
+    borderColor: 'rgba(253,173,93,0.4)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
-    ...typography.headlineLg,
-    color: colors.onSecondary,
+    ...typography.headlineMd,
+    color: colors.onPrimary,
     fontWeight: '700',
+    letterSpacing: 1,
   },
-  profileInfo: {
+  heroInfo: {
     flex: 1,
+    minWidth: 0,
+  },
+  roleChip: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.secondaryContainer,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    marginBottom: 4,
+  },
+  roleText: {
+    ...typography.labelSm,
+    color: colors.onSecondaryContainer,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    fontSize: 9,
   },
   name: {
-    ...typography.headlineLg,
+    ...typography.headlineSm,
     color: colors.onPrimary,
     fontWeight: '700',
   },
-  email: {
-    ...typography.bodyMd,
-    color: colors.onPrimaryContainer,
-    marginTop: 2,
-  },
-  phone: {
-    ...typography.labelMd,
-    color: colors.onPrimaryContainer,
-    marginTop: 2,
-  },
-  roleChip: {
+  verifiedRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,152,23,0.2)',
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 3,
-    marginTop: spacing.sm,
+    marginTop: 2,
   },
-  roleText: {
-    ...typography.labelMd,
-    color: colors.secondaryContainer,
-    fontWeight: '700',
-    textTransform: 'uppercase',
+  email: {
+    ...typography.bodySm,
+    color: colors.primaryFixedDim,
+    flexShrink: 1,
+  },
+  phone: {
+    ...typography.bodySm,
+    color: colors.primaryFixedDim,
+    marginTop: 1,
   },
   statsRow: {
     flexDirection: 'row',
-    gap: spacing.md,
-    marginTop: spacing.lg,
+    gap: spacing.xs,
   },
   statCard: {
     flex: 1,
     alignItems: 'center',
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.xl,
-    paddingVertical: spacing.lg,
+    borderColor: colors.surfaceContainerHighest,
+    borderRadius: radius.lg,
+    padding: spacing.sm,
   },
   statValue: {
-    ...typography.headlineLg,
+    ...typography.headlineMd,
     color: colors.primary,
     fontWeight: '700',
-    marginTop: spacing.sm,
+  },
+  statValueAccent: {
+    color: colors.secondary,
   },
   statLabel: {
-    ...typography.labelSm,
-    color: colors.onSurfaceVariant,
-    marginTop: 2,
+    ...typography.labelMd,
+    color: colors.outline,
+    textAlign: 'center',
   },
   creditCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.primary,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-    marginTop: spacing.lg,
+    backgroundColor: colors.inverseSurface,
+    borderWidth: 1,
+    borderColor: colors.secondaryContainer,
+    borderRadius: radius.lg,
+    padding: spacing.md,
   },
-  creditIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  creditTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
   },
   creditBody: {
     flex: 1,
   },
   creditLabel: {
     ...typography.labelMd,
-    color: colors.onPrimaryContainer,
+    color: colors.secondaryFixed,
   },
   creditValue: {
-    ...typography.headlineLg,
+    ...typography.headlineMd,
     color: colors.onPrimary,
     fontWeight: '700',
-    marginTop: 2,
+    marginTop: 4,
   },
-  creditChevron: {
-    transform: [{ rotate: '180deg' }],
-  },
-  infoCard: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.xl,
-    padding: spacing.md,
-    marginTop: spacing.md,
-  },
-  infoCardHeader: {
+  topUpBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.secondaryContainer,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  topUpText: {
+    ...typography.labelLg,
+    color: colors.onSecondaryContainer,
+    fontWeight: '700',
+  },
+  creditHistoryLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    alignSelf: 'flex-end',
+    marginTop: spacing.xs,
+  },
+  creditHistoryText: {
+    ...typography.bodySm,
+    color: colors.secondaryFixed,
+  },
+  infoCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: spacing.sm,
-    marginBottom: spacing.sm,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHighest,
+    borderRadius: radius.lg,
+    padding: spacing.md,
   },
-  infoCardTitle: {
+  infoIcon: {
+    marginTop: 1,
+  },
+  infoBody: {
+    flex: 1,
+  },
+  infoLabel: {
     ...typography.labelMd,
-    color: colors.onSurface,
-    fontWeight: '700',
+    color: colors.outline,
+    fontWeight: '600',
   },
-  infoCardName: {
-    ...typography.bodyLg,
-    color: colors.onSurface,
-    fontWeight: '700',
-  },
-  infoCardDetail: {
+  infoValue: {
     ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
+    color: colors.onSurface,
+    fontWeight: '600',
     marginTop: 2,
   },
-  infoCardType: {
-    ...typography.labelSm,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    marginTop: spacing.sm,
-  },
-  infoCardEmpty: {
+  infoEmpty: {
     ...typography.bodyMd,
     color: colors.outline,
     fontStyle: 'italic',
+    marginTop: 2,
   },
-  section: {
-    marginTop: spacing.xl,
+  editBtn: {
+    ...typography.labelLg,
+    color: colors.secondary,
+    fontWeight: '700',
   },
-  sectionTitle: {
-    ...typography.headlineMd,
-    color: colors.primary,
-    marginBottom: spacing.md,
+  menuCard: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHighest,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
+    gap: spacing.sm,
+    padding: spacing.md,
   },
-  menuItemActive: {
-    borderColor: colors.secondaryContainer,
-    borderWidth: 2,
-  },
-  menuIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.surfaceContainer,
-    alignItems: 'center',
-    justifyContent: 'center',
+  menuItemDivider: {
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceContainerHighest,
   },
   menuBody: {
     flex: 1,
+    minWidth: 0,
   },
   menuLabel: {
-    ...typography.bodyLg,
+    ...typography.bodyMd,
     color: colors.onSurface,
-    fontWeight: '700',
-  },
-  menuLabelActive: {
-    color: colors.secondary,
+    fontWeight: '600',
   },
   menuSub: {
-    ...typography.labelMd,
-    color: colors.onSurfaceVariant,
+    ...typography.bodySm,
+    color: colors.outline,
     marginTop: 1,
   },
-  chevron: {
-    transform: [{ rotate: '180deg' }],
+  menuPill: {
+    backgroundColor: colors.secondaryFixed,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
   },
-  sectionPlaceholder: {
-    alignItems: 'center',
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: radius.xl,
-    padding: spacing.xl,
-    marginTop: spacing.sm,
-  },
-  placeholderTitle: {
-    ...typography.headlineMd,
-    color: colors.onSurface,
-    marginTop: spacing.md,
-  },
-  placeholderSub: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-  },
-  placeholderBtn: {
-    marginTop: spacing.lg,
+  menuPillText: {
+    ...typography.labelSm,
+    color: colors.onSecondaryFixed,
+    fontWeight: '700',
   },
   logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    marginTop: spacing.xl,
-    paddingVertical: spacing.lg,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    height: 48,
     borderWidth: 1,
-    borderColor: 'rgba(186,26,26,0.3)',
-    borderRadius: radius.xl,
-    backgroundColor: 'rgba(186,26,26,0.05)',
+    borderColor: colors.error,
+    borderRadius: radius.full,
   },
   logoutText: {
-    ...typography.labelMd,
-    color: colors.statusFlash,
-    fontWeight: '700',
+    ...typography.bodyMd,
+    color: colors.error,
+    fontWeight: '600',
   },
   signedOut: {
     flex: 1,

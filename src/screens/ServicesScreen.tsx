@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { InfoPage, InfoSection, FeatureCard, BulletList } from '../components/InfoPage';
 import { Icon, IconName } from '../components/Icon';
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,

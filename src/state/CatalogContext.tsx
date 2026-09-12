@@ -12,6 +12,7 @@ interface CatalogContextValue {
   featured: Product[];
   wholesale: Product[];
   topRated: Product[];
+  newArrivals: Product[];
   corporateReady: Product[];
   bulkOrder: Product[];
   enterpriseSolutions: Product[];
@@ -34,6 +35,9 @@ function derive(products: Product[]) {
   const topRated = [...products]
     .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
     .slice(0, 6);
+  const newArrivals = [...products]
+    .sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')))
+    .slice(0, 10);
   const wholesaleProducts = products.filter(p => p.isWholesale || p.badge?.variant === 'wholesale');
   const bulkProducts = products.filter(p => p.bulkOrder);
   const corporateReadyProducts = products.filter(p => p.corporateReady || p.badge?.variant === 'corporate');
@@ -66,6 +70,7 @@ function derive(products: Product[]) {
     featured,
     wholesale,
     topRated: topRatedDedup,
+    newArrivals,
     b2b: products.filter(isB2B),
     wholesaleProducts,
     bulkProducts,
@@ -129,6 +134,7 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
       featured: derived.featured,
       wholesale: derived.wholesale,
       topRated: derived.topRated,
+      newArrivals: derived.newArrivals,
       corporateReady: derived.corporateReadyProducts,
       bulkOrder: derived.bulkProducts,
       enterpriseSolutions: derived.enterpriseSolutions,

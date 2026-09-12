@@ -1,12 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
@@ -83,33 +85,45 @@ export function CheckoutScreen() {
   const [savedPaymentMethods, setSavedPaymentMethods] = useState<ApiPaymentMethod[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [voucherCode, setVoucherCode] = useState('');
   const [voucherLoading, setVoucherLoading] = useState(false);
   const [voucherDiscount, setVoucherDiscount] = useState<number | null>(null);
   const [voucherMessage, setVoucherMessage] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadAll = useCallback(async () => {
     if (!token) {
       setCreditBalance(null);
       return;
     }
-    let cancelled = false;
-    apiGetCreditBalance(token)
-      .then(data => { if (!cancelled) setCreditBalance(data.balance); })
-      .catch(() => { if (!cancelled) setCreditBalance(null); });
-    apiGetPaymentMethods(token)
-      .then(data => { if (!cancelled) setSavedPaymentMethods(data); })
-      .catch(() => { if (!cancelled) setSavedPaymentMethods([]); });
-    apiGetAddresses(token)
-      .then(addrs => {
-        if (!cancelled && addrs.length > 0) {
-          setDefaultAddress(addrs.find(a => a.is_default) ?? addrs[0]);
-        }
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
+    try {
+      const [bal, methods, addrs] = await Promise.all([
+        apiGetCreditBalance(token).catch(() => null),
+        apiGetPaymentMethods(token).catch(() => []),
+        apiGetAddresses(token).catch(() => []),
+      ]);
+      if (bal != null) setCreditBalance(bal.balance);
+      setSavedPaymentMethods(methods);
+      if (addrs.length > 0) {
+        setDefaultAddress(addrs.find(a => a.is_default) ?? addrs[0]);
+      } else {
+        setDefaultAddress(null);
+      }
+    } catch {
+      // individual catches above handle each call
+    }
   }, [token]);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadAll();
+    setRefreshing(false);
+  }, [loadAll]);
 
   const defaultSavedMethod = useMemo(() => {
     if (savedPaymentMethods.length === 0) {
@@ -134,7 +148,7 @@ export function CheckoutScreen() {
     options.push(
       { key: 'cod', label: 'Cash on Delivery', icon: 'payment', note: 'Pay when your order arrives', method: 'cod' },
       { key: 'bitcoin', label: 'Bitcoin', icon: 'currency-bitcoin', note: 'Pay with crypto', method: 'bitcoin', gateway: 'bitcoin' },
-      { key: 'credit', label: 'JEMINA Credits', icon: 'local-atm', note: 'Pay with your credits', method: 'credit' },
+      { key: 'credit', label: 'JEMINA Credits', icon: 'account-balance-wallet', note: 'Pay with your credits', method: 'credit' },
     );
     return options;
   }, [defaultSavedMethod]);
@@ -142,8 +156,6 @@ export function CheckoutScreen() {
   useEffect(() => {
     if (paymentMethod === 'saved' && !defaultSavedMethod) {
       setPaymentMethod('cod');
-    } else if (paymentMethod !== 'saved' && defaultSavedMethod) {
-      setPaymentMethod('saved');
     }
   }, [defaultSavedMethod, paymentMethod]);
 
@@ -183,7 +195,7 @@ export function CheckoutScreen() {
         state: point.state,
         zip_code: '256',
         country: 'Uganda',
-        phone: user?.phone ?? '',
+        phone: user?.phone ?? defaultAddress?.phone ?? '',
       };
     }
     if (!defaultAddress) {
@@ -280,7 +292,17 @@ export function CheckoutScreen() {
 
   return (
     <View style={styles.root}>
-      <AppHeader title="Checkout" showBack onBack={goBack} />
+      <AppHeader
+        title="Checkout & Payment"
+        showBack
+        onBack={goBack}
+        right={
+          <View style={styles.secureBadge}>
+            <Icon name="lock" size={14} color={colors.onPrimary} />
+            <Text style={styles.secureBadgeText}>SECURE</Text>
+          </View>
+        }
+      />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -289,7 +311,21 @@ export function CheckoutScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />}
         >
+          {/* Stepper */}
+          <View style={styles.stepper}>
+            <View style={[styles.stepItem, styles.stepItemComplete]}>
+              <View style={[styles.stepDot, styles.stepDotComplete]}><Icon name="check" size={14} color={colors.onPrimary} /></View>
+              <Text style={styles.stepLabel}>Delivery & Address</Text>
+            </View>
+            <View style={styles.stepConnector} />
+            <View style={styles.stepItem}>
+              <View style={styles.stepDot}><Text style={styles.stepNumber}>2</Text></View>
+              <Text style={styles.stepLabelActive}>Review & Pay</Text>
+            </View>
+          </View>
+
           {error ? (
             <View style={styles.errorBox}>
               <Icon name="error-outline" size={16} color={colors.error} />
@@ -307,78 +343,127 @@ export function CheckoutScreen() {
             </View>
           ) : null}
 
-          {/* Vendor-grouped order summary */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Order Summary</Text>
-            {vendorGroups.map(group => (
-              <View key={group.vendorId ?? group.vendorName} style={styles.summaryCard}>
-                <View style={styles.vendorTag}>
-                  <Icon name="store" size={14} color={colors.primary} />
-                  <Text style={styles.vendorTagText}>{group.vendorName}</Text>
-                </View>
-                {group.items.map(item => (
-                  <View key={item.product.id} style={styles.summaryRow}>
-                    <Text style={styles.summaryItemName} numberOfLines={1}>
-                      {item.quantity} x {item.product.title}
-                    </Text>
-                    <Text style={styles.summaryItemPrice}>
-                      {formatUGX(item.product.priceValue * item.quantity)}
-                    </Text>
-                  </View>
-                ))}
-                <View style={styles.deliveryRow}>
-                  <Icon name="local-shipping" size={12} color={colors.onSurfaceVariant} />
-                  <Text style={styles.deliveryLabel}>Delivery</Text>
-                  <Text style={styles.deliveryValue}>{formatUGX(group.deliveryFee)}</Text>
-                </View>
-              </View>
-            ))}
-
-            <View style={styles.totalsCard}>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Subtotal</Text>
-                <Text style={styles.summaryValue}>{formatUGX(totals.subtotal)}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Delivery</Text>
-                <Text style={styles.summaryValue}>{formatUGX(totals.delivery)}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Platform Fee</Text>
-                <Text style={styles.summaryValue}>{formatUGX(totals.platformFee)}</Text>
-              </View>
-              {totals.discount > 0 ? (
-                <View style={styles.summaryRow}>
-                  <Text style={[styles.summaryLabel, { color: colors.statusFlash }]}>Discount</Text>
-                  <Text style={[styles.summaryValue, { color: colors.statusFlash }]}>-{formatUGX(totals.discount)}</Text>
-                </View>
-              ) : null}
-              <View style={styles.divider} />
-              <View style={styles.summaryRow}>
-                <Text style={styles.totalLabel}>Total</Text>
-                <Text style={styles.totalValue}>{formatUGX(totals.total)}</Text>
-              </View>
+          {/* Fulfilment toggle */}
+          <View style={styles.toggleWrap}>
+            <View style={styles.toggleBg}>
+              <Pressable
+                style={[styles.toggleBtn, fulfilment === 'delivery' && styles.toggleBtnActive]}
+                onPress={() => {
+                  if (!defaultAddress && fulfilment !== 'delivery') {
+                    navigate('AddressBook');
+                    return;
+                  }
+                  setFulfilment('delivery');
+                }}
+              >
+                <Icon name="local-shipping" size={16} color={fulfilment === 'delivery' ? colors.secondary : colors.outline} />
+                <Text style={[styles.toggleText, fulfilment === 'delivery' && styles.toggleTextActive]}>Deliver to Address</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.toggleBtn, fulfilment === 'pickup' && styles.toggleBtnActive]}
+                onPress={() => setFulfilment('pickup')}
+              >
+                <Icon name="storefront" size={16} color={fulfilment === 'pickup' ? colors.secondary : colors.outline} />
+                <Text style={[styles.toggleText, fulfilment === 'pickup' && styles.toggleTextActive]}>Gulu Pickup Hub</Text>
+              </Pressable>
             </View>
           </View>
 
-          {/* Coupon */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Coupon / Promo Code</Text>
+          {/* Address card */}
+          {fulfilment === 'delivery' ? (
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <Icon name="location-on" size={20} color={colors.secondary} />
+                <View style={styles.flex}>
+                  <View style={styles.cardLabelRow}>
+                    <Text style={styles.cardLabel}>Primary Delivery Location</Text>
+                    <View style={styles.chipPrimary}><Text style={styles.chipPrimaryText}>PRIMARY</Text></View>
+                  </View>
+                  {defaultAddress ? (
+                    <>
+                      <Text style={styles.addressLine}>{defaultAddress.street_address}{defaultAddress.city ? `, ${defaultAddress.city}` : ''}{defaultAddress.region ? `, ${defaultAddress.region}` : ''}</Text>
+                      <Text style={styles.addressSub}>Contact: {defaultAddress.phone ?? user?.phone ?? '—'}</Text>
+                    </>
+                  ) : (
+                    <Text style={styles.pickupMissing}>No default address set yet.</Text>
+                  )}
+                </View>
+              </View>
+              <Pressable onPress={() => navigate('AddressBook')} hitSlop={8}>
+                <Text style={styles.changeLink}>Change</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <Icon name="storefront" size={20} color={colors.secondary} />
+                <View style={styles.flex}>
+                  <Text style={styles.cardLabel}>{selectedPickupPoint.name}</Text>
+                  <Text style={styles.addressLine} numberOfLines={2}>{selectedPickupPoint.location}</Text>
+                  <Text style={styles.addressSub}>Collect your order at the Jemina Official pickup point.</Text>
+                </View>
+              </View>
+              <Pressable onPress={() => navigate('AddressBook')} hitSlop={8}>
+                <Text style={styles.changeLink}>Change</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {/* Shipment Packages */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Shipment Packages ({vendorGroups.length})</Text>
+            <Text style={styles.sectionMeta}>Multi-Vendor Fulfilled</Text>
+          </View>
+          {vendorGroups.map((group, idx) => (
+            <View key={group.vendorId ?? group.vendorName} style={styles.vendorCard}>
+              <View style={styles.vendorHeader}>
+                <View style={styles.vendorTitleRow}>
+                  <Icon name="store" size={18} color={colors.primary} />
+                  <Text style={styles.vendorTitle}>{group.vendorName}</Text>
+                </View>
+                <View style={styles.batchChip}><Text style={styles.batchChipText}>Batch #{String(idx + 1).padStart(2, '0')}</Text></View>
+              </View>
+              {group.items.map(item => (
+                <View key={item.product.id} style={styles.itemRow}>
+                  <View style={styles.itemThumb}>
+                    {item.product.image ? (
+                      <View style={styles.itemThumbPlaceholder}><Icon name="store" size={22} color={colors.outlineVariant} /></View>
+                    ) : (
+                      <View style={styles.itemThumbPlaceholder}><Icon name="store" size={22} color={colors.outlineVariant} /></View>
+                    )}
+                  </View>
+                  <View style={styles.itemBody}>
+                    <Text style={styles.itemName} numberOfLines={2}>{item.quantity}x {item.product.title}</Text>
+                    <Text style={styles.itemPrice}>{formatUGX(item.product.priceValue * item.quantity)}</Text>
+                  </View>
+                </View>
+              ))}
+              <View style={styles.deliveryFeeRow}>
+                <Icon name="local-shipping" size={14} color={colors.onSurfaceVariant} />
+                <Text style={styles.deliveryFeeLabel}>Vendor Delivery Fee</Text>
+                <Text style={styles.deliveryFeeValue}>{formatUGX(group.deliveryFee)}</Text>
+              </View>
+            </View>
+          ))}
+
+          {/* Voucher */}
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>Voucher or Promotional Code</Text>
             <View style={styles.couponRow}>
-              <TextInput
-                style={styles.couponInput}
-                value={voucherCode}
-                onChangeText={setVoucherCode}
-                placeholder="Enter code"
-                placeholderTextColor={colors.outline}
-                autoCapitalize="characters"
-              />
-              <Button
-                label={voucherLoading ? '...' : 'Apply'}
-                variant="outline"
-                onPress={handleApplyVoucher}
-                style={styles.couponBtn}
-              />
+              <View style={styles.couponInputWrap}>
+                <Icon name="sell" size={18} color={colors.outline} style={styles.couponIcon} />
+                <TextInput
+                  style={styles.couponInput}
+                  value={voucherCode}
+                  onChangeText={setVoucherCode}
+                  placeholder="Enter Coupon"
+                  placeholderTextColor={colors.outline}
+                  autoCapitalize="characters"
+                />
+              </View>
+              <Pressable style={styles.couponApplyBtn} onPress={handleApplyVoucher}>
+                <Text style={styles.couponApplyBtnText}>{voucherLoading ? '...' : 'Apply'}</Text>
+              </Pressable>
             </View>
             {voucherMessage ? (
               <Text style={[styles.couponMsg, voucherDiscount != null ? styles.couponSuccess : styles.couponError]}>
@@ -387,155 +472,112 @@ export function CheckoutScreen() {
             ) : null}
           </View>
 
-          {/* Pickup Point / Delivery */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Pickup Point & Delivery</Text>
-            <View style={styles.formCard}>
-              {PICKUP_POINTS.map(point => {
-                const active = fulfilment === 'pickup';
-                return (
-                  <Pressable
-                    key={point.id}
-                    style={[styles.pickupOption, active && styles.pickupOptionActive]}
-                    onPress={() => setFulfilment('pickup')}
-                  >
-                    <View style={[styles.pickupIcon, active && styles.pickupIconActive]}>
-                      <Icon name="store" size={18} color={active ? colors.onSecondary : colors.primary} />
-                    </View>
-                    <View style={styles.pickupBody}>
-                      <Text style={[styles.pickupName, active && styles.pickupNameActive]}>{point.name}</Text>
-                      <Text style={styles.pickupLocation}>{point.location}</Text>
-                      <Text style={styles.pickupNote}>Collect your order at the Jemina Official pickup point.</Text>
-                    </View>
-                    <View style={[styles.radio, active && styles.radioActive]}>
-                      {active ? <View style={styles.radioDot} /> : null}
-                    </View>
-                  </Pressable>
-                );
-              })}
-
-              <Pressable
-                style={[styles.pickupOption, fulfilment === 'delivery' && styles.pickupOptionActive]}
-                onPress={() => {
-                  if (!defaultAddress) {
-                    navigate('AddressBook');
-                    return;
-                  }
-                  setFulfilment('delivery');
-                }}
-              >
-                <View style={[styles.pickupIcon, fulfilment === 'delivery' && styles.pickupIconActive]}>
-                  <Icon name="local-shipping" size={18} color={fulfilment === 'delivery' ? colors.onSecondary : colors.primary} />
-                </View>
-                <View style={styles.pickupBody}>
-                  <Text style={[styles.pickupName, fulfilment === 'delivery' && styles.pickupNameActive]}>
-                    Deliver to my address
-                  </Text>
-                  {defaultAddress ? (
-                    <Text style={styles.pickupLocation} numberOfLines={2}>
-                      {defaultAddress.street_address}
-                      {defaultAddress.city ? `, ${defaultAddress.city}` : ''}
-                      {defaultAddress.region ? `, ${defaultAddress.region}` : ''}
-                    </Text>
-                  ) : (
-                    <Text style={styles.pickupMissing}>No default address set yet.</Text>
-                  )}
-                </View>
-                <View style={[styles.radio, fulfilment === 'delivery' && styles.radioActive]}>
-                  {fulfilment === 'delivery' ? <View style={styles.radioDot} /> : null}
-                </View>
-              </Pressable>
-
-              {!defaultAddress ? (
-                <Pressable style={styles.addressLink} onPress={() => navigate('AddressBook')} hitSlop={8}>
-                  <Icon name="add" size={18} color={colors.secondary} />
-                  <Text style={styles.addressLinkText}>Add a delivery address to your address book</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          </View>
-
-          {/* Order notes */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Order Notes (optional)</Text>
-            <View style={styles.formCard}>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={notes}
-                onChangeText={setNotes}
-                placeholder="Pickup or delivery instructions"
-                placeholderTextColor={colors.outline}
-                multiline
-                textAlignVertical="top"
-              />
-            </View>
-          </View>
-
-          {/* Payment method */}
-          <View style={styles.section}>
+          {/* Payment Method */}
+          <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Payment Method</Text>
-            {savedPaymentMethods.length > 0 ? (
-              <Pressable style={styles.savedPayCard} onPress={() => navigate('PaymentMethods')}>
-                <View style={styles.savedPayBody}>
-                  <Text style={styles.savedPayLabel}>Saved payment methods</Text>
-                  <Text style={styles.savedPayValue}>
-                    {savedPaymentMethods.length} saved · tap to manage
-                  </Text>
-                </View>
-                <Icon name="chevron-right" size={20} color={colors.primary} />
-              </Pressable>
-            ) : (
-              <Pressable style={styles.savedPayCard} onPress={() => navigate('PaymentMethods')}>
-                <View style={styles.savedPayBody}>
-                  <Text style={styles.savedPayLabel}>Saved payment methods</Text>
-                  <Text style={styles.savedPayEmpty}>No saved method yet — tap to add one</Text>
-                </View>
-                <Icon name="chevron-right" size={20} color={colors.primary} />
-              </Pressable>
-            )}
-            {creditBalance != null ? (
-              <View style={styles.creditCard}>
-                <View style={styles.creditIcon}>
-                  <Icon name="local-atm" size={20} color={colors.onSecondary} />
-                </View>
-                <View style={styles.creditBody}>
-                  <Text style={styles.creditLabel}>JEMINA Credits Balance</Text>
-                  <Text style={styles.creditValue}>{formatUGX(creditBalance)}</Text>
-                </View>
+            <Text style={styles.sectionMeta}>Escrow Protection</Text>
+          </View>
+
+          {savedPaymentMethods.length > 0 ? (
+            <Pressable style={styles.savedPayCard} onPress={() => navigate('PaymentMethods')}>
+              <View style={styles.savedPayBody}>
+                <Text style={styles.savedPayLabel}>Saved payment methods</Text>
+                <Text style={styles.savedPayValue}>{savedPaymentMethods.length} saved · tap to manage</Text>
               </View>
-            ) : null}
-            {paymentOptions.map(option => {
-              const active = paymentMethod === option.key;
-              return (
-                <Pressable
-                  key={option.key}
-                  style={[styles.payMethod, active && styles.payMethodActive]}
-                  onPress={() => setPaymentMethod(option.key)}
-                >
-                  <View style={[styles.payIcon, active && styles.payIconActive]}>
-                    <Icon name={option.icon} size={20} color={active ? colors.onSecondary : colors.primary} />
+              <Icon name="chevron-right" size={20} color={colors.primary} />
+            </Pressable>
+          ) : null}
+
+          {paymentOptions.map(option => {
+            const active = paymentMethod === option.key;
+            const isCredit = option.key === 'credit';
+            return (
+              <View key={option.key} style={[styles.payCard, active && styles.payCardActive]}>
+                <TouchableOpacity activeOpacity={0.7} style={styles.payRow} onPress={() => setPaymentMethod(option.key)}>
+                  <View style={[styles.payRadio, active && styles.payRadioActive]}>
+                    {active ? <View style={styles.payRadioDot} /> : null}
                   </View>
                   <View style={styles.payBody}>
-                    <Text style={[styles.payLabel, active && styles.payLabelActive]}>{option.label}</Text>
+                    <View style={styles.payLabelRow}>
+                      <Text style={[styles.payLabel, active && styles.payLabelActive]}>{option.label}</Text>
+                      {isCredit && creditBalance != null ? (
+                        <View style={styles.chipSurface}><Text style={styles.chipSurfaceText}>UGX {creditBalance.toLocaleString()} Available</Text></View>
+                      ) : null}
+                      {option.key === 'cod' ? (
+                        <View style={styles.chipSurface}><Text style={styles.chipSurfaceText}>Eligible &lt; 500k</Text></View>
+                      ) : null}
+                    </View>
                     <Text style={styles.payNote}>{option.note}</Text>
                   </View>
-                  <View style={[styles.radio, active && styles.radioActive]}>
-                    {active ? <View style={styles.radioDot} /> : null}
+                  <Icon name={option.icon} size={20} color={active ? colors.secondary : colors.outline} />
+                </TouchableOpacity>
+                {isCredit && creditBalance != null && active ? (
+                  <View style={styles.creditBanner}>
+                    <Text style={styles.creditBannerText}>Applying your available credits to this order</Text>
                   </View>
-                </Pressable>
-              );
-            })}
+                ) : null}
+              </View>
+            );
+          })}
+
+          {/* Order notes */}
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>Order & Dispatch Instructions</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Special delivery instructions for vendor or courier..."
+              placeholderTextColor={colors.outline}
+              multiline
+              textAlignVertical="top"
+            />
           </View>
 
-          <Button
-            label={loading ? 'Placing Order...' : 'Place Order'}
-            variant="primary"
-            fullWidth
-            onPress={handlePlaceOrder}
-            style={styles.submitBtn}
-          />
+          {/* Payment Summary */}
+          <View style={styles.card}>
+            <Text style={styles.summaryHeader}>Payment Summary</Text>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Subtotal</Text>
+              <Text style={styles.summaryValue}>{formatUGX(totals.subtotal)}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Vendor Delivery Fees</Text>
+              <Text style={styles.summaryValue}>{formatUGX(totals.delivery)}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Platform Escrow & Service Fee</Text>
+              <Text style={styles.summaryValue}>{formatUGX(totals.platformFee)}</Text>
+            </View>
+            {totals.discount > 0 ? (
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: colors.statusSuccess }]}>JEMINA Credits Applied</Text>
+                <Text style={[styles.summaryValue, { color: colors.statusSuccess }]}>-{formatUGX(totals.discount)}</Text>
+              </View>
+            ) : null}
+            <View style={styles.summaryDivider} />
+            <View style={styles.totalRow}>
+              <View>
+                <Text style={styles.totalLabel}>Total Payable</Text>
+                <Text style={styles.totalSub}>Includes all applicable local taxes</Text>
+              </View>
+              <Text style={styles.totalValue}>{formatUGX(totals.total)}</Text>
+            </View>
+          </View>
+          <View style={styles.spacer} />
         </ScrollView>
       </KeyboardAvoidingView>
+      <View style={styles.bottomBar}>
+        <Pressable
+          style={[styles.placeOrderBtn, loading && styles.placeOrderBtnDisabled]}
+          onPress={handlePlaceOrder}
+          disabled={loading}
+        >
+          <Icon name="verified-user" size={20} color={colors.secondaryContainer} />
+          <Text style={styles.placeOrderBtnText}>{loading ? 'Placing Order...' : `Place Order & Pay ${formatUGX(totals.total)}`}</Text>
+          <Icon name="arrow-forward" size={20} color={colors.secondaryContainer} />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -548,9 +590,78 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
+  spacer: {
+    height: 80,
+  },
   content: {
     padding: spacing.md,
     paddingBottom: spacing.xxl,
+  },
+  secureBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+  },
+  secureBadgeText: {
+    ...typography.labelSm,
+    color: colors.onPrimary,
+    letterSpacing: 1,
+    fontWeight: '700',
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    padding: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  stepItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    opacity: 0.6,
+  },
+  stepItemComplete: {
+    opacity: 1,
+  },
+  stepDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.surfaceContainerHighest,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepDotComplete: {
+    backgroundColor: colors.primaryContainer,
+  },
+  stepNumber: {
+    ...typography.labelSm,
+    color: colors.onSurfaceVariant,
+    fontWeight: '700',
+  },
+  stepLabel: {
+    ...typography.labelSm,
+    color: colors.outline,
+    fontWeight: '600',
+  },
+  stepLabelActive: {
+    ...typography.labelMd,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  stepConnector: {
+    flex: 1,
+    height: 2,
+    backgroundColor: colors.surfaceContainerHigh,
+    marginHorizontal: spacing.sm,
   },
   errorBox: {
     flexDirection: 'row',
@@ -571,9 +682,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
     borderColor: colors.borderLight,
-    borderRadius: radius.xl,
+    borderRadius: radius.lg,
     padding: spacing.lg,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   signInTitle: {
     ...typography.headlineMd,
@@ -590,104 +701,221 @@ const styles = StyleSheet.create({
   signInBtn: {
     marginBottom: spacing.sm,
   },
-  section: {
-    marginBottom: spacing.lg,
+  toggleWrap: {
+    marginBottom: spacing.md,
   },
-  sectionTitle: {
-    ...typography.bodyLg,
-    color: colors.primary,
-    fontWeight: '700',
-    marginBottom: spacing.sm,
-  },
-  summaryCard: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
+  toggleBg: {
+    flexDirection: 'row',
+    backgroundColor: colors.surfaceContainer,
     borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
+    padding: 3,
   },
-  vendorTag: {
+  toggleBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
-    marginBottom: spacing.sm,
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: radius.lg - 2,
   },
-  vendorTagText: {
-    ...typography.labelSm,
+  toggleBtnActive: {
+    backgroundColor: colors.surfaceContainerLowest,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  toggleText: {
+    ...typography.labelMd,
+    color: colors.outline,
+  },
+  toggleTextActive: {
     color: colors.primary,
-    fontWeight: '700',
+    fontWeight: '600',
   },
-  totalsCard: {
+  card: {
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.surfaceContainerHigh,
     borderRadius: radius.lg,
     padding: spacing.md,
+    marginBottom: spacing.md,
   },
-  summaryRow: {
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  cardLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  cardLabel: {
+    ...typography.labelMd,
+    color: colors.onSurface,
+    fontWeight: '700',
+  },
+  chipPrimary: {
+    backgroundColor: colors.primaryContainer,
+    borderRadius: radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  chipPrimaryText: {
+    ...typography.labelSm,
+    color: colors.onPrimary,
+    fontWeight: '700',
+    fontSize: 9,
+  },
+  addressLine: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  addressSub: {
+    ...typography.bodySm,
+    color: colors.outline,
+    marginTop: 2,
+  },
+  changeLink: {
+    ...typography.labelMd,
+    color: colors.secondary,
+    fontWeight: '600',
+    alignSelf: 'flex-end',
+    marginTop: 4,
+  },
+  pickupMissing: {
+    ...typography.labelSm,
+    color: colors.error,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: spacing.sm,
-    marginBottom: spacing.xs,
+    marginBottom: spacing.sm,
   },
-  summaryItemName: {
-    ...typography.labelSm,
-    color: colors.onSurface,
-    flex: 1,
-  },
-  summaryItemPrice: {
-    ...typography.labelSm,
-    color: colors.onSurface,
+  sectionTitle: {
+    ...typography.headlineSm,
+    color: colors.primary,
     fontWeight: '700',
   },
-  deliveryRow: {
+  sectionMeta: {
+    ...typography.labelSm,
+    color: colors.outline,
+  },
+  vendorCard: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    marginBottom: spacing.sm,
+    overflow: 'hidden',
+  },
+  vendorHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
-    marginTop: spacing.xs,
-    paddingTop: spacing.xs,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
+    justifyContent: 'space-between',
+    padding: spacing.sm,
+    backgroundColor: colors.surfaceContainerLow,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surfaceContainerHigh,
   },
-  deliveryLabel: {
+  vendorTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  vendorTitle: {
+    ...typography.labelLg,
+    color: colors.onSurface,
+    fontWeight: '700',
+  },
+  batchChip: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  batchChipText: {
     ...typography.labelSm,
     color: colors.onSurfaceVariant,
+    fontWeight: '600',
+  },
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.sm,
+  },
+  itemThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
+  itemThumbPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  itemBody: {
     flex: 1,
+    minWidth: 0,
   },
-  deliveryValue: {
-    ...typography.labelSm,
+  itemName: {
+    ...typography.bodySm,
     color: colors.onSurface,
-    fontWeight: '700',
+    fontWeight: '600',
   },
-  summaryLabel: {
+  itemPrice: {
     ...typography.labelSm,
-    color: colors.onSurfaceVariant,
-  },
-  summaryValue: {
-    ...typography.labelSm,
-    color: colors.onSurface,
-    fontWeight: '700',
-  },
-  totalLabel: {
-    ...typography.bodyLg,
-    color: colors.onSurface,
-    fontWeight: '700',
-  },
-  totalValue: {
-    ...typography.headlineMd,
     color: colors.secondary,
     fontWeight: '700',
+    marginTop: 2,
   },
-  divider: {
-    height: 1,
-    backgroundColor: colors.borderLight,
-    marginVertical: spacing.xs,
+  deliveryFeeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    padding: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceContainerHigh,
+    backgroundColor: colors.surfaceContainerLow,
+  },
+  deliveryFeeLabel: {
+    ...typography.bodySm,
+    color: colors.outline,
+    flex: 1,
+  },
+  deliveryFeeValue: {
+    ...typography.labelMd,
+    color: colors.onSurface,
+    fontWeight: '600',
   },
   couponRow: {
     flexDirection: 'row',
     gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  couponInputWrap: {
+    flex: 1,
+    position: 'relative',
+  },
+  couponIcon: {
+    position: 'absolute',
+    left: 10,
+    top: 11,
   },
   couponInput: {
     flex: 1,
@@ -695,233 +923,194 @@ const styles = StyleSheet.create({
     color: colors.onSurface,
     backgroundColor: colors.surfaceContainerLow,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+    paddingLeft: 36,
+    paddingRight: spacing.md,
+    height: 48,
+  },
+  couponApplyBtn: {
+    backgroundColor: colors.secondaryContainer,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 48,
   },
-  couponBtn: {
-    paddingHorizontal: spacing.lg,
+  couponApplyBtnText: {
+    ...typography.labelLg,
+    color: colors.onSecondaryContainer,
+    fontWeight: '700',
   },
   couponMsg: {
     ...typography.labelSm,
     marginTop: spacing.xs,
   },
   couponSuccess: {
-    color: colors.statusFlash,
+    color: colors.statusSuccess,
   },
   couponError: {
     color: colors.error,
-  },
-  formCard: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-  },
-  pickupOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.surfaceContainerLow,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.lg,
-    padding: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  pickupOptionActive: {
-    borderColor: colors.secondaryContainer,
-    borderWidth: 2,
-  },
-  pickupIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.surfaceContainer,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pickupIconActive: {
-    backgroundColor: colors.secondaryContainer,
-  },
-  pickupBody: {
-    flex: 1,
-  },
-  pickupName: {
-    ...typography.bodyMd,
-    color: colors.onSurface,
-    fontWeight: '700',
-  },
-  pickupNameActive: {
-    color: colors.secondary,
-  },
-  pickupLocation: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-    marginTop: 1,
-  },
-  pickupNote: {
-    ...typography.labelSm,
-    color: colors.onSurfaceVariant,
-    marginTop: 2,
-  },
-  pickupMissing: {
-    ...typography.labelSm,
-    color: colors.error,
-    marginTop: 2,
-    fontStyle: 'italic',
-  },
-  addressLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
-  },
-  addressLinkText: {
-    ...typography.labelMd,
-    color: colors.secondary,
-    fontWeight: '600',
-    textDecorationLine: 'underline',
-  },
-  input: {
-    ...typography.bodyMd,
-    color: colors.onSurface,
-    backgroundColor: colors.surfaceContainerLow,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  textArea: {
-    minHeight: 60,
-    textAlignVertical: 'top',
-  },
-  payMethod: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.lg,
-    padding: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  payMethodActive: {
-    borderColor: colors.secondaryContainer,
-    borderWidth: 2,
-  },
-  creditCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.primary,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
   },
   savedPayCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: spacing.sm,
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.surfaceContainerHigh,
     borderRadius: radius.lg,
     padding: spacing.md,
     marginBottom: spacing.sm,
   },
-  savedPayBody: {
-    flex: 1,
+  savedPayBody: { flex: 1 },
+  savedPayLabel: { ...typography.labelSm, color: colors.onSurfaceVariant },
+  savedPayValue: { ...typography.bodyMd, color: colors.onSurface, fontWeight: '700', marginTop: 2 },
+  payCard: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    marginBottom: spacing.sm,
   },
-  savedPayLabel: {
-    ...typography.labelSm,
-    color: colors.onSurfaceVariant,
+  payCardActive: {
+    borderWidth: 2,
+    borderColor: colors.secondaryContainer,
   },
-  savedPayValue: {
-    ...typography.bodyMd,
-    color: colors.onSurface,
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  savedPayEmpty: {
-    ...typography.bodyMd,
-    color: colors.outline,
-    fontStyle: 'italic',
-    marginTop: 2,
-  },
-  creditIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+  payRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: spacing.sm,
+    padding: spacing.sm,
   },
-  creditBody: {
-    flex: 1,
-  },
-  creditLabel: {
-    ...typography.labelSm,
-    color: colors.onPrimaryContainer,
-  },
-  creditValue: {
-    ...typography.headlineMd,
-    color: colors.onPrimary,
-    fontWeight: '700',
-    marginTop: 1,
-  },
-  payIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.surfaceContainer,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  payIconActive: {
-    backgroundColor: colors.secondaryContainer,
-  },
-  payBody: {
-    flex: 1,
-  },
-  payLabel: {
-    ...typography.bodyMd,
-    color: colors.onSurface,
-    fontWeight: '700',
-  },
-  payLabelActive: {
-    color: colors.secondary,
-  },
-  payNote: {
-    ...typography.labelSm,
-    color: colors.onSurfaceVariant,
-    marginTop: 1,
-  },
-  radio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+  payRadio: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     borderWidth: 2,
     borderColor: colors.outlineVariant,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  radioActive: {
-    borderColor: colors.secondaryContainer,
+  payRadioActive: {
+    borderColor: colors.secondary,
   },
-  radioDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.secondaryContainer,
+  payRadioDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.secondary,
   },
-  submitBtn: {
-    paddingVertical: spacing.md,
+  payBody: { flex: 1 },
+  payLabelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' },
+  payLabel: { ...typography.labelLg, color: colors.onSurface, fontWeight: '700' },
+  payLabelActive: { color: colors.secondary },
+  chipSurface: { backgroundColor: colors.surfaceContainer, borderRadius: radius.sm, paddingHorizontal: 6, paddingVertical: 2 },
+  chipSurfaceText: { ...typography.labelSm, color: colors.onSurfaceVariant, fontWeight: '600', fontSize: 10 },
+  payNote: { ...typography.bodySm, color: colors.outline, marginTop: 2 },
+  creditBanner: {
+    marginHorizontal: spacing.sm,
+    marginBottom: spacing.sm,
+    marginTop: -4,
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+  },
+  creditBannerText: { ...typography.bodySm, color: colors.onSurfaceVariant },
+  input: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  textArea: {
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  summaryHeader: {
+    ...typography.labelLg,
+    color: colors.onSurface,
+    fontWeight: '700',
+    paddingBottom: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surfaceContainerHigh,
+    marginBottom: spacing.sm,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  summaryLabel: {
+    ...typography.bodyMd,
+    color: colors.outline,
+  },
+  summaryValue: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    fontWeight: '600',
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: colors.surfaceContainerHigh,
+    marginVertical: spacing.sm,
+  },
+  totalRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  totalLabel: {
+    ...typography.headlineSm,
+    color: colors.primary,
+    fontWeight: '800',
+  },
+  totalSub: {
+    ...typography.labelSm,
+    color: colors.outline,
+    marginTop: 1,
+  },
+  totalValue: {
+    ...typography.headlineSm,
+    color: colors.secondary,
+    fontWeight: '800',
+  },
+  bottomBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceContainerHigh,
+    padding: spacing.md,
+    paddingBottom: spacing.lg,
+  },
+  placeOrderBtn: {
+    height: 48,
+    backgroundColor: colors.primaryContainer,
+    borderRadius: radius.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+  },
+  placeOrderBtnDisabled: {
+    opacity: 0.6,
+  },
+  placeOrderBtnText: {
+    ...typography.labelLg,
+    color: colors.onPrimary,
+    fontWeight: '700',
+    flex: 1,
+    textAlign: 'center',
   },
 });

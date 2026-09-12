@@ -40,6 +40,7 @@ import { BuyCreditsScreen } from './src/screens/BuyCreditsScreen';
 import { SearchResultsScreen } from './src/screens/SearchResultsScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
 import { CollectionProductsScreen } from './src/screens/CollectionProductsScreen';
+import { FeaturedVendorsScreen } from './src/screens/FeaturedVendorsScreen';
 import { AccountSettingsScreen } from './src/screens/AccountSettingsScreen';
 import { OrderTrackingScreen } from './src/screens/OrderTrackingScreen';
 import { SurveysScreen } from './src/screens/SurveysScreen';
@@ -95,6 +96,9 @@ function Router() {
   }
   if (route === 'AllProducts') {
     return <CollectionProductsScreen />;
+  }
+  if (route === 'FeaturedVendors') {
+    return <FeaturedVendorsScreen />;
   }
   if (route === 'EditProfile' || route === 'AccountSettings') {
     return <AccountSettingsScreen initialTab="profile" />;

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
 import { Button } from '../components/Button';
@@ -32,6 +32,8 @@ function typeLabel(type: string): string {
       return 'Adjustment';
     case 'refund':
       return 'Refund';
+    case 'signup_bonus':
+      return 'Signup Bonus';
     default:
       return type.charAt(0).toUpperCase() + type.slice(1);
   }
@@ -189,7 +191,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryContainer,
     borderRadius: radius.xl,
     padding: spacing.xl,
   },

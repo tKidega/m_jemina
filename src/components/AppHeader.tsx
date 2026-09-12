@@ -71,8 +71,10 @@ export function HeaderCartButton({ count, onPress }: { count?: number; onPress?:
 }
 
 export function HeaderActions() {
+	const { navigate } = useNavigation();
 	return (
 		<>
+			<HeaderSearchButton onPress={() => navigate('Search')} />
 			<HeaderNotificationButton />
 			<HeaderCartButton />
 		</>
@@ -92,8 +94,8 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'space-between',
-		backgroundColor: colors.primary,
-		paddingHorizontal: spacing.lg,
+		backgroundColor: colors.primaryContainer,
+		paddingHorizontal: spacing.md,
 		paddingBottom: spacing.sm,
 		minHeight: 48,
 	},
@@ -116,10 +118,10 @@ const styles = StyleSheet.create({
 		transform: [{ rotate: '180deg' }],
 	},
 	title: {
-		...typography.headlineLg,
+		...typography.headlineMd,
 		fontWeight: '700',
 		color: colors.onPrimary,
-		letterSpacing: -0.5,
+		letterSpacing: -0.22,
 	},
 	notifBadge: {
 		position: 'absolute',

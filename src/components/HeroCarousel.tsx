@@ -8,7 +8,6 @@ import {
   ScrollView,
   StyleSheet,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import { colors } from '../theme/colors';
 import { spacing, radius } from '../theme/spacing';
@@ -30,9 +29,9 @@ interface HeroCarouselProps {
 const AUTO_PLAY_INTERVAL = 4000;
 
 export function HeroCarousel({ slides, aspectRatio = 16 / 9, resizeMode = 'contain', showDots = false }: HeroCarouselProps) {
-  const { width } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
   const [active, setActive] = useState(0);
+  const [panelWidth, setPanelWidth] = useState(0);
   const [reduceMotion, setReduceMotion] = useState(false);
 
   useEffect(() => {
@@ -54,19 +53,22 @@ export function HeroCarousel({ slides, aspectRatio = 16 / 9, resizeMode = 'conta
   }, [slides]);
 
   useEffect(() => {
-    if (slides.length <= 1 || reduceMotion) {
+    if (slides.length <= 1 || reduceMotion || panelWidth <= 0) {
       return;
     }
     const timer = setInterval(() => {
       const next = (active + 1) % slides.length;
-      scrollRef.current?.scrollTo({ x: next * width, animated: !reduceMotion });
+      scrollRef.current?.scrollTo({ x: next * panelWidth, animated: !reduceMotion });
       setActive(next);
     }, AUTO_PLAY_INTERVAL);
     return () => clearInterval(timer);
-  }, [slides.length, reduceMotion, active, width]);
+  }, [slides.length, reduceMotion, active, panelWidth]);
 
   const handleMomentumEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const index = Math.round(e.nativeEvent.contentOffset.x / width);
+    if (panelWidth <= 0) {
+      return;
+    }
+    const index = Math.round(e.nativeEvent.contentOffset.x / panelWidth);
     if (index >= 0 && index < slides.length && index !== active) {
       setActive(index);
     }
@@ -80,7 +82,7 @@ export function HeroCarousel({ slides, aspectRatio = 16 / 9, resizeMode = 'conta
   };
 
   return (
-    <View style={styles.wrapper}>
+    <View style={styles.wrapper} onLayout={e => setPanelWidth(e.nativeEvent.layout.width)}>
       <ScrollView
         ref={scrollRef}
         horizontal
@@ -89,13 +91,15 @@ export function HeroCarousel({ slides, aspectRatio = 16 / 9, resizeMode = 'conta
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={handleMomentumEnd}
       >
-        {slides.map(slide => (
-          <View key={slide.id} style={[styles.page, { width }]}>
-            <View style={[styles.frame, { aspectRatio }]}>
-              <Image source={toSource(slide.image)} style={styles.image} resizeMode={resizeMode} />
-            </View>
-          </View>
-        ))}
+        {panelWidth > 0
+          ? slides.map(slide => (
+              <View key={slide.id} style={[styles.page, { width: panelWidth }]}>
+                <View style={[styles.frame, { aspectRatio }]}>
+                  <Image source={toSource(slide.image)} style={styles.image} resizeMode={resizeMode} />
+                </View>
+              </View>
+            ))
+          : null}
       </ScrollView>
       {showDots && slides.length > 1 ? (
         <View style={styles.dots}>
@@ -110,16 +114,15 @@ export function HeroCarousel({ slides, aspectRatio = 16 / 9, resizeMode = 'conta
 
 const styles = StyleSheet.create({
   wrapper: {
-    paddingTop: spacing.md,
+    paddingTop: 0,
   },
   page: {
-    paddingHorizontal: spacing.container,
+    paddingHorizontal: spacing.sm,
   },
   frame: {
     width: '100%',
     backgroundColor: colors.surfaceVariant,
     borderRadius: radius.xl,
-    overflow: 'hidden',
   },
   image: {
     width: '100%',
@@ -129,7 +132,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: spacing.sm,
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
   },
   dot: {
     width: 6,

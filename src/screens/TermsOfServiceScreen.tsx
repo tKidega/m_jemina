@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { InfoPage, InfoSection, BulletList } from '../components/InfoPage';
 import { IconName } from '../components/Icon';
@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   notice: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryContainer,
     borderRadius: radius.xl,
     padding: spacing.lg,
   },

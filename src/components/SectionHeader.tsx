@@ -24,19 +24,21 @@ export function SectionHeader({
   trailing,
 }: SectionHeaderProps) {
   return (
-    <View style={styles.row}>
-      <View style={styles.left}>
-        {icon ? (
-          <View style={styles.titleRow}>
-            <Icon name={icon} size={20} color={iconColor ?? colors.secondary} />
+    <View style={styles.wrap}>
+      <View style={styles.row}>
+        <View style={styles.left}>
+          {icon ? (
+            <View style={styles.titleRow}>
+              <Icon name={icon} size={20} color={iconColor ?? colors.secondary} />
+            </View>
+          ) : null}
+          <View>
+            <View style={styles.titleRow}>
+              <Text style={styles.title}>{title}</Text>
+              {trailing}
+            </View>
+            {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
           </View>
-        ) : null}
-        <View>
-          <View style={styles.titleRow}>
-            <Text style={styles.title}>{title}</Text>
-            {trailing}
-          </View>
-          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
       </View>
       {actionLabel ? (
@@ -50,11 +52,12 @@ export function SectionHeader({
 }
 
 const styles = StyleSheet.create({
+  wrap: {
+    marginBottom: 12,
+  },
   row: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
     justifyContent: 'space-between',
-    marginBottom: 12,
   },
   left: {
     flexDirection: 'row',
@@ -68,18 +71,21 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   title: {
-    ...typography.headlineMd,
+    ...typography.headlineSm,
     color: colors.primary,
   },
   subtitle: {
-    ...typography.bodyMd,
+    ...typography.bodySm,
     color: colors.onSurfaceVariant,
     marginTop: 2,
   },
   action: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
+    alignSelf: 'flex-end',
     gap: 2,
+    marginTop: 6,
   },
   actionText: {
     ...typography.labelMd,

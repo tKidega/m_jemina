@@ -100,7 +100,7 @@ const SLUG_TO_LOCAL_IMAGE: Record<string, string> = {
   'bulk-electrical-cables-grade-a': images.cableCoil,
 };
 
-function absoluteUrl(url: string | undefined): string | undefined {
+export function absoluteUrl(url: string | null | undefined): string | undefined {
   if (!url) return undefined;
   if (/^https?:\/\//i.test(url)) return url;
   if (url.startsWith('/')) return `${API_ORIGIN}${url}`;
@@ -168,6 +168,7 @@ export function apiProductToProduct(api: ApiProduct): Product {
     originalPrice: originalValue != null ? `UGX ${Math.round(originalValue).toLocaleString()}` : undefined,
     originalPriceValue: originalValue,
     discount: computeDiscountLabel(api),
+    createdAt: api.created_at,
     minOrder: `Min. Order: ${api.min_order_quantity ?? 1} units`,
     minOrderValue: api.min_order_quantity ?? 1,
     rating: api.rating,
@@ -848,6 +849,7 @@ export interface ApiVendorSummary {
   owner: string | null;
   rating: number;
   product_count: number;
+  is_featured: boolean;
   description: string | null;
   location: string | null;
   logo: string | null;

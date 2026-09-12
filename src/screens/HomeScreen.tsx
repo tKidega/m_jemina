@@ -1,6 +1,7 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Image,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -17,7 +18,6 @@ import { SectionHeader } from '../components/SectionHeader';
 import { ProductCard } from '../components/ProductCard';
 import { HeroCarousel, type HeroSlide } from '../components/HeroCarousel';
 import { ProductCarousel } from '../components/ProductCarousel';
-import { CategoryCarousel } from '../components/CategoryCarousel';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useCart } from '../state/CartContext';
@@ -29,6 +29,7 @@ import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
 import { images } from '../data/images';
 import {
+  absoluteUrl,
   apiGetPromotions,
   apiGetVendors,
   apiTrackPromotionClick,
@@ -47,21 +48,91 @@ const HERO_SLIDES: HeroSlide[] = images.heroBanners.map((image, i) => ({
 const PROMO_POPUP_INDEX_KEY = '@jemina/promoPopupIndex';
 
 const TRUST_INDICATORS = [
-  { icon: 'local-shipping' as const, title: 'Shipping', subtitle: 'Flexible Transport' },
-  { icon: 'verified-user' as const, title: 'Secure', subtitle: '100% Protected' },
-  { icon: 'support-agent' as const, title: '24/7 Care', subtitle: 'Dedicated Help' },
-  { icon: 'replay' as const, title: 'Easy Returns', subtitle: '30-Day Money Back' },
+  { icon: 'local-shipping' as const, title: 'Shipping Options', subtitle: 'Flexible Shipping or transportation' },
+  { icon: 'shield' as const, title: 'Secure Payment', subtitle: '100% Protected Transactions' },
+  { icon: 'support-agent' as const, title: '24/7 Support', subtitle: 'Dedicated Customer Care' },
+  { icon: 'replay' as const, title: 'Easy Returns', subtitle: '30-Day Money Back Guarantee' },
 ];
 
-const CATEGORIES: { key: string; label: string; icon: IconName; match: RegExp }[] = [
-  { key: 'it-tech', label: 'IT & Tech', icon: 'computer', match: /it|technology|mobile|phone|tablet|computer|laptop|tech|electronics|electrical|audio|headset|camera/i },
-  { key: 'fashion', label: 'Fashion', icon: 'checkroom', match: /fashion|design|clothing|footwear|shoes/i },
-  { key: 'construction', label: 'Construction', icon: 'construction', match: /construction|engineering|building|tool|hardware/i },
-  { key: 'agric', label: 'Agric', icon: 'agriculture', match: /agric|produce|farm|seed|fertilizer/i },
-  { key: 'home-living', label: 'Home & Living', icon: 'home', match: /home|living|kitchen|furniture|furnishing|interior|decor|bedroom|living room/i },
-  { key: 'food', label: 'Food & Edibles', icon: 'restaurant', match: /food|edibles|cooking|ingredient|beverage|drink|snack|oil|honey/i },
-  { key: 'service', label: 'Service Delivery', icon: 'handshake', match: /service|delivery|professional|beauty|wellness|consult/i },
-  { key: 'art', label: 'Art & Culture', icon: 'palette', match: /art|culture|craft|handmade|music|painting|book/i },
+// Seasons mirror resources/views/welcome.blade.php (PublicController
+// $seasonalDefinitions). Tabs only render for seasons with products tagged
+// with the matching seasonal_theme, within a 60-day window (site + app parity).
+
+const SEASONS: { slug: string; name: string; icon: IconName; month: number; day: number }[] = [
+  { slug: 'valentine', name: "Valentine's Day", icon: 'favorite', month: 2, day: 14 },
+  { slug: 'easter', name: 'Easter Season', icon: 'spa', month: 4, day: 1 },
+  { slug: 'ramadan', name: 'Ramadan Special', icon: 'nightlight-round', month: 3, day: 1 },
+  { slug: 'eid', name: 'Eid Specials', icon: 'star', month: 4, day: 20 },
+  { slug: 'back_to_school', name: 'Back to School', icon: 'school', month: 8, day: 15 },
+  { slug: 'black_friday', name: 'Black Friday', icon: 'shopping-bag', month: 11, day: 15 },
+  { slug: 'holiday', name: 'Holiday/Christmas', icon: 'redeem', month: 12, day: 1 },
+];
+
+const SEASON_WINDOW_DAYS = 60;
+const SEASON_SHOW_FROM_PAST_DAYS = 30;
+
+interface SeasonalTab {
+  slug: string;
+  name: string;
+  icon: IconName;
+  products: Product[];
+}
+
+function daysBetween(a: Date, b: Date): number {
+  return Math.round((b.getTime() - a.getTime()) / 86400000);
+}
+
+function startOfDay(d: Date): Date {
+  const copy = new Date(d);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+function seasonDate(month: number, day: number, year: number): Date {
+  return new Date(year, month - 1, day, 0, 0, 0, 0);
+}
+
+function buildSeasonalTabs(products: Product[], now: Date): SeasonalTab[] {
+  const today = startOfDay(now);
+  const tabs: SeasonalTab[] = [];
+  for (const def of SEASONS) {
+    let candidate = seasonDate(def.month, def.day, today.getFullYear());
+    let daysUntil = daysBetween(today, candidate);
+    if (daysUntil < -SEASON_SHOW_FROM_PAST_DAYS) {
+      candidate = seasonDate(def.month, def.day, today.getFullYear() + 1);
+      daysUntil = daysBetween(today, candidate);
+    }
+    if (daysUntil > SEASON_WINDOW_DAYS) {
+      continue;
+    }
+    const list = products.filter(p => (p.seasonalTheme ?? '').trim().toLowerCase() === def.slug);
+    if (list.length > 0) {
+      tabs.push({ slug: def.slug, name: def.name, icon: def.icon, products: list });
+    }
+  }
+  const general = products.filter(p => p.seasonal && !(p.seasonalTheme ?? '').trim());
+  if (general.length > 0) {
+    tabs.push({ slug: 'seasonal', name: 'General Seasonal', icon: 'eco', products: general });
+  }
+  return tabs;
+}
+
+const CATEGORIES: { key: string; label: string; word: string; icon: IconName; match: RegExp; b2b?: boolean }[] = [
+  { key: 'agric', label: 'Agric & Seeds', word: 'Agric', icon: 'agriculture', match: /agric|seed|produce|farm|fertilizer/i },
+  { key: 'it-solar', label: 'IT & Solar', word: 'Tech', icon: 'computer', match: /it|technology|mobile|phone|tablet|computer|laptop|tech|electronics|electrical|audio|headset|camera|solar/i },
+  { key: 'construction', label: 'Home & Construction', word: 'Home', icon: 'home', match: /construction|engineering|building|home|housing|interior/i },
+  { key: 'tools', label: 'Tools', word: 'Tools', icon: 'handyman', match: /tool|hardware/i },
+  { key: 'fashion', label: 'Fashion', word: 'Fashion', icon: 'checkroom', match: /fashion|design|clothing|footwear|shoes|apparel/i },
+  { key: 'office', label: 'Office Supplies', word: 'Office', icon: 'corporate-fare', match: /office|stationery|supplies/i },
+  { key: 'food', label: 'Food & Grain', word: 'Food', icon: 'grain', match: /food|grain|edibles|cooking|ingredient|beverage|drink|snack|oil|honey/i },
+  { key: 'b2b', label: 'B2B RFQ', word: 'B2B', icon: 'request-quote', match: /wholesale|bulk|corporate|b2b/i, b2b: true },
+];
+
+const B2B_STEPS: { title: string; desc: string }[] = [
+  { title: 'Submit your RFQ', desc: 'Request custom bulk pricing for the products you need, with quantities and delivery details.' },
+  { title: 'Get a tailored quote', desc: 'A B2B specialist reviews your request and responds within 2 hours with pricing, MOQ and terms.' },
+  { title: 'Approve & pay', desc: 'Accept the quote and settle securely via JEMINA Credits, mobile money or card. Invoices issued.' },
+  { title: 'Scheduled dispatch', desc: 'Collect at a regional depot or schedule delivery, then track your order in the app.' },
 ];
 
 const BRANDS: { key: string; label: string; icon: IconName; match: RegExp }[] = [
@@ -100,28 +171,42 @@ const DEFAULT_STORES: StoreData[] = [
     description: "Gulu's premier shop for curated electronics and office supplies. Verified Vendor.",
     location: 'Gulu, Uganda',
   },
-  {
-    id: 'fashion',
-    vendorId: 2,
-    name: 'Fashion Hub Gulu',
-    rating: 4.2,
-    products: 512,
-    icon: 'shopping-bag',
-    accent: colors.primary,
-    description: 'Trending fashion, footwear and accessories for the whole family.',
-    location: 'Gulu, Uganda',
-  },
 ];
+
+function useFlashCountdown() {
+  const endOfDay = useMemo(() => {
+    const d = new Date();
+    d.setHours(23, 59, 59, 999);
+    return d.getTime();
+  }, []);
+  const [left, setLeft] = useState(() => Math.max(0, endOfDay - Date.now()));
+  useEffect(() => {
+    if (left <= 0) {
+      return;
+    }
+    const t = setTimeout(() => setLeft(Math.max(0, endOfDay - Date.now())), 1000);
+    return () => clearTimeout(t);
+  }, [left, endOfDay]);
+  const pad = (n: number) => String(Math.max(0, Math.floor(n))).padStart(2, '0');
+  return `${pad(left / 3600000)}:${pad((left / 60000) % 60)}:${pad((left / 1000) % 60)}`;
+}
 
 export function HomeScreen() {
   const { navigate, switchTab } = useNavigation();
   const { addItem } = useCart();
-  const { flashSale: flashSaleProducts, featured: featuredProducts, topRated: topRatedProducts, seasonal: seasonalProducts, products, loading, error, refresh } = useCatalog();
+  const { flashSale: flashSaleProducts, featured: featuredProducts, topRated: topRatedProducts, newArrivals: newArrivalsProducts, seasonal: seasonalProducts, products, loading, error, refresh } = useCatalog();
   const { width } = useWindowDimensions();
   const [liveVendors, setLiveVendors] = useState<StoreData[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeDealTab, setActiveDealTab] = useState<'flash' | 'featured' | 'top' | 'new'>('flash');
+  const [featuredImageRatio, setFeaturedImageRatio] = useState<number | null>(null);
   const [promotions, setPromotions] = useState<ApiPromotion[]>([]);
+  const [activeSeasonSlug, setActiveSeasonSlug] = useState<string | null>(null);
+  const [b2bModalOpen, setB2bModalOpen] = useState(false);
   const { showPromo } = useNotification();
+  const countdown = useFlashCountdown();
+  const seasonalTabs = useMemo(() => buildSeasonalTabs(products, new Date()), [products]);
+  const activeSeasonalTab = seasonalTabs.find(t => t.slug === activeSeasonSlug) ?? seasonalTabs[0] ?? null;
 
   const loadPromotions = useCallback(async () => {
     try {
@@ -172,10 +257,10 @@ export function HomeScreen() {
           rating: v.rating,
           products: v.product_count,
           icon: (i % 2 === 0 ? 'storefront' : 'shopping-bag') as 'storefront' | 'shopping-bag',
-          accent: i % 2 === 0 ? colors.secondary : colors.primary,
+          accent: i % 2 === 0 ? colors.secondary : colors.secondary,
           description: v.description || `${v.name || 'Vendor'} - ${v.location || 'Uganda'}`,
           location: v.location || 'Uganda',
-          logo: v.logo ?? undefined,
+          logo: absoluteUrl(v.logo) ?? undefined,
         }));
         if (mapped.length > 0) {
           setLiveVendors(mapped);
@@ -198,10 +283,10 @@ export function HomeScreen() {
           rating: v.rating,
           products: v.product_count,
           icon: (i % 2 === 0 ? 'storefront' : 'shopping-bag') as 'storefront' | 'shopping-bag',
-          accent: i % 2 === 0 ? colors.secondary : colors.primary,
+          accent: i % 2 === 0 ? colors.secondary : colors.secondary,
           description: v.description || `${v.name || 'Vendor'} - ${v.location || 'Uganda'}`,
           location: v.location || 'Uganda',
-          logo: v.logo ?? undefined,
+          logo: absoluteUrl(v.logo) ?? undefined,
         }));
         if (mapped.length > 0) {
           setLiveVendors(mapped);
@@ -228,10 +313,57 @@ export function HomeScreen() {
   };
 
   const stores = liveVendors.length > 0 ? liveVendors : DEFAULT_STORES;
+  const jeminaStore = stores.find(s => s.name.toLowerCase().includes('jemina')) ?? DEFAULT_STORES[0];
+  const bannerPromos = promotions.filter(p => (p.type ?? '').toLowerCase() === 'banner');
+  const regularPromos = promotions.filter(p => (p.type ?? '').toLowerCase() !== 'banner');
 
   const featuredProduct = featuredProducts[0];
   const smallProducts = flashSaleProducts.slice(0, 8);
   const topRated = topRatedProducts;
+
+  const DEAL_TABS: { key: 'flash' | 'featured' | 'top' | 'new'; label: string; list: Product[] }[] = [
+    { key: 'flash', label: 'Flash', list: flashSaleProducts },
+    { key: 'featured', label: 'Featured', list: featuredProducts },
+    { key: 'top', label: 'Top Picks', list: topRatedProducts },
+    { key: 'new', label: 'New Arrivals', list: newArrivalsProducts },
+  ];
+  const activeDealTabConfig = DEAL_TABS.find(t => t.key === activeDealTab) ?? DEAL_TABS[0];
+  const activeDealList = activeDealTabConfig.list;
+
+  const renderDealRow = (list: Product[], emptyKey: string) =>
+    list.length > 0 ? (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flashRow}>
+        {list.slice(0, 8).map(p => (
+          <View key={p.id} style={[styles.flashCard, { width: flashCardWidth }]}>
+            <Pressable style={styles.flashImageWrap} onPress={() => navigate('ProductDetails', { product: p })}>
+              <Image source={{ uri: p.image }} style={styles.flashImage} resizeMode="cover" />
+              <View style={styles.flashBadge}>
+                <Badge label={p.discount ?? 'SALE'} variant="flash" />
+              </View>
+            </Pressable>
+            <View style={styles.flashBody}>
+              <Text style={styles.flashCategory} numberOfLines={1}>{p.vendor?.name ?? p.category}</Text>
+              <Text style={styles.flashTitle} numberOfLines={2}>{p.title}</Text>
+              <View style={styles.flashPriceRow}>
+                <Text style={styles.flashPrice}>{p.price}</Text>
+                {p.originalPrice ? <Text style={styles.flashOriginalPrice}>{p.originalPrice}</Text> : null}
+              </View>
+              <Pressable style={styles.flashAddBtn} onPress={() => addItem(p)}>
+                <Icon name="add-shopping-cart" size={16} color={colors.onPrimary} />
+              </Pressable>
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+    ) : (
+      <View style={styles.emptyCentered}>
+        <Pressable style={styles.flashEmptyCard} onPress={refresh}>
+          <Icon name="bolt" size={40} color={colors.secondary} />
+          <Text style={styles.flashEmptyTitle}>No {emptyKey} right now</Text>
+          <Text style={styles.flashEmptySub}>Tap to refresh the live catalog.</Text>
+        </Pressable>
+      </View>
+    );
 
   const brandSections = useMemo(
     () =>
@@ -247,20 +379,22 @@ export function HomeScreen() {
     const byPrice = (max: number) => products.filter(p => p.priceValue > 0 && p.priceValue <= max);
     const toCarousel = (icon: IconName, title: string, subtitle: string, list: Product[]) =>
       list.length > 0 ? { icon, title, subtitle, list } : null;
-    const b2b = (list: Product[]) => list.filter(p => p.isWholesale || p.bulkOrder || p.corporateReady || p.enterpriseSolution);
+    const b2bItems = (list: Product[]) => list.filter(p => p.isWholesale || p.bulkOrder || p.corporateReady || p.enterpriseSolution);
     return [
       toCarousel('memory', 'Electronics', 'The latest gadgets and devices', matchesCategory(/mobile|phone|tablet|computer|laptop|tech|audio|electrical/i)),
       toCarousel('checkroom', "Fashion & Apparel", 'The latest trends for the whole family', matchesCategory(/fashion|clothing|women|men|kids|footwear/i)),
       toCarousel('storefront', 'Local Heroes', 'Locally manufactured Ugandan products', matchesCategory(/local|uganda|handmade|craft|agric/i)),
       toCarousel('lightbulb', 'Home & Living', 'Everything you need for your space', matchesCategory(/home|living|kitchen|furniture|office/i)),
       toCarousel('star', 'Best Picks', 'Handpicked favorites by our customers', [...products].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0)).slice(0, 8)),
-      toCarousel('business-center', 'Corporate & Wholesale', 'B2B solutions and bulk-sale products', b2b(products)),
+      toCarousel('business-center', 'Corporate & Wholesale', 'B2B solutions and bulk-sale products', b2bItems(products)),
       toCarousel('sell', 'Under 50K', 'Great products at affordable prices', byPrice(50000)),
     ].filter((s): s is { icon: IconName; title: string; subtitle: string; list: Product[] } => s !== null);
   }, [products]);
 
-  const flashCardWidth = Math.round((width - spacing.lg * 2 - spacing.gutter) / 2);
+  const flashCardWidth = Math.round((width - spacing.md * 2 - spacing.gutter) / 2);
   const productCardWidth = flashCardWidth;
+  const seasonalCardWidth = Math.round(width * 0.6);
+  const sectorTileWidth = Math.round((width - spacing.md * 2 - spacing.gutter * 3) / 4);
 
   return (
     <View style={styles.root}>
@@ -286,31 +420,109 @@ export function HomeScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
         }
       >
-        {/* Search */}
-        <View style={styles.searchSection}>
-          <Pressable style={styles.searchBar} onPress={() => navigate('Search')}>
-            <Icon name="search" size={20} color={colors.outline} />
-            <Text style={styles.searchInput}>Search products by name...</Text>
-            <View style={styles.searchBtn}>
-              <Text style={styles.searchBtnText}>Search</Text>
-            </View>
-          </Pressable>
+        {/* Hero carousel */}
+        <View style={styles.heroSection}>
+          <HeroCarousel slides={HERO_SLIDES} showDots />
         </View>
 
-        {/* Hero carousel */}
-        <HeroCarousel slides={HERO_SLIDES} />
-
-        {/* Browse collections */}
+        {/* Explore sectors */}
         <View style={styles.section}>
-          <SectionHeader title="Browse Collections" subtitle="Shop the latest from every primary category." />
-          <CategoryCarousel
-            categories={CATEGORIES.map(c => ({ key: c.key, label: c.label, icon: c.icon }))}
-            onPress={cat => {
-              const def = CATEGORIES.find(c => c.key === cat.key);
-              const list = def ? products.filter(p => def.match.test(p.category)) : products;
-              navigate('AllProducts', { title: def?.label ?? cat.label, products: list });
-            }}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flashRow}>
+            {CATEGORIES.map(cat => (
+              <Pressable
+                key={cat.key}
+                style={[styles.sectorTile, { width: sectorTileWidth }]}
+                onPress={() => {
+                  if (cat.b2b) {
+                    switchTab('Marketplace');
+                    return;
+                  }
+                  const list = products.filter(p => cat.match.test(p.category));
+                  navigate('AllProducts', { title: cat.label, products: list });
+                }}
+              >
+                <View style={styles.sectorIcon}>
+                  <Icon name={cat.icon} size={24} color={colors.secondary} />
+                </View>
+                <Text style={styles.sectorLabel} numberOfLines={1}>{cat.word}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Deals: Flash / Featured / Top Picks / New Arrivals */}
+        <View style={styles.section}>
+          <SectionHeader
+            icon="bolt"
+            iconColor={colors.statusFlash}
+            title="Deals"
+            subtitle="Flash sales, featured picks, top rated &amp; new arrivals."
+            actionLabel="See All"
+            onAction={() => navigate('AllProducts', { title: activeDealTabConfig.label, subtitle: `${activeDealTabConfig.label} products`, products: activeDealList })}
+            trailing={activeDealTab === 'flash' ? <View style={styles.countdownPill}><Text style={styles.countdownText}>{countdown}</Text></View> : null}
           />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dealTabs}>
+            {DEAL_TABS.map(tab => {
+              const active = tab.key === activeDealTab;
+              return (
+                <Pressable
+                  key={tab.key}
+                  style={[styles.dealTab, active && styles.dealTabActive]}
+                  onPress={() => setActiveDealTab(tab.key)}
+                >
+                  <Text style={[styles.dealTabText, active && styles.dealTabTextActive]}>{tab.label}</Text>
+                  {tab.list.length > 0 ? (
+                    <Text style={[styles.dealTabCount, active && styles.dealTabCountActive]}>{tab.list.length}</Text>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          {renderDealRow(activeDealList, activeDealTabConfig.label)}
+        </View>
+
+        {/* Verified Hubs & Vendors */}
+        <View style={styles.section}>
+          <View style={styles.sectionHead}>
+            <View>
+              <Text style={styles.sectionTitle}>Verified Hubs &amp; Vendors</Text>
+              <Text style={styles.sectionSubtitle}>Direct store inventory &amp; escrow</Text>
+            </View>
+            <Pressable style={styles.sectionLink} onPress={() => navigate('FeaturedVendors')}>
+              <Text style={styles.sectionLinkText}>View Featured</Text>
+              <Icon name="chevron-right" size={16} color={colors.secondary} />
+            </Pressable>
+          </View>
+          <View style={styles.hubList}>
+            {jeminaStore ? (
+              <Pressable
+                key={jeminaStore.id}
+                style={styles.hubCard}
+                onPress={() => navigate('VendorProfile', { vendorId: jeminaStore.vendorId, vendorName: jeminaStore.name })}
+              >
+                <View style={styles.hubLeft}>
+                  <View style={styles.hubLogoWrap}>
+                    <HubLogo logo={jeminaStore.logo} icon={jeminaStore.icon} />
+                  </View>
+                  <View style={styles.hubBody}>
+                    <View style={styles.hubNameRow}>
+                      <Text style={styles.hubName} numberOfLines={1}>{jeminaStore.name}</Text>
+                      <Icon name="verified" size={16} color={colors.secondaryContainer} />
+                    </View>
+                    <View style={styles.hubMeta}>
+                      <Icon name="star" size={13} color={colors.secondaryContainer} />
+                      <Text style={styles.hubRating}>{jeminaStore.rating > 0 ? jeminaStore.rating.toFixed(1) : '—'}</Text>
+                      <Text style={styles.hubMetaSuffix}>· {jeminaStore.products} products</Text>
+                      <Text style={styles.hubMetaSuffix}>· <Text style={styles.hubRegion}>{jeminaStore.location}</Text></Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.hubVisitBtn}>
+                  <Text style={styles.hubVisitText}>Visit</Text>
+                </View>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
 
         {/* Featured brands */}
@@ -336,7 +548,7 @@ export function HomeScreen() {
                   }
                 >
                   <View style={styles.brandCircle}>
-                    <Icon name={brand.icon} size={24} color={colors.secondary} />
+                    <Icon name={brand.icon} size={24} color={colors.primaryContainer} />
                   </View>
                   <Text style={styles.brandName} numberOfLines={1}>{brand.label}</Text>
                   <Text style={styles.brandCount}>{list.length} product{list.length === 1 ? '' : 's'}</Text>
@@ -358,8 +570,18 @@ export function HomeScreen() {
               style={({ pressed }) => [styles.featuredCard, pressed && styles.pressed]}
               onPress={() => navigate('ProductDetails', { product: featuredProduct })}
             >
-              <View style={styles.featuredImageWrap}>
-                <Image source={{ uri: featuredProduct.image }} style={styles.featuredImage} resizeMode="cover" />
+              <View style={[styles.featuredImageWrap, { aspectRatio: featuredImageRatio ?? 16 / 9 }]}>
+                <Image
+                  source={{ uri: featuredProduct.image }}
+                  style={styles.featuredImage}
+                  resizeMode="contain"
+                  onLoad={e => {
+                    const { width: w, height: h } = e.nativeEvent.source;
+                    if (w && h) {
+                      setFeaturedImageRatio(w / h);
+                    }
+                  }}
+                />
                 <View style={styles.featuredBadge}>
                   <Badge label="Featured" variant="featured" />
                 </View>
@@ -408,173 +630,175 @@ export function HomeScreen() {
             actionLabel="View All"
             onAction={() => navigate('AllProducts', { title: 'Top Rated', subtitle: 'Most loved products by our customers.', products: topRated })}
           />
-          <View style={styles.productGrid}>
-            {topRated.map(p => (
-              <View key={p.id} style={styles.productCardWrap}>
-                <ProductCard
-                  product={p}
-                  compact
-                  imageHeight={120}
-                  onPress={() => navigate('ProductDetails', { product: p })}
-                  onAddToCart={() => addItem(p)}
-                />
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Seasonal & Promotional */}
-        <View style={styles.section}>
-          <SectionHeader
-            icon="auto-awesome"
-            iconColor={colors.secondary}
-            title="Seasonal & Promotional"
-            subtitle="Products relevant to the current season and holidays."
-            actionLabel="View All"
-            onAction={() => navigate('AllProducts', { title: 'Seasonal & Promotional', subtitle: 'Products relevant to the current season and holidays.', products: seasonalProducts })}
-            trailing={<Badge label={`${(promotions.length || seasonalProducts.length)} OFFERS`} variant="flash" style={styles.dealsBadge} />}
-          />
-
-          {promotions.length > 0 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flashRow}>
-              {promotions.slice(0, 8).map(promo => (
-                <PromoFlashCard
-                  key={promo.id}
-                  promo={promo}
-                  width={flashCardWidth}
-                  onPress={() => openPromo(promo)}
-                />
+          {topRated.length > 0 ? (
+            <View style={styles.productGrid}>
+              {topRated.map(p => (
+                <View key={p.id} style={styles.productCardWrap}>
+                  <ProductCard
+                    product={p}
+                    compact
+                    imageHeight={120}
+                    onPress={() => navigate('ProductDetails', { product: p })}
+                    onAddToCart={() => addItem(p)}
+                  />
+                </View>
               ))}
-            </ScrollView>
-          ) : seasonalProducts.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flashRow}>
-            {seasonalProducts.slice(0, 8).map(p => (
-              <Pressable key={p.id} style={[styles.flashCard, { width: flashCardWidth }]} onPress={() => navigate('ProductDetails', { product: p })}>
-                <View style={styles.flashImageWrap}>
-                  <Image source={{ uri: p.image }} style={styles.flashImage} resizeMode="cover" />
-                  <View style={styles.flashBadge}>
-                    <Badge label={p.holidaySpecial ? 'HOLIDAY' : p.seasonal ? 'SEASONAL' : p.discount ? 'SALE' : 'PROMO'} variant="flash" />
-                  </View>
-                </View>
-                <View style={styles.flashBody}>
-                  <Text style={styles.flashCategory}>{p.category}</Text>
-                  <Text style={styles.flashTitle} numberOfLines={1}>{p.title}</Text>
-                  <View style={styles.flashPriceRow}>
-                    <Text style={styles.flashPrice}>{p.price}</Text>
-                    {p.originalPrice ? <Text style={styles.flashOriginalPrice}>{p.originalPrice}</Text> : null}
-                  </View>
-                  <Pressable style={styles.flashAddBtn} onPress={() => addItem(p)}>
-                    <Text style={styles.flashAddText}>Add to Cart</Text>
-                  </Pressable>
-                </View>
-              </Pressable>
-            ))}
-          </ScrollView>
+            </View>
           ) : (
             <View style={styles.emptyCentered}>
               <Pressable style={styles.flashEmptyCard} onPress={refresh}>
-                <Icon name="auto-awesome" size={40} color={colors.secondary} />
-                <Text style={styles.flashEmptyTitle}>No seasonal offers right now</Text>
+                <Icon name="star" size={40} color={colors.secondary} />
+                <Text style={styles.flashEmptyTitle}>No products right now</Text>
                 <Text style={styles.flashEmptySub}>Tap to refresh the live catalog.</Text>
               </Pressable>
             </View>
           )}
         </View>
 
-        {/* Featured Stores */}
+        {/* Promotions */}
         <View style={styles.section}>
           <SectionHeader
-            icon="storefront"
-            title="Featured Stores"
-            subtitle="Top rated vendors and brands."
+            icon="auto-awesome"
+            iconColor={colors.secondary}
+            title="Promotions"
+            subtitle="Special offers live right now."
             actionLabel="View All"
-            onAction={() => switchTab('Marketplace')}
+            onAction={() => navigate('AllProducts', { title: 'Promotions', subtitle: 'Special offers live right now.', products: seasonalProducts })}
+            trailing={promotions.length > 0 ? <Badge label={`${promotions.length} OFFERS`} variant="flash" style={styles.dealsBadge} /> : null}
           />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.brandRow}>
-            {stores.map(s => (
-              <Pressable
-                key={s.id}
-                style={styles.storeCard}
-                onPress={() => navigate('VendorProfile', { vendorId: s.vendorId, vendorName: s.name })}
-              >
-                <View style={styles.storeLogoWrap}>
-                  {s.logo ? (
-                    <Image source={{ uri: s.logo }} style={styles.storeLogo} resizeMode="cover" />
-                  ) : (
-                    <Icon name={s.icon} size={28} color={s.accent} />
-                  )}
-                </View>
-                <View style={styles.storeBody}>
-                  <Text style={styles.storeName} numberOfLines={1}>{s.name}</Text>
-                  <Text style={styles.storeLocation} numberOfLines={1}>{s.location}</Text>
-                  <View style={styles.storeMeta}>
-                    <Icon name="star" size={13} color={colors.secondary} />
-                    <Text style={styles.storeRating}>{s.rating > 0 ? s.rating.toFixed(1) : '—'}</Text>
-                    <Text style={styles.storeDot}>·</Text>
-                    <Text style={styles.storeProducts}>{s.products} products</Text>
-                  </View>
-                </View>
-              </Pressable>
+
+          {promotions.length > 0 ? (
+            <View>
+              {bannerPromos.length > 0 ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flashRow}>
+                  {bannerPromos.map(promo => (
+                    <PromoBannerCard
+                      key={promo.id}
+                      promo={promo}
+                      onPress={() => openPromo(promo)}
+                    />
+                  ))}
+                </ScrollView>
+              ) : null}
+              {regularPromos.length > 0 ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flashRow}>
+                  {regularPromos.slice(0, 8).map(promo => (
+                    <PromoFlashCard
+                      key={promo.id}
+                      promo={promo}
+                      width={seasonalCardWidth}
+                      onPress={() => openPromo(promo)}
+                    />
+                  ))}
+                </ScrollView>
+              ) : null}
+            </View>
+          ) : seasonalProducts.length > 0 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flashRow}>
+            {seasonalProducts.slice(0, 8).map(p => (
+              <SeasonalProductCard
+                key={p.id}
+                product={p}
+                width={seasonalCardWidth}
+                onPress={() => navigate('ProductDetails', { product: p })}
+                onAddToCart={() => addItem(p)}
+              />
             ))}
           </ScrollView>
+          ) : (
+            <View style={styles.emptyCentered}>
+              <Pressable style={styles.flashEmptyCard} onPress={refresh}>
+                <Icon name="auto-awesome" size={40} color={colors.secondary} />
+                <Text style={styles.flashEmptyTitle}>No promotions right now</Text>
+                <Text style={styles.flashEmptySub}>Tap to refresh the live catalog.</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+
+        {/* Seasonal (per-season tabs) */}
+        {seasonalTabs.length > 0 ? (
+          <View style={styles.section}>
+            <SectionHeader
+              icon="eco"
+              iconColor={colors.secondary}
+              title="Seasonal"
+              subtitle="On-season products for each celebration, like the website."
+              actionLabel="View All"
+              onAction={activeSeasonalTab ? () => navigate('AllProducts', { title: activeSeasonalTab.name, subtitle: `${activeSeasonalTab.name} products`, products: activeSeasonalTab.products }) : () => {}}
+            />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dealTabs}>
+              {seasonalTabs.map(tab => {
+                const active = tab.slug === activeSeasonalTab?.slug;
+                return (
+                  <Pressable
+                    key={tab.slug}
+                    style={[styles.dealTab, active && styles.dealTabActive]}
+                    onPress={() => setActiveSeasonSlug(tab.slug)}
+                  >
+                    <Icon name={tab.icon} size={16} color={active ? colors.onSecondaryContainer : colors.onSurfaceVariant} />
+                    <Text style={[styles.dealTabText, active && styles.dealTabTextActive]}>{tab.name}</Text>
+                    {tab.products.length > 0 ? (
+                      <Text style={[styles.dealTabCount, active && styles.dealTabCountActive]}>{tab.products.length}</Text>
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            {activeSeasonalTab ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flashRow}>
+                {activeSeasonalTab.products.slice(0, 8).map(p => (
+                  <SeasonalProductCard
+                    key={p.id}
+                    product={p}
+                    width={seasonalCardWidth}
+                    onPress={() => navigate('ProductDetails', { product: p })}
+                    onAddToCart={() => addItem(p)}
+                  />
+                ))}
+              </ScrollView>
+            ) : null}
+          </View>
+        ) : null}
+
+        {/* B2B Wholesale CTA */}
+        <View style={styles.section}>
+          <View style={styles.b2bCta}>
+            <View style={styles.b2bCtaTop}>
+              <View style={styles.b2bCtaHead}>
+                <View style={styles.b2bCtaBadge}>
+                  <Text style={styles.b2bCtaBadgeText}>B2B Wholesale</Text>
+                </View>
+                <Text style={styles.b2bCtaTitle}>Commercial &amp; Bulk Orders</Text>
+                <Text style={styles.b2bCtaDesc}>
+                  Request custom pricing, MOQ procurement, tax invoices &amp; scheduled depot dispatch.
+                </Text>
+              </View>
+              <Icon name="fact-check" size={42} color={colors.secondaryContainer} />
+            </View>
+            <View style={styles.b2bCtaFoot}>
+              <Text style={styles.b2bCtaNote}>Response in {'< 2 hours'}</Text>
+              <Pressable style={styles.b2bCtaBtn} onPress={() => setB2bModalOpen(true)}>
+                <Text style={styles.b2bCtaBtnText}>Request RFQ</Text>
+                <Icon name="arrow-forward" size={16} color={colors.onPrimary} />
+              </Pressable>
+            </View>
+          </View>
         </View>
 
         {/* Trust indicators */}
-        <View style={styles.trustCard}>
-          {TRUST_INDICATORS.map((t, i) => (
-            <View key={t.title} style={[styles.trustItem, (i === 0 || i === 2) && styles.trustBorderRight, i < 2 && styles.trustBorderBottom]}>
-              <View style={styles.trustIcon}>
-                <Icon name={t.icon} size={20} color={colors.secondary} />
-              </View>
-              <Text style={styles.trustTitle}>{t.title}</Text>
-              <Text style={styles.trustSubtitle}>{t.subtitle}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Flash & Deals */}
-        <View style={styles.section}>
-          <SectionHeader
-            icon="bolt"
-            iconColor={colors.statusFlash}
-            title="Flash & Deals"
-            subtitle="Limited time offers, act fast!"
-            actionLabel="View All"
-            onAction={() => navigate('AllProducts', { title: 'Flash & Deals', subtitle: 'Limited time offers, act fast!', products: flashSaleProducts })}
-            trailing={<Badge label={`${flashSaleProducts.length} DEALS`} variant="flash" style={styles.dealsBadge} />}
-          />
-          <ProductCarousel
-            products={flashSaleProducts}
-            cardWidth={flashCardWidth}
-            imageHeight={140}
-            showDots={false}
-            autoPlay
-            loop
-            autoPlayInterval={10000}
-            onPress={p => navigate('ProductDetails', { product: p })}
-            onAddToCart={p => addItem(p)}
-            renderItem={product => (
-              <View style={styles.flashCard}>
-                <View style={styles.flashImageWrap}>
-                  <Image source={{ uri: product.image }} style={styles.flashImage} resizeMode="cover" />
-                  <View style={styles.flashBadge}>
-                    <Badge label={product.discount ?? 'SALE'} variant="flash" />
-                  </View>
-                </View>
-                <View style={styles.flashBody}>
-                  <Text style={styles.flashCategory}>{product.category}</Text>
-                  <Text style={styles.flashTitle} numberOfLines={1}>{product.title}</Text>
-                  <View style={styles.flashPriceRow}>
-                    <Text style={styles.flashPrice}>{product.price}</Text>
-                    {product.originalPrice ? <Text style={styles.flashOriginalPrice}>{product.originalPrice}</Text> : null}
-                  </View>
-                  <Pressable style={styles.flashAddBtn} onPress={() => addItem(product)}>
-                    <Text style={styles.flashAddText}>Add to Cart</Text>
-                  </Pressable>
+        <View style={styles.trustSection}>
+          <View style={styles.trustGrid}>
+            {TRUST_INDICATORS.map(t => (
+              <View key={t.title} style={styles.trustItem}>
+                <Icon name={t.icon} size={22} color={colors.secondary} />
+                <View style={styles.trustBody}>
+                  <Text style={styles.trustTitle}>{t.title}</Text>
+                  <Text style={styles.trustSubtitle}>{t.subtitle}</Text>
                 </View>
               </View>
-            )}
-          />
+            ))}
+          </View>
         </View>
 
         {/* Additional product sections (mirrors website homepage) */}
@@ -601,6 +825,43 @@ export function HomeScreen() {
           </View>
         ))}
       </ScrollView>
+
+      <Modal visible={b2bModalOpen} animationType="slide" transparent onRequestClose={() => setB2bModalOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>How B2B Wholesale Works</Text>
+              <Pressable onPress={() => setB2bModalOpen(false)} hitSlop={8}>
+                <Icon name="close" size={24} color={colors.onSurface} />
+              </Pressable>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {B2B_STEPS.map((step, i) => (
+                <View key={i} style={styles.b2bStepRow}>
+                  <View style={styles.b2bStepNum}>
+                    <Text style={styles.b2bStepNumText}>{i + 1}</Text>
+                  </View>
+                  <View style={styles.b2bStepBody}>
+                    <Text style={styles.b2bStepTitle}>{step.title}</Text>
+                    <Text style={styles.b2bStepDesc}>{step.desc}</Text>
+                  </View>
+                </View>
+              ))}
+              <Pressable
+                style={[styles.b2bCtaBtn, styles.b2bModalCta]}
+                onPress={() => {
+                  setB2bModalOpen(false);
+                  switchTab('Marketplace');
+                }}
+              >
+                <Text style={styles.b2bCtaBtnText}>Continue to B2B Marketplace</Text>
+                <Icon name="arrow-forward" size={16} color={colors.onPrimary} />
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       <BottomNav />
     </View>
   );
@@ -615,44 +876,113 @@ function PromoFlashCard({
   width: number;
   onPress: () => void;
 }) {
-  const [imageRatio, setImageRatio] = useState<number | null>(null);
   return (
-    <Pressable style={[styles.promoCard, { width }]} onPress={onPress}>
-      <View style={styles.flashImageWrap}>
+    <Pressable style={[styles.hlCard, { width }]} onPress={onPress}>
+      <View style={styles.hlImageWrap}>
         {promo.image_url ? (
-          <Image
-            source={{ uri: promoImageUrl(promo.image_url) }}
-            style={[
-              styles.flashImage,
-              imageRatio ? styles.flashImageSized : null,
-              imageRatio ? { aspectRatio: imageRatio } : null,
-            ]}
-            resizeMode="cover"
-            onLoad={e => {
-              const { width: w, height: h } = e.nativeEvent.source;
-              if (w && h) {
-                setImageRatio(w / h);
-              }
-            }}
-          />
+          <Image source={{ uri: promoImageUrl(promo.image_url) }} style={styles.hlImage} resizeMode="cover" />
         ) : (
-          <View style={styles.promoNoImage}>
-            <Icon name="auto-awesome" size={32} color={colors.secondary} />
+          <View style={styles.hlNoImage}>
+            <Icon name="auto-awesome" size={24} color={colors.secondary} />
           </View>
         )}
-        <View style={styles.flashBadge}>
-          <Badge label="PROMO" variant="flash" />
+        <View style={styles.hlBadge}>
+          <Badge label={(promo.type ?? 'PROMO').toUpperCase()} variant="flash" />
         </View>
       </View>
-      <View style={styles.flashBody}>
-        <Text style={styles.flashCategory}>{promo.vendor?.name ?? 'JEMINA'}</Text>
-        <Text style={styles.flashTitle} numberOfLines={2}>{promo.title}</Text>
-        {promo.description ? (
-          <Text style={styles.promoDesc} numberOfLines={2}>{promo.description}</Text>
-        ) : null}
-        <Pressable style={styles.flashAddBtn} onPress={onPress}>
-          <Text style={styles.flashAddText}>View Promo</Text>
-        </Pressable>
+      <View style={styles.hlBody}>
+        <Text style={styles.hlCategory} numberOfLines={1}>{promo.vendor?.name ?? 'JEMINA'}</Text>
+        <Text style={styles.hlTitle} numberOfLines={1}>{promo.title}</Text>
+        <View style={[styles.hlFoot, styles.hlFootEnd]}>
+          <Pressable style={styles.hlBtn} onPress={onPress}>
+            <Text style={styles.hlBtnText}>View</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+function PromoBannerCard({
+  promo,
+  onPress,
+}: {
+  promo: ApiPromotion;
+  onPress: () => void;
+}) {
+  const { width } = useWindowDimensions();
+  return (
+    <Pressable
+      style={[styles.bannerCard, { width: width - spacing.lg * 2 }]}
+      onPress={onPress}
+      accessibilityRole="button"
+    >
+      {promo.image_url ? (
+        <Image source={{ uri: promoImageUrl(promo.image_url) }} style={styles.bannerImage} resizeMode="cover" />
+      ) : (
+        <View style={[styles.bannerImage, styles.bannerNoImage]}>
+          <Icon name="auto-awesome" size={32} color={colors.secondary} />
+        </View>
+      )}
+      <View style={styles.bannerOverlay}>
+        <View style={styles.bannerBadge}>
+          <Badge label={(promo.type ?? 'BANNER').toUpperCase()} variant="flash" />
+        </View>
+        <View style={styles.bannerCta}>
+          <Text style={styles.bannerCtaText}>View Offer</Text>
+          <Icon name="chevron-right" size={14} color={colors.onPrimary} />
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+function HubLogo({ logo, icon }: { logo?: string; icon: 'storefront' | 'shopping-bag' }) {
+  const [failed, setFailed] = useState(false);
+  if (!logo || failed) {
+    return (
+      <View style={styles.hubLogoFallback}>
+        <Icon name={icon} size={28} color={colors.primaryContainer} />
+      </View>
+    );
+  }
+  return <Image source={{ uri: logo }} style={styles.hubLogo} resizeMode="cover" onError={() => setFailed(true)} />;
+}
+
+function SeasonalProductCard({
+  product,
+  width,
+  onPress,
+  onAddToCart,
+}: {
+  product: Product;
+  width: number;
+  onPress: () => void;
+  onAddToCart: () => void;
+}) {
+  return (
+    <Pressable style={[styles.hlCard, { width }]} onPress={onPress}>
+      <View style={styles.hlImageWrap}>
+        {product.image ? (
+          <Image source={{ uri: product.image }} style={styles.hlImage} resizeMode="cover" />
+        ) : (
+          <View style={styles.hlNoImage}>
+            <Icon name="auto-awesome" size={24} color={colors.secondary} />
+          </View>
+        )}
+        <View style={styles.hlBadge}>
+          <Badge label={product.holidaySpecial ? 'HOLIDAY' : product.seasonal ? 'SEASONAL' : product.discount ? 'SALE' : 'PROMO'} variant="flash" />
+        </View>
+      </View>
+      <View style={styles.hlBody}>
+        <Text style={styles.hlCategory} numberOfLines={1}>{product.category}</Text>
+        <Text style={styles.hlTitle} numberOfLines={1}>{product.title}</Text>
+        <View style={styles.hlFoot}>
+          <Text style={styles.hlPrice} numberOfLines={1}>{product.price}</Text>
+          <Pressable style={styles.hlBtn} onPress={onAddToCart}>
+            <Text style={styles.hlBtnText}>Add</Text>
+          </Pressable>
+        </View>
       </View>
     </Pressable>
   );
@@ -671,9 +1001,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryContainer,
     paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
   },
   statusBannerText: {
     ...typography.labelMd,
@@ -686,101 +1016,135 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.85,
   },
-  trustCard: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    backgroundColor: colors.white,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    padding: spacing.sm,
-  },
-  trustItem: {
-    width: '50%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.md,
-  },
-  trustIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surfaceContainerHigh,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xs,
-  },
-  trustBorderRight: {
-    borderRightWidth: 1,
-    borderRightColor: colors.borderLight,
-  },
-  trustBorderBottom: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  trustTitle: {
-    ...typography.labelMd,
-    color: colors.onSurface,
-    fontWeight: '700',
-  },
-  trustSubtitle: {
-    ...typography.labelSm,
-    color: colors.onSurfaceVariant,
-    marginTop: 1,
-  },
-  searchSection: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
+  heroSection: {
+    paddingTop: 0,
+    paddingHorizontal: 0,
+    marginTop: spacing.sm,
   },
   section: {
     marginTop: spacing.md,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
   },
-  searchBar: {
+  sectionHead: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm + 2,
     gap: spacing.sm,
+  },
+  sectionTitle: {
+    ...typography.labelLg,
+    color: colors.onSurface,
+    fontWeight: '700',
+  },
+  sectionSubtitle: {
+    ...typography.bodySm,
+    color: colors.outline,
+    marginTop: 1,
+  },
+  sectionLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  sectionLinkText: {
+    ...typography.labelMd,
+    color: colors.secondary,
+    fontWeight: '700',
+  },
+  sectorTile: {
+    aspectRatio: 1,
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.full,
-    paddingLeft: spacing.md,
-    paddingRight: spacing.xs,
-    paddingVertical: spacing.xs,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
   },
-  searchInput: {
-    flex: 1,
-    ...typography.bodyMd,
+  sectorIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainerLowest,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectorLabel: {
+    ...typography.labelSm,
     color: colors.onSurfaceVariant,
-    paddingVertical: spacing.sm,
-  },
-  searchBtn: {
-    backgroundColor: colors.secondaryContainer,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.full,
-  },
-  searchBtnText: {
-    ...typography.labelMd,
-    color: colors.onSecondary,
-    fontWeight: '700',
+    fontWeight: '600',
+    textAlign: 'center',
+    paddingHorizontal: 2,
   },
   dealsBadge: {
     marginLeft: spacing.sm,
   },
+  countdownPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.lg,
+    backgroundColor: colors.errorContainer,
+  },
+  countdownText: {
+    ...typography.labelSm,
+    color: colors.onErrorContainer,
+    fontWeight: '800',
+  },
+  dealTabs: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingRight: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  dealTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.md - 2,
+    paddingVertical: spacing.sm - 1,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    backgroundColor: colors.surfaceContainerLowest,
+  },
+  dealTabActive: {
+    backgroundColor: colors.secondaryContainer,
+    borderColor: colors.secondaryContainer,
+  },
+  dealTabText: {
+    ...typography.labelMd,
+    color: colors.onSurfaceVariant,
+  },
+  dealTabTextActive: {
+    color: colors.onSecondaryContainer,
+    fontWeight: '800',
+  },
+  dealTabCount: {
+    ...typography.labelSm,
+    color: colors.outline,
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.sm + 2,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  dealTabCountActive: {
+    color: colors.onSecondaryContainer,
+    backgroundColor: colors.secondaryContainer,
+  },
   featuredCard: {
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.xl,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
     overflow: 'hidden',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   featuredImageWrap: {
-    position: 'relative',
-    height: 180,
+    width: '100%',
+    backgroundColor: colors.surfaceContainerLow,
   },
   featuredImage: {
     width: '100%',
@@ -792,7 +1156,7 @@ const styles = StyleSheet.create({
     left: spacing.md,
   },
   featuredBody: {
-    padding: spacing.lg,
+    padding: spacing.md,
   },
   featuredCategory: {
     ...typography.labelMd,
@@ -802,7 +1166,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   featuredTitle: {
-    ...typography.headlineMd,
+    ...typography.headlineSm,
     color: colors.onSurface,
     marginBottom: spacing.md,
   },
@@ -812,7 +1176,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   featuredPrice: {
-    ...typography.headlineMd,
+    ...typography.headlineSm,
     color: colors.statusFlash,
     fontWeight: '700',
   },
@@ -822,7 +1186,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   cartIconBtn: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.secondaryContainer,
     padding: 10,
     borderRadius: radius.lg,
   },
@@ -836,36 +1200,36 @@ const styles = StyleSheet.create({
   },
   flashRow: {
     gap: spacing.gutter,
-    paddingRight: spacing.lg,
+    paddingRight: spacing.md,
     paddingBottom: spacing.sm,
   },
   flashCard: {
     width: '100%',
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.xl,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
     overflow: 'hidden',
   },
   flashImageWrap: {
     position: 'relative',
     overflow: 'hidden',
-    backgroundColor: colors.surfaceContainerHigh,
+    backgroundColor: colors.surfaceContainerLow,
+    padding: spacing.sm,
   },
   flashImage: {
     width: '100%',
-    height: 140,
-  },
-  flashImageSized: {
-    width: '100%',
+    height: 132,
+    borderRadius: radius.lg,
   },
   flashBadge: {
     position: 'absolute',
-    bottom: spacing.sm,
-    left: spacing.sm,
+    top: spacing.sm + 8,
+    left: spacing.sm + 8,
+    zIndex: 1,
   },
   flashBody: {
-    padding: spacing.lg,
+    padding: 10,
   },
   flashCategory: {
     ...typography.labelSm,
@@ -874,23 +1238,21 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   flashTitle: {
-    ...typography.headlineMd,
+    ...typography.bodyMd,
     color: colors.onSurface,
+    fontWeight: '600',
     marginTop: 2,
-    fontSize: 16,
-    lineHeight: 22,
   },
   flashPriceRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    marginTop: spacing.sm,
+    marginTop: spacing.sm - 2,
   },
   flashPrice: {
-    ...typography.headlineMd,
-    color: colors.statusFlash,
+    ...typography.headlineSm,
+    color: colors.secondary,
     fontWeight: '700',
-    fontSize: 17,
   },
   flashOriginalPrice: {
     ...typography.labelSm,
@@ -898,22 +1260,25 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
   },
   flashAddBtn: {
-    borderWidth: 1,
-    borderColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primaryContainer,
     borderRadius: radius.lg,
     paddingVertical: spacing.sm,
-    alignItems: 'center',
+    alignSelf: 'stretch',
     marginTop: spacing.sm,
   },
   flashAddText: {
     ...typography.labelSm,
-    color: colors.primary,
+    color: colors.onPrimary,
     fontWeight: '700',
+    textAlign: 'center',
   },
   flashEmptyCard: {
     width: '100%',
-    backgroundColor: colors.surfaceContainerHigh,
-    borderRadius: radius.xl,
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.xl,
@@ -923,7 +1288,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   flashEmptyTitle: {
-    ...typography.headlineMd,
+    ...typography.headlineSm,
     color: colors.onSurface,
     marginTop: spacing.sm,
   },
@@ -932,30 +1297,143 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
     marginTop: 2,
   },
-  promoCard: {
+  hlCard: {
     flexShrink: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.xl,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    padding: spacing.sm,
+    gap: spacing.sm,
+  },
+  hlImageWrap: {
+    width: 84,
+    aspectRatio: 1,
+    position: 'relative',
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.md,
     overflow: 'hidden',
   },
-  promoNoImage: {
+  hlImage: {
+    width: '100%',
+    height: '100%',
+  },
+  hlNoImage: {
     flex: 1,
-    height: 140,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceContainerHigh,
+    backgroundColor: colors.surfaceContainerLow,
   },
-  promoDesc: {
+  hlBadge: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    zIndex: 1,
+  },
+  hlBody: {
+    flex: 1,
+    alignSelf: 'stretch',
+    justifyContent: 'center',
+    paddingVertical: 2,
+  },
+  hlCategory: {
     ...typography.labelSm,
     color: colors.onSurfaceVariant,
-    marginTop: 4,
-    lineHeight: 16,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  hlTitle: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  hlFoot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  hlFootEnd: {
+    justifyContent: 'flex-end',
+  },
+  hlPrice: {
+    ...typography.headlineSm,
+    color: colors.secondary,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+  hlBtn: {
+    backgroundColor: colors.primaryContainer,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
+  },
+  hlBtnText: {
+    ...typography.labelSm,
+    color: colors.onPrimary,
+    fontWeight: '700',
+  },
+  bannerCard: {
+    flexShrink: 0,
+    position: 'relative',
+    height: 180,
+    borderRadius: radius.xl,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceContainerLow,
+  },
+  bannerImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
+  bannerNoImage: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceContainerLow,
+  },
+  bannerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'flex-end',
+    alignItems: 'flex-end',
+    padding: spacing.md,
+    backgroundColor: 'transparent',
+  },
+  bannerBadge: {
+    position: 'absolute',
+    top: spacing.md,
+    left: spacing.md,
+    zIndex: 1,
+  },
+  bannerCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: colors.secondary,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+  },
+  bannerCtaText: {
+    ...typography.labelSm,
+    color: colors.onPrimary,
+    fontWeight: '700',
   },
   brandRow: {
     gap: spacing.gutter,
-    paddingRight: spacing.lg,
+    paddingRight: spacing.md,
     paddingBottom: spacing.sm,
   },
   brandTile: {
@@ -964,7 +1442,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.surfaceContainerHigh,
     borderRadius: radius.lg,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.sm,
@@ -973,7 +1451,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.secondaryContainer,
+    backgroundColor: colors.surfaceContainerLow,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.sm,
@@ -990,61 +1468,255 @@ const styles = StyleSheet.create({
     marginTop: 2,
     textAlign: 'center',
   },
-  storeCard: {
-    width: 220,
-    flexShrink: 0,
+  hubList: {
+    gap: 10,
+  },
+  hubCard: {
     flexDirection: 'row',
-    gap: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.surfaceContainerHigh,
     borderRadius: radius.xl,
-    padding: spacing.md,
+    padding: spacing.md - 4,
   },
-  storeLogoWrap: {
-    width: 52,
-    height: 52,
+  hubLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md - 4,
+    flex: 1,
+  },
+  hubLogoWrap: {
+    width: 48,
+    height: 48,
     borderRadius: radius.lg,
-    backgroundColor: colors.surfaceContainerHigh,
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  storeLogo: {
+  hubLogo: {
     width: '100%',
     height: '100%',
   },
-  storeBody: {
+  hubLogoFallback: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hubBody: {
     flex: 1,
   },
-  storeName: {
-    ...typography.headlineMd,
-    color: colors.onSurface,
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  storeLocation: {
-    ...typography.labelSm,
-    color: colors.onSurfaceVariant,
-    marginTop: 1,
-  },
-  storeMeta: {
+  hubNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+  },
+  hubName: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+  hubMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 2,
+  },
+  hubRating: {
+    ...typography.bodySm,
+    color: colors.secondary,
+    fontWeight: '700',
+  },
+  hubMetaSuffix: {
+    ...typography.bodySm,
+    color: colors.outline,
+  },
+  hubRegion: {
+    ...typography.labelSm,
+    color: colors.onSecondaryFixedVariant,
+  },
+  hubVisitBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.primaryContainer,
+  },
+  hubVisitText: {
+    ...typography.labelMd,
+    color: colors.primaryContainer,
+  },
+  b2bCta: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.xl,
+    padding: spacing.md,
+    overflow: 'hidden',
+  },
+  b2bCtaTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  b2bCtaHead: {
+    flex: 1,
+  },
+  b2bCtaBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.primaryContainer,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.lg,
+  },
+  b2bCtaBadgeText: {
+    ...typography.labelSm,
+    color: colors.onPrimary,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  b2bCtaTitle: {
+    ...typography.headlineSm,
+    color: colors.onSurface,
     marginTop: spacing.sm,
   },
-  storeRating: {
+  b2bCtaDesc: {
+    ...typography.bodySm,
+    color: colors.outline,
+    marginTop: 4,
+    maxWidth: 250,
+  },
+  b2bCtaFoot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceContainer,
+    marginTop: spacing.md,
+    paddingTop: spacing.md - 2,
+  },
+  b2bCtaNote: {
     ...typography.labelSm,
+    color: colors.outline,
+    fontWeight: '600',
+  },
+  b2bCtaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primaryContainer,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.lg,
+  },
+  b2bCtaBtnText: {
+    ...typography.labelMd,
+    color: colors.onPrimary,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.md,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalSheet: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: radius.xl,
+    padding: spacing.md,
+    maxHeight: '82%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  modalTitle: {
+    ...typography.headlineSm,
+    color: colors.onSurface,
+    fontWeight: '700',
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  b2bStepRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  b2bStepNum: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  b2bStepNumText: {
+    ...typography.labelMd,
+    color: colors.onPrimary,
+    fontWeight: '800',
+  },
+  b2bStepBody: {
+    flex: 1,
+    paddingTop: 2,
+  },
+  b2bStepTitle: {
+    ...typography.bodyMd,
     color: colors.onSurface,
     fontWeight: '700',
   },
-  storeDot: {
-    ...typography.labelSm,
+  b2bStepDesc: {
+    ...typography.bodySm,
     color: colors.outline,
+    marginTop: 2,
   },
-  storeProducts: {
-    ...typography.labelSm,
-    color: colors.onSurfaceVariant,
+  b2bModalCta: {
+    justifyContent: 'center',
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  trustSection: {
+    marginTop: spacing.xl,
+    paddingHorizontal: spacing.md,
+  },
+  trustGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  trustItem: {
+    width: '48.5%',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    padding: 10,
+  },
+  trustBody: {
+    flex: 1,
+  },
+  trustTitle: {
+    ...typography.labelMd,
+    color: colors.onSurface,
+    fontWeight: '700',
+  },
+  trustSubtitle: {
+    ...typography.bodySm,
+    color: colors.outline,
+    fontSize: 11,
+    marginTop: 2,
   },
 });

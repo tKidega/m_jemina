@@ -362,7 +362,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryContainer,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
   },
@@ -687,7 +687,7 @@ const styles = StyleSheet.create({
   newsletter: {
     marginHorizontal: spacing.lg,
     marginTop: spacing.xl,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryContainer,
     borderRadius: radius.xl,
     alignItems: 'center',
     paddingVertical: spacing.xl,

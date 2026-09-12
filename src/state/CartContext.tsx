@@ -59,12 +59,15 @@ function groupByVendor(items: CartItem[]): VendorGroup[] {
   }
   return Array.from(map.entries()).map(([, groupItems]) => {
     const firstVendor = groupItems[0].product.vendor;
-    const deliveryFee = groupItems.reduce((sum, i) => sum + (i.product.deliveryFee ?? 0), 0);
+    const deliveryFee = groupItems.reduce(
+      (sum, i) => sum + ((i.product.deliveryFee ?? 0) + (i.product.shippingFee ?? 0)) * i.quantity,
+      0
+    );
     return {
       vendorId: firstVendor?.id ?? undefined,
       vendorName: firstVendor?.name ?? 'Jemina Official',
       items: groupItems,
-      deliveryFee: Math.max(deliveryFee, 10000),
+      deliveryFee,
     };
   });
 }

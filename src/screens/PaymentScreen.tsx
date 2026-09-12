@@ -113,12 +113,41 @@ export function PaymentScreen() {
 
   return (
     <View style={styles.root}>
-      <AppHeader title="Payment" showBack onBack={goBack} />
+      <AppHeader
+        title="Checkout & Payment"
+        showBack
+        onBack={goBack}
+        right={
+          <View style={styles.secureBadge}>
+            <Icon name="lock" size={14} color={colors.secondaryContainer} />
+            <Text style={styles.secureBadgeText}>ESCROW</Text>
+          </View>
+        }
+      />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Gateway card */}
+        {/* Stepper */}
+        <View style={styles.stepper}>
+          <View style={styles.stepItem}>
+            <View style={[styles.stepDot, styles.stepDotComplete]}><Icon name="check" size={14} color={colors.onPrimary} /></View>
+            <View>
+              <Text style={styles.stepEyebrow}>STEP 1</Text>
+              <Text style={styles.stepTitle}>Address</Text>
+            </View>
+          </View>
+          <View style={styles.stepConnector} />
+          <View style={styles.stepItem}>
+            <View style={styles.stepDotActive}><Text style={styles.stepNumber}>2</Text></View>
+            <View>
+              <Text style={[styles.stepEyebrow, styles.stepEyebrowActive]}>STEP 2</Text>
+              <Text style={styles.stepTitle}>Review & Pay</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Gateway + Amount */}
         <View style={styles.gatewayCard}>
           <View style={styles.gatewayIcon}>
-            <Icon name={info.icon} size={28} color={colors.onSecondary} />
+            <Icon name={info.icon} size={18} color={colors.secondary} />
           </View>
           <View style={styles.gatewayBody}>
             <Text style={styles.gatewayLabel}>Paying with</Text>
@@ -126,42 +155,63 @@ export function PaymentScreen() {
           </View>
         </View>
 
-        {/* Amount */}
-        <View style={styles.amountCard}>
-          <Text style={styles.amountLabel}>Payment Amount</Text>
-          <Text style={styles.amountValue}>{formatUGX(amount)}</Text>
-        </View>
-
         {loading ? (
           <View style={styles.statusCard}>
-            <Icon name="sync" size={24} color={colors.secondary} />
+            <View style={styles.statusIconCircle}>
+              <Icon name="sync" size={24} color={colors.secondary} />
+            </View>
             <Text style={styles.statusTitle}>Initiating payment...</Text>
-            <Text style={styles.statusSub}>Connecting to {info.label}.</Text>
+            <Text style={styles.statusSub}>Connecting securely to {info.label}. Your funds remain in escrow until delivery.</Text>
           </View>
         ) : error ? (
-          <View style={styles.errorCard}>
+          <View style={[styles.statusCard, styles.errorCard]}>
             <Icon name="error-outline" size={26} color={colors.error} />
-            <Text style={styles.errorTitle}>Payment not initiated</Text>
-            <Text style={styles.errorText}>{error}</Text>
+            <Text style={[styles.statusTitle, styles.errorTitle]}>Payment not initiated</Text>
+            <Text style={[styles.statusSub, styles.errorText]}>{error}</Text>
             <Button label="Retry" variant="primary" fullWidth onPress={initiate} style={styles.actionBtn} />
             <Button label="Go to My Orders" variant="outline" fullWidth onPress={() => navigate('Orders')} />
           </View>
         ) : result ? (
           <>
-            {/* Success / initiated */}
-            <View style={styles.statusCard}>
-              <Icon name={paid ? 'check-circle' : 'launch'} size={26} color={paid ? colors.statusSuccess : colors.secondary} />
+            {/* Payment requested / received */}
+            <View style={[styles.statusCard, paid && styles.paidCard]}>
+              <View style={[styles.statusIconCircle, paid && styles.paidIconCircle]}>
+                <Icon name={paid ? 'check-circle' : 'verified'} size={24} color={paid ? colors.onSecondary : colors.secondary} />
+              </View>
               <Text style={styles.statusTitle}>{paid ? 'Payment received' : 'Payment link ready'}</Text>
               <Text style={styles.statusSub}>
                 {paid
-                  ? 'Your payment has been confirmed. We\'re now processing your order.'
+                  ? 'Your payment has been confirmed and is locked in escrow. We\'re now processing your order.'
                   : paymentLink
-                    ? 'Complete your payment securely with your chosen gateway.'
+                    ? 'Complete your payment securely with your chosen gateway to release this order for dispatch.'
                     : 'Your payment is being processed. We\'ll update your order once confirmed.'}
               </Text>
             </View>
 
-            {/* Reference */}
+            {/* Settlement summary */}
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryHeader}>Settlement Summary</Text>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Payment Amount</Text>
+                <Text style={styles.summaryValue}>{formatUGX(amount)}</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, styles.summaryLabelFlex]}>
+                  Escrow & Verification Fee
+                </Text>
+                <Text style={styles.summaryValue}>Included</Text>
+              </View>
+              <View style={styles.summaryDivider} />
+              <View style={styles.totalRow}>
+                <View>
+                  <Text style={styles.totalLabel}>Total Payable</Text>
+                  <Text style={styles.totalSub}>Taxes & Logistics Handling Included</Text>
+                </View>
+                <Text style={styles.totalValue}>{formatUGX(amount)}</Text>
+              </View>
+            </View>
+
+            {/* Reference details */}
             <View style={styles.detailCard}>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Reference</Text>
@@ -170,24 +220,28 @@ export function PaymentScreen() {
                 </Text>
               </View>
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Amount</Text>
-                <Text style={styles.detailValue}>{formatUGX(amount)}</Text>
+                <Text style={styles.detailLabel}>Gateway</Text>
+                <Text style={styles.detailValue}>{info.label}</Text>
               </View>
               {status ? (
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Status</Text>
-                  <Text style={[styles.detailValue, paid ? styles.detailPaid : null]}>{status.status}</Text>
+                  <Text style={[styles.detailValue, paid ? styles.detailPaid : styles.detailPending]}>{status.status}</Text>
                 </View>
               ) : null}
             </View>
 
             {paymentLink ? (
               <Pressable style={styles.payNowBtn} onPress={openPaymentLink}>
-                <Icon name="lock" size={20} color={colors.onSecondary} />
-                <Text style={styles.payNowText}>Complete Payment</Text>
+                <Icon name="lock" size={18} color={colors.onSecondary} />
+                <Text style={styles.payNowText}>Complete Payment Securely</Text>
                 <Icon name="launch" size={18} color={colors.onSecondary} />
               </Pressable>
             ) : null}
+            <View style={styles.sslRow}>
+              <Icon name="verified" size={12} color={colors.secondary} />
+              <Text style={styles.sslText}>256-Bit SSL Encrypted Escrow Transaction</Text>
+            </View>
 
             <Button
               label={checking ? 'Checking...' : 'Check Payment Status'}
@@ -199,6 +253,15 @@ export function PaymentScreen() {
             <Button label="Go to My Orders" variant="ghost" fullWidth onPress={() => navigate('Orders')} />
           </>
         ) : null}
+
+        {/* Escrow guarantee */}
+        <View style={styles.escrowPanel}>
+          <Icon name="gavel" size={24} color={colors.primary} />
+          <Text style={styles.escrowText}>
+            <Text style={styles.escrowBold}>Northern Uganda Trade Escrow: </Text>
+            Payment is safely locked and only released to suppliers once cargo is inspected and accepted at dispatch address.
+          </Text>
+        </View>
       </ScrollView>
     </View>
   );
@@ -213,23 +276,102 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: spacing.lg,
+    padding: spacing.md,
     paddingBottom: spacing.xxl,
+    gap: spacing.sm,
+  },
+  secureBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(196,198,203,0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+  },
+  secureBadgeText: {
+    ...typography.labelSm,
+    color: colors.onPrimary,
+    letterSpacing: 1,
+    fontWeight: '700',
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHighest,
+    borderRadius: radius.lg,
+    padding: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  stepItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.surfaceContainerLowest,
+  },
+  stepDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.surfaceContainerHighest,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepDotComplete: {
+    backgroundColor: colors.primaryContainer,
+  },
+  stepDotActive: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.secondary,
+    borderWidth: 2,
+    borderColor: colors.secondaryFixed,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepNumber: {
+    ...typography.labelSm,
+    color: colors.onSecondary,
+    fontWeight: '700',
+  },
+  stepEyebrow: {
+    ...typography.labelSm,
+    color: colors.outline,
+  },
+  stepEyebrowActive: {
+    color: colors.secondary,
+  },
+  stepTitle: {
+    ...typography.labelMd,
+    color: colors.onSurface,
+  },
+  stepConnector: {
+    flex: 1,
+    height: 2,
+    backgroundColor: colors.secondary,
+    marginHorizontal: spacing.sm,
   },
   gatewayCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.primary,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHighest,
+    borderRadius: radius.lg,
+    padding: spacing.sm,
     marginBottom: spacing.md,
   },
   gatewayIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.secondaryFixed,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -237,80 +379,131 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   gatewayLabel: {
-    ...typography.labelMd,
-    color: colors.onPrimaryContainer,
+    ...typography.labelSm,
+    color: colors.outline,
   },
   gatewayName: {
-    ...typography.headlineMd,
-    color: colors.onPrimary,
+    ...typography.headlineSm,
+    color: colors.onSurface,
     fontWeight: '700',
-    marginTop: 2,
-  },
-  amountCard: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-  },
-  amountLabel: {
-    ...typography.labelMd,
-    color: colors.onSurfaceVariant,
-  },
-  amountValue: {
-    ...typography.headlineLg,
-    color: colors.secondary,
-    fontWeight: '700',
-    marginTop: 4,
+    marginTop: 1,
   },
   statusCard: {
     alignItems: 'center',
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: radius.xl,
-    padding: spacing.xl,
-    marginBottom: spacing.lg,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHighest,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  statusIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.secondaryFixed,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paidCard: {
+    borderColor: colors.secondaryContainer,
+    borderWidth: 2,
+  },
+  paidIconCircle: {
+    backgroundColor: colors.secondary,
   },
   statusTitle: {
-    ...typography.headlineMd,
-    color: colors.onSurface,
+    ...typography.headlineSm,
+    color: colors.primary,
     fontWeight: '700',
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
+    textAlign: 'center',
   },
   statusSub: {
-    ...typography.bodyMd,
+    ...typography.bodySm,
     color: colors.onSurfaceVariant,
     textAlign: 'center',
-    marginTop: spacing.sm,
-    lineHeight: 20,
+    marginTop: spacing.xs,
+    lineHeight: 18,
   },
   errorCard: {
-    alignItems: 'center',
     backgroundColor: colors.errorContainer,
-    borderRadius: radius.xl,
-    padding: spacing.xl,
-    marginBottom: spacing.lg,
+    borderColor: colors.error,
   },
   errorTitle: {
-    ...typography.headlineMd,
     color: colors.onErrorContainer,
-    fontWeight: '700',
-    marginTop: spacing.md,
   },
   errorText: {
-    ...typography.bodyMd,
     color: colors.onErrorContainer,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-    lineHeight: 20,
+  },
+  summaryCard: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHighest,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  summaryHeader: {
+    ...typography.labelLg,
+    color: colors.onSurface,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surfaceContainerHighest,
+    paddingBottom: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  summaryLabel: {
+    ...typography.bodySm,
+    color: colors.outline,
+  },
+  summaryLabelFlex: {
+    flex: 1,
+  },
+  summaryValue: {
+    ...typography.bodySm,
+    color: colors.onSurface,
+    fontWeight: '600',
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: colors.surfaceContainerHighest,
+    marginVertical: spacing.sm,
+  },
+  totalRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  totalLabel: {
+    ...typography.labelLg,
+    color: colors.onSurface,
+    fontWeight: '700',
+  },
+  totalSub: {
+    ...typography.labelSm,
+    color: colors.outline,
+    marginTop: 1,
+  },
+  totalValue: {
+    ...typography.headlineSm,
+    color: colors.secondary,
+    fontWeight: '700',
   },
   detailCard: {
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
+    borderColor: colors.surfaceContainerHighest,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.md,
   },
   detailRow: {
     flexDirection: 'row',
@@ -319,14 +512,14 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: colors.surfaceContainerHighest,
   },
   detailLabel: {
-    ...typography.bodyMd,
+    ...typography.bodySm,
     color: colors.onSurfaceVariant,
   },
   detailValue: {
-    ...typography.bodyMd,
+    ...typography.bodySm,
     color: colors.onSurface,
     fontWeight: '700',
     flexShrink: 1,
@@ -335,22 +528,61 @@ const styles = StyleSheet.create({
   detailPaid: {
     color: colors.statusSuccess,
   },
+  detailPending: {
+    color: colors.secondary,
+  },
   payNowBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.secondaryContainer,
+    backgroundColor: colors.secondary,
     borderRadius: radius.lg,
-    paddingVertical: spacing.lg,
-    marginBottom: spacing.md,
+    paddingVertical: spacing.md,
   },
   payNowText: {
-    ...typography.labelMd,
+    ...typography.labelLg,
     color: colors.onSecondary,
     fontWeight: '700',
   },
+  sslRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.lg,
+    alignSelf: 'center',
+  },
+  sslText: {
+    ...typography.labelSm,
+    color: colors.outline,
+    textAlign: 'center',
+  },
   actionBtn: {
     marginBottom: spacing.md,
+    marginTop: spacing.sm,
+  },
+  escrowPanel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHighest,
+    padding: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  escrowText: {
+    ...typography.bodySm,
+    color: colors.onSurfaceVariant,
+    lineHeight: 18,
+    flex: 1,
+  },
+  escrowBold: {
+    color: colors.onSurface,
+    fontWeight: '700',
   },
 });
