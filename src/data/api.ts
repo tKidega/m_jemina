@@ -1306,6 +1306,7 @@ export async function apiVendorChatNotify(
 // ---------------------------------------------------------------------------
 
 export type ApiPromotionPlacement =
+  | 'banner'
   | 'seasonal'
   | 'popular'
   | 'new_arrivals'

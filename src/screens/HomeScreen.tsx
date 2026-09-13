@@ -314,8 +314,8 @@ export function HomeScreen() {
 
   const stores = liveVendors.length > 0 ? liveVendors : DEFAULT_STORES;
   const jeminaStore = stores.find(s => s.name.toLowerCase().includes('jemina')) ?? DEFAULT_STORES[0];
-  const bannerPromos = promotions.filter(p => (p.type ?? '').toLowerCase() === 'banner');
-  const regularPromos = promotions.filter(p => (p.type ?? '').toLowerCase() !== 'banner');
+  const bannerPromos = promotions.filter(p => (p.placement ?? '').toLowerCase() === 'banner');
+  const regularPromos = promotions.filter(p => (p.placement ?? '').toLowerCase() !== 'banner');
 
   const featuredProduct = featuredProducts[0];
   const smallProducts = flashSaleProducts.slice(0, 8);
@@ -926,11 +926,7 @@ function PromoBannerCard({
       )}
       <View style={styles.bannerOverlay}>
         <View style={styles.bannerBadge}>
-          <Badge label={(promo.type ?? 'BANNER').toUpperCase()} variant="flash" />
-        </View>
-        <View style={styles.bannerCta}>
-          <Text style={styles.bannerCtaText}>View Offer</Text>
-          <Icon name="chevron-right" size={14} color={colors.onPrimary} />
+          <Badge label={(promo.placement ?? 'BANNER').toUpperCase()} variant="flash" />
         </View>
       </View>
     </Pressable>
@@ -1416,20 +1412,6 @@ const styles = StyleSheet.create({
     top: spacing.md,
     left: spacing.md,
     zIndex: 1,
-  },
-  bannerCta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    backgroundColor: colors.secondary,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-  },
-  bannerCtaText: {
-    ...typography.labelSm,
-    color: colors.onPrimary,
-    fontWeight: '700',
   },
   brandRow: {
     gap: spacing.gutter,
