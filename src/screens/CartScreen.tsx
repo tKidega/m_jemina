@@ -40,12 +40,15 @@ export function CartScreen() {
     }
   }, [refresh]);
 
-  const cartTotal = subtotal + totalDeliveryFees + PLATFORM_ESCROW_FEE;
+  const totalShippingFees = vendorGroups.reduce((sum, g) => sum + g.shippingFee, 0);
+  const effectiveDeliveryFees = hubPickup ? 0 : totalDeliveryFees;
+  const cartTotal = subtotal + totalShippingFees + effectiveDeliveryFees + PLATFORM_ESCROW_FEE;
 
   return (
     <View style={styles.root}>
       <AppHeader
-        title={`Shopping Cart (${itemCount} ${itemCount === 1 ? 'item' : 'items'})`}
+        title={`Cart (${itemCount} ${itemCount === 1 ? 'item' : 'items'})`}
+        titleStyle={styles.headerTitle}
         right={
           itemCount > 0 ? (
             <Pressable onPress={clearCart} hitSlop={6}>
@@ -115,7 +118,12 @@ export function CartScreen() {
                       <Text style={styles.hubBadgeText}>{vendorHubLabel(group.vendorName)}</Text>
                     </View>
                   </View>
-                  <Text style={styles.vendorFee}>Fee: {formatUGX(group.deliveryFee)}</Text>
+                  <Text style={styles.vendorFee} numberOfLines={1}>
+                    {group.shippingFee > 0 ? `Ship: ${formatUGX(group.shippingFee)}` : ''}
+                    {group.shippingFee > 0 && group.deliveryFee > 0 ? ' · ' : ''}
+                    {group.deliveryFee > 0 ? `Del: ${formatUGX(hubPickup ? 0 : group.deliveryFee)}` : ''}
+                    {group.shippingFee === 0 && group.deliveryFee === 0 ? 'Free shipping & delivery' : ''}
+                  </Text>
                 </View>
 
                 {group.items.map((item, idx) => (
@@ -180,9 +188,15 @@ export function CartScreen() {
                   <Text style={styles.summaryLabel}>Items Subtotal ({itemCount} items, {vendorGroups.length} {vendorGroups.length === 1 ? 'vendor' : 'vendors'})</Text>
                   <Text style={styles.summaryValue}>{formatUGX(subtotal)}</Text>
                 </View>
+                {totalShippingFees > 0 ? (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Shipping (Vendor → JEMINA Hub)</Text>
+                    <Text style={styles.summaryValue}>{formatUGX(totalShippingFees)}</Text>
+                  </View>
+                ) : null}
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Combined Delivery Fees</Text>
-                  <Text style={styles.summaryValue}>{formatUGX(totalDeliveryFees)}</Text>
+                  <Text style={styles.summaryLabel}>Delivery (Hub → You){hubPickup ? ' — Self Pickup' : ''}</Text>
+                  <Text style={[styles.summaryValue, hubPickup && styles.summaryFree]}>{hubPickup ? 'FREE' : formatUGX(effectiveDeliveryFees)}</Text>
                 </View>
                 <View style={styles.summaryRow}>
                   <View style={styles.summaryLabelRow}>
@@ -243,8 +257,11 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
     gap: spacing.md,
   },
+  headerTitle: {
+    ...typography.headlineSm,
+  },
   headerClear: {
-    ...typography.labelMd,
+    ...typography.labelSm,
     color: colors.secondaryFixedDim,
     fontWeight: '700',
   },
@@ -513,6 +530,10 @@ const styles = StyleSheet.create({
     ...typography.bodySm,
     color: colors.onSurface,
     fontWeight: '600',
+  },
+  summaryFree: {
+    color: colors.statusSuccess,
+    fontWeight: '700',
   },
   summaryTotalRow: {
     flexDirection: 'row',

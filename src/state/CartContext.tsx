@@ -22,6 +22,7 @@ export interface VendorGroup {
   vendorName: string;
   items: CartItem[];
   deliveryFee: number;
+  shippingFee: number;
 }
 
 interface CartContextValue {
@@ -60,7 +61,11 @@ function groupByVendor(items: CartItem[]): VendorGroup[] {
   return Array.from(map.entries()).map(([, groupItems]) => {
     const firstVendor = groupItems[0].product.vendor;
     const deliveryFee = groupItems.reduce(
-      (sum, i) => sum + ((i.product.deliveryFee ?? 0) + (i.product.shippingFee ?? 0)) * i.quantity,
+      (sum, i) => sum + (i.product.deliveryFee ?? 0) * i.quantity,
+      0
+    );
+    const shippingFee = groupItems.reduce(
+      (sum, i) => sum + (i.product.shippingFee ?? 0) * i.quantity,
       0
     );
     return {
@@ -68,6 +73,7 @@ function groupByVendor(items: CartItem[]): VendorGroup[] {
       vendorName: firstVendor?.name ?? 'Jemina Official',
       items: groupItems,
       deliveryFee,
+      shippingFee,
     };
   });
 }

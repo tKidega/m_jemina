@@ -19,6 +19,7 @@ import { HomeScreen } from './src/screens/HomeScreen';
 import { MarketplaceScreen } from './src/screens/MarketplaceScreen';
 import { ProductDetailsScreen } from './src/screens/ProductDetailsScreen';
 import { ProductInquiryScreen } from './src/screens/ProductInquiryScreen';
+import { MyInquiriesScreen } from './src/screens/MyInquiriesScreen';
 import { VendorProfileScreen } from './src/screens/VendorProfileScreen';
 import { CartScreen } from './src/screens/CartScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -27,6 +28,7 @@ import { RegisterScreen } from './src/screens/RegisterScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { CheckoutScreen } from './src/screens/CheckoutScreen';
 import { OrdersScreen } from './src/screens/OrdersScreen';
+import { OrderConfirmationScreen } from './src/screens/OrderConfirmationScreen';
 import { PaymentScreen } from './src/screens/PaymentScreen';
 import { AboutScreen } from './src/screens/AboutScreen';
 import { ServicesScreen } from './src/screens/ServicesScreen';
@@ -54,6 +56,9 @@ function Router() {
 
   if (route === 'Checkout') {
     return <CheckoutScreen />;
+  }
+  if (route === 'OrderConfirmation') {
+    return <OrderConfirmationScreen />;
   }
   if (route === 'Orders') {
     return <OrdersScreen />;
@@ -129,6 +134,9 @@ function Router() {
   }
   if (route === 'ProductInquiry') {
     return <ProductInquiryScreen />;
+  }
+  if (route === 'MyInquiries') {
+    return <MyInquiriesScreen />;
   }
   if (route === 'VendorProfile') {
     return <VendorProfileScreen />;

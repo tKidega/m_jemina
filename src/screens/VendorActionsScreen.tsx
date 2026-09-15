@@ -274,6 +274,36 @@ export function VendorActionsScreen() {
           </View>
         )}
 
+        <View style={[styles.card, styles.subscriptionCard]}>
+          <View style={styles.subscriptionHeader}>
+            <Icon name="verified" size={20} color={colors.secondary} />
+            <Text style={styles.cardTitle}>Starter Plan</Text>
+            <View style={styles.planBadge}>
+              <Text style={styles.planBadgeText}>FREE</Text>
+            </View>
+          </View>
+          <Text style={styles.cardText}>
+            You're registering with the Starter plan — included at no cost. Get started with basic store features and upgrade anytime as your business grows.
+          </Text>
+          <View style={styles.planFeatures}>
+            <View style={styles.planFeatureRow}>
+              <Icon name="check-circle" size={16} color={colors.statusSuccess} />
+              <Text style={styles.planFeatureText}>Basic e-Store setup</Text>
+            </View>
+            <View style={styles.planFeatureRow}>
+              <Icon name="check-circle" size={16} color={colors.statusSuccess} />
+              <Text style={styles.planFeatureText}>List up to 50 products</Text>
+            </View>
+            <View style={styles.planFeatureRow}>
+              <Icon name="check-circle" size={16} color={colors.statusSuccess} />
+              <Text style={styles.planFeatureText}>Standard support</Text>
+            </View>
+          </View>
+          <Text style={styles.planUpgradeHint}>
+            Upgrade to Pro or Enterprise for more products, priority placement, and advanced analytics.
+          </Text>
+        </View>
+
         <View style={[styles.card, !accepted && styles.cardMuted]}>
           <Text style={styles.cardTitle}>2. Register Your e-Store</Text>
           <Text style={styles.cardText}>No credit card required. Setup in 2 minutes.</Text>
@@ -499,6 +529,46 @@ const styles = StyleSheet.create({
   },
   cardBtn: {
     marginTop: spacing.md,
+  },
+  subscriptionCard: {
+    borderColor: colors.secondary,
+    borderWidth: 1.5,
+  },
+  subscriptionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  planBadge: {
+    backgroundColor: colors.secondary,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    marginLeft: 'auto',
+  },
+  planBadgeText: {
+    ...typography.labelSm,
+    color: colors.onSecondary,
+    fontWeight: '700',
+  },
+  planFeatures: {
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  planFeatureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  planFeatureText: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+  },
+  planUpgradeHint: {
+    ...typography.bodySm,
+    color: colors.onSurfaceVariant,
+    marginTop: spacing.sm,
+    fontStyle: 'italic',
   },
   warningCard: {
     flexDirection: 'row',

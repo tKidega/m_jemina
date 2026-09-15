@@ -16,9 +16,10 @@ interface HeaderProps {
 	onMenu?: () => void;
 	right?: React.ReactNode;
 	style?: ViewStyle;
+	titleStyle?: object;
 }
 
-export function AppHeader({ title = 'JEMINA', showBack, onBack, onMenu, right, style }: HeaderProps) {
+export function AppHeader({ title = 'JEMINA', showBack, onBack, onMenu, right, style, titleStyle }: HeaderProps) {
 	const insets = useSafeAreaInsets();
 	const { openSidebar } = useNavigation();
 	const handleMenu = onMenu ?? openSidebar;
@@ -35,7 +36,7 @@ export function AppHeader({ title = 'JEMINA', showBack, onBack, onMenu, right, s
 						<Icon name="menu" size={26} color={colors.onPrimary} />
 					</Pressable>
 				)}
-				<Text style={styles.title}>{title}</Text>
+				<Text style={[styles.title, titleStyle]}>{title}</Text>
 			</View>
 			<View style={styles.right}>{right ?? <HeaderActions />}</View>
 		</View>
@@ -107,7 +108,7 @@ const styles = StyleSheet.create({
 	right: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		gap: spacing.md,
+		gap: spacing.sm,
 	},
 	iconBtn: {
 		padding: 9,

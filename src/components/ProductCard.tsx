@@ -51,6 +51,10 @@ export interface Product {
   handmade?: boolean;
   deliveryFee?: number;
   shippingFee?: number;
+  sku?: string;
+  quality?: string;
+  productType?: string;
+  originCountry?: string;
   actionLabel?: string;
   actionVariant?: 'addToCart' | 'inquiry';
 }

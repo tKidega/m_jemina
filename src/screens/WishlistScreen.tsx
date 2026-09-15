@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppHeader, HeaderNotificationButton, HeaderCartButton } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
@@ -8,7 +8,7 @@ import { useAuth } from '../state/AuthContext';
 import { useCart } from '../state/CartContext';
 import { useWishlist } from '../state/WishlistContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { apiGetWishlist, ApiWishlistItem } from '../data/api';
+import { apiGetWishlist, ApiWishlistItem, absoluteUrl } from '../data/api';
 import { formatUGX, Product } from '../components/ProductCard';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -119,6 +119,7 @@ export function WishlistScreen() {
       {loading ? (
         <View style={styles.loading}>
           <ActivityIndicator size="large" color={colors.secondary} />
+          <Text style={styles.loadingText}>Loading your saved items...</Text>
         </View>
       ) : items.length === 0 ? (
         <EmptyState
@@ -134,44 +135,59 @@ export function WishlistScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
           }
         >
-          <View style={styles.itemsHeader}>
-            <Text style={styles.itemsHeaderText}>
-              {items.length} {items.length === 1 ? 'item' : 'items'} saved
-            </Text>
+          <View style={styles.headerRow}>
+            <View style={styles.headerLeft}>
+              <Icon name="favorite" size={20} color={colors.secondary} />
+              <Text style={styles.headerCount}>
+                {items.length} {items.length === 1 ? 'item' : 'items'} saved
+              </Text>
+            </View>
+            <Pressable style={styles.clearAllBtn} onPress={() => {
+              Alert.alert('Clear Wishlist', 'Remove all items from your wishlist?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Clear All', style: 'destructive', onPress: async () => {
+                  for (const item of items) {
+                    await handleRemove(item.product.id);
+                  }
+                }},
+              ]);
+            }}>
+              <Text style={styles.clearAllText}>Clear All</Text>
+            </Pressable>
           </View>
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {error ? (
+            <View style={styles.errorBox}>
+              <Icon name="info" size={16} color={colors.statusFlash} />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
           {items.map(item => {
             const product = wishlistItemToProduct(item);
+            const hasDiscount = item.product.discounted_price != null && item.product.discounted_price < item.product.price;
+            const discountPct = hasDiscount ? Math.round(((item.product.price - (item.product.discounted_price as number)) / item.product.price) * 100) : 0;
+            const imageUrl = product.image ? absoluteUrl(product.image) ?? product.image : undefined;
             return (
-              <View key={item.id} style={styles.item}>
+              <View key={item.id} style={styles.card}>
                 <Pressable
-                  style={styles.itemImageWrap}
+                  style={styles.cardImageWrap}
                   onPress={() => navigate('ProductDetails', { product })}
                 >
-                  {product.image ? (
-                    <Image source={{ uri: product.image }} style={styles.itemImage} resizeMode="cover" />
+                  {imageUrl ? (
+                    <Image source={{ uri: imageUrl }} style={styles.cardImage} resizeMode="cover" />
                   ) : (
-                    <View style={[styles.itemImage, styles.imagePlaceholder]}>
-                      <Icon name="store" size={28} color={colors.outlineVariant} />
+                    <View style={[styles.cardImage, styles.imagePlaceholder]}>
+                      <Icon name="store" size={32} color={colors.outlineVariant} />
                     </View>
                   )}
-                </Pressable>
-                <View style={styles.itemBody}>
-                  <Text style={styles.itemTitle} numberOfLines={2}>{item.product.name}</Text>
-                  <Text style={styles.itemPrice}>{formatUGX(item.product.price)}</Text>
-                  {product.originalPrice ? (
-                    <Text style={styles.itemOriginal}>{product.originalPrice}</Text>
+                  {hasDiscount ? (
+                    <View style={styles.discountBadge}>
+                      <Text style={styles.discountText}>-{discountPct}%</Text>
+                    </View>
                   ) : null}
-                  <View style={styles.itemActions}>
-                    <Button
-                      label="Add to Cart"
-                      variant="primary"
-                      icon="add-shopping-cart"
-                      style={styles.itemBtn}
-                      onPress={() => {
-                        addItem(product, 1);
-                      }}
-                    />
+                </Pressable>
+                <View style={styles.cardBody}>
+                  <View style={styles.cardTop}>
+                    <Text style={styles.cardTitle} numberOfLines={2}>{item.product.name}</Text>
                     <Pressable
                       style={styles.removeBtn}
                       onPress={() => handleRemove(item.product.id)}
@@ -179,16 +195,44 @@ export function WishlistScreen() {
                       hitSlop={8}
                     >
                       <Icon
-                        name={removing === item.product.id ? 'sync' : 'delete-outline'}
+                        name={removing === item.product.id ? 'sync' : 'favorite'}
                         size={20}
-                        color={colors.outline}
+                        color={colors.secondary}
                       />
                     </Pressable>
                   </View>
+                  {item.product.rating ? (
+                    <View style={styles.ratingRow}>
+                      <Icon name="star" size={14} color={colors.secondary} />
+                      <Text style={styles.ratingText}>{item.product.rating.toFixed(1)}</Text>
+                    </View>
+                  ) : null}
+                  <View style={styles.priceRow}>
+                    <Text style={styles.price}>{formatUGX(item.product.price)}</Text>
+                    {hasDiscount && item.product.discounted_price != null ? (
+                      <Text style={styles.originalPrice}>{formatUGX(item.product.price)}</Text>
+                    ) : null}
+                  </View>
+                  <Button
+                    label="Add to Cart"
+                    variant="primary"
+                    icon="add-shopping-cart"
+                    fullWidth
+                    style={styles.addBtn}
+                    onPress={() => addItem(product, 1)}
+                  />
                 </View>
               </View>
             );
           })}
+          <View style={styles.browseMore}>
+            <Button
+              label="Browse Marketplace"
+              variant="outline"
+              fullWidth
+              onPress={() => navigate('Marketplace')}
+            />
+          </View>
         </ScrollView>
       )}
     </View>
@@ -204,82 +248,150 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: spacing.lg,
+    padding: spacing.md,
     paddingBottom: spacing.xxl,
   },
-  itemsHeader: {
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: spacing.md,
   },
-  itemsHeaderText: {
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  headerCount: {
     ...typography.bodyMd,
     color: colors.onSurfaceVariant,
     fontWeight: '600',
   },
-  item: {
+  clearAllBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+  },
+  clearAllText: {
+    ...typography.labelMd,
+    color: colors.outline,
+    fontWeight: '600',
+  },
+  card: {
     flexDirection: 'row',
-    gap: spacing.md,
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.surfaceContainerHigh,
     borderRadius: radius.xl,
-    padding: spacing.md,
     marginBottom: spacing.md,
-  },
-  itemImageWrap: {
-    width: 96,
-    height: 96,
-    borderRadius: radius.lg,
     overflow: 'hidden',
-    backgroundColor: colors.surfaceContainerHigh,
   },
-  itemImage: {
-    width: '100%',
-    height: '100%',
+  cardImageWrap: {
+    width: 120,
+    height: 'auto',
+    backgroundColor: colors.surfaceContainerLow,
+  },
+  cardImage: {
+    width: 120,
+    height: 140,
   },
   imagePlaceholder: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  itemBody: {
-    flex: 1,
+  discountBadge: {
+    position: 'absolute',
+    top: spacing.sm,
+    left: spacing.sm,
+    backgroundColor: colors.statusFlash,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
   },
-  itemTitle: {
-    ...typography.bodyLg,
+  discountText: {
+    ...typography.labelSm,
+    color: colors.white,
+    fontWeight: '700',
+    fontSize: 10,
+  },
+  cardBody: {
+    flex: 1,
+    padding: spacing.md,
+    justifyContent: 'space-between',
+  },
+  cardTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  cardTitle: {
+    ...typography.bodyMd,
     color: colors.onSurface,
     fontWeight: '700',
+    flex: 1,
+    lineHeight: 20,
   },
-  itemPrice: {
-    ...typography.headlineMd,
+  removeBtn: {
+    padding: 4,
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: spacing.xs,
+  },
+  ratingText: {
+    ...typography.labelSm,
     color: colors.secondary,
     fontWeight: '700',
-    marginTop: spacing.sm,
   },
-  itemOriginal: {
-    ...typography.labelSm,
-    color: colors.onSurfaceVariant,
-    textDecorationLine: 'line-through',
-    marginTop: 2,
-  },
-  itemActions: {
+  priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     marginTop: spacing.sm,
   },
-  itemBtn: {
-    flex: 1,
+  price: {
+    ...typography.headlineSm,
+    color: colors.secondary,
+    fontWeight: '800',
   },
-  removeBtn: {
-    padding: spacing.sm,
+  originalPrice: {
+    ...typography.bodySm,
+    color: colors.outline,
+    textDecorationLine: 'line-through',
+  },
+  addBtn: {
+    marginTop: spacing.sm,
   },
   loading: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: spacing.md,
+  },
+  loadingText: {
+    ...typography.bodyMd,
+    color: colors.onSurfaceVariant,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: 'rgba(255,107,107,0.1)',
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
   },
   errorText: {
     ...typography.bodyMd,
     color: colors.statusFlash,
-    marginBottom: spacing.md,
+    flex: 1,
+  },
+  browseMore: {
+    marginTop: spacing.md,
   },
 });

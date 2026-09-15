@@ -6,7 +6,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -131,7 +130,6 @@ export function MarketplaceScreen() {
     error,
     refresh,
   } = useCatalog();
-  const [searchText, setSearchText] = useState('');
   const [activeFilter, setActiveFilter] = useState(0);
   const [liveVendors, setLiveVendors] = useState<StoreData[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -171,13 +169,6 @@ export function MarketplaceScreen() {
   }, [refresh, loadVendors]);
 
   const stores = liveVendors.length > 0 ? liveVendors : DEFAULT_STORES;
-
-  const runSearch = () => {
-    const query = searchText.trim();
-    if (query) {
-      navigate('SearchResults', { query });
-    }
-  };
 
   const isB2B = (p: Product) =>
     Boolean(p.isWholesale) || Boolean(p.bulkOrder) || Boolean(p.corporateReady) || Boolean(p.enterpriseSolution) ||
@@ -273,35 +264,6 @@ export function MarketplaceScreen() {
             <Text style={styles.hubBarChangeText}>Change</Text>
             <Icon name="expand-more" size={14} color={colors.secondaryFixedDim} />
           </Pressable>
-        </View>
-
-        {/* Search B2B & wholesale */}
-        <View style={styles.searchSection}>
-          <View style={styles.searchRow}>
-            <View style={styles.searchBox}>
-              <Icon name="search" size={20} color={colors.outline} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search wholesale seeds, solar, tools, MOQ..."
-                placeholderTextColor={colors.onSurfaceVariant}
-                value={searchText}
-                onChangeText={setSearchText}
-                returnKeyType="search"
-                onSubmitEditing={runSearch}
-              />
-            </View>
-            <Pressable style={styles.searchBtn} onPress={runSearch}>
-              <Text style={styles.searchBtnText}>Search</Text>
-            </Pressable>
-          </View>
-          <View style={styles.searchAssurance}>
-            <Text style={styles.searchAssuranceText}>
-              <Icon name="verified" size={14} color={colors.secondary} /> Regional Tax Invoice &amp; Waybills Guaranteed
-            </Text>
-            <Pressable onPress={() => navigate('ProductInquiry', { product: wholesaleLots[0] ?? b2bProducts[0] })}>
-              <Text style={styles.bulkRfqText}>Bulk RFQ</Text>
-            </Pressable>
-          </View>
         </View>
 
         {/* B2B hero carousel */}
@@ -528,87 +490,35 @@ export function MarketplaceScreen() {
                 />
               </View>
             ))}
-            <View style={[styles.productCardWrap, { width: flashCardWidth }]}>
-              <Pressable
-                style={styles.seeAllCard}
-                onPress={() => navigate('AllProducts', { title: 'Flash Sales', subtitle: 'Limited time offers, act fast!', products: flashDeals })}
-              >
-                <View style={[styles.flashImageWrap, styles.seeAllImage]}>
-                  <View style={styles.seeAllBadge}>
-                    <Icon name="bolt" size={36} color={colors.statusFlash} />
-                  </View>
-                </View>
-                <View style={styles.flashBody}>
-                  <Text style={styles.flashCategory}>Flash Sales</Text>
-                  <Text style={styles.flashTitle} numberOfLines={1}>View all flash deals</Text>
-                  <View style={styles.flashPriceRow}>
-                    <Text style={styles.flashPrice}>{flashDeals.length} Deals</Text>
-                  </View>
-                  <View style={styles.flashAddBtn}>
-                    <Text style={styles.flashAddText}>View All</Text>
-                  </View>
-                </View>
-              </Pressable>
-            </View>
           </ScrollView>
         </View>
 
-        {/* Featured stores */}
-        <View style={styles.section}>
-          <SectionHeader icon="verified" title="Featured Stores" subtitle="Top rated vendors and brands." />
-          {stores.map(s => (
-            <Pressable key={s.id} style={styles.storeCard} onPress={() => navigate('VendorProfile', { vendorId: s.vendorId, vendorName: s.name })}>
-              <View style={styles.storeHeader}>
-                <View style={styles.storeIconWrap}>
-                  <Icon name={s.icon} size={30} color={s.accent} />
-                </View>
-                <View style={styles.storeInfo}>
-                  <Text style={styles.storeName}>{s.name}</Text>
-                  <View style={styles.ratingRow}>
-                    <Icon name="star" size={14} color={colors.secondary} />
-                    <Text style={styles.rating}>{s.rating}</Text>
-                    <Text style={styles.reviews}>Rating • {s.products} Products</Text>
-                  </View>
-                </View>
-                <View style={styles.openBadge}>
-                  <View style={styles.openDot} />
-                  <Text style={styles.openText}>Open</Text>
-                </View>
+        {/* Become a vendor CTA — bottom of screen */}
+        <View style={styles.vendorCtaSection}>
+          <View style={styles.vendorCtaCard}>
+            <View style={styles.vendorCtaTop}>
+              <View style={styles.vendorCtaIcon}>
+                <Icon name="storefront" size={28} color={colors.onPrimary} />
               </View>
-              <Text style={styles.storeDesc}>{s.description}</Text>
-              <View style={styles.tagRow}>
-                {s.tags.map(t => (
-                  <View key={t} style={styles.tag}>
-                    <Text style={styles.tagText}>{t}</Text>
-                  </View>
-                ))}
+              <View style={styles.vendorCtaBadge}>
+                <Icon name="verified" size={12} color={colors.secondary} />
+                <Text style={styles.vendorCtaBadgeText}>Sellers Welcome</Text>
               </View>
-              <Pressable
-                style={[styles.storeBtn, { backgroundColor: s.accent }]}
-                onPress={() => navigate('VendorProfile', { vendorId: s.vendorId, vendorName: s.name })}
-              >
-                <Text style={styles.storeBtnText}>Visit Store</Text>
-                <Icon name="launch" size={16} color={colors.onPrimary} />
-              </Pressable>
-            </Pressable>
-          ))}
-        </View>
-
-        {/* Newsletter */}
-        <View style={styles.newsletter}>
-          <Text style={styles.newsletterTitle}>Stay Ahead of the Curve</Text>
-          <Text style={styles.newsletterSubtitle}>
-            Get deals, promotions, and new arrivals straight to your inbox.
-          </Text>
-          <View style={styles.newsletterForm}>
-            <TextInput
-              style={styles.newsletterInput}
-              placeholder="Enter your email address"
-              placeholderTextColor={colors.onPrimaryContainer}
-              keyboardType="email-address"
-            />
-            <Pressable style={styles.subscribeBtn} onPress={() => {}}>
-              <Text style={styles.subscribeBtnText}>Subscribe</Text>
+            </View>
+            <Text style={styles.vendorCtaTitle}>Become a Vendor</Text>
+            <Text style={styles.vendorCtaDesc}>
+              Open your own e-Store on JEMINA and reach thousands of buyers and businesses across Northern Uganda.
+            </Text>
+            <View style={styles.vendorCtaChips}>
+              {['Free to register', 'Verified vendors', 'B2B wholesale reach'].map(item => (
+                <View key={item} style={styles.vendorCtaChip}>
+                  <Text style={styles.vendorCtaChipText}>{item}</Text>
+                </View>
+              ))}
+            </View>
+            <Pressable style={styles.vendorCtaBtn} onPress={() => navigate('VendorActions')}>
+              <Text style={styles.vendorCtaBtnText}>Start Selling on JEMINA</Text>
+              <Icon name="arrow-forward" size={18} color={colors.primaryContainer} />
             </Pressable>
           </View>
         </View>
@@ -773,65 +683,92 @@ const styles = StyleSheet.create({
     color: colors.secondaryFixedDim,
     fontWeight: '700',
   },
-  searchSection: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.surfaceContainerHigh,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-  },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  searchBox: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: colors.outline,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.md,
-  },
-  searchInput: {
-    flex: 1,
-    ...typography.bodyMd,
-    color: colors.onSurface,
-    paddingVertical: 12,
-  },
-  searchBtn: {
-    backgroundColor: colors.secondaryContainer,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    borderRadius: radius.lg,
-  },
-  searchBtnText: {
-    ...typography.labelMd,
-    color: colors.onSecondaryContainer,
-    fontWeight: '700',
-  },
-  searchAssurance: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-    marginTop: spacing.sm,
-  },
-  searchAssuranceText: {
-    ...typography.bodySm,
-    color: colors.outline,
-  },
-  bulkRfqText: {
-    ...typography.labelSm,
-    color: colors.secondary,
-    fontWeight: '700',
-  },
   heroSection: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
+  },
+  vendorCtaSection: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+  },
+  vendorCtaCard: {
+    backgroundColor: colors.primaryContainer,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  vendorCtaTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  vendorCtaIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vendorCtaBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.surfaceContainerHigh,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+  },
+  vendorCtaBadgeText: {
+    ...typography.labelSm,
+    color: colors.onSurfaceVariant,
+    fontWeight: '700',
+  },
+  vendorCtaTitle: {
+    ...typography.headlineMd,
+    color: colors.onPrimary,
+    fontWeight: '800',
+    marginTop: spacing.md,
+  },
+  vendorCtaDesc: {
+    ...typography.bodyMd,
+    color: colors.onPrimaryContainer,
+    lineHeight: 21,
+    marginTop: 2,
+  },
+  vendorCtaChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  vendorCtaChip: {
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 4,
+  },
+  vendorCtaChipText: {
+    ...typography.labelSm,
+    color: colors.secondary,
+    fontWeight: '700',
+    fontSize: 10,
+  },
+  vendorCtaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.secondary,
+    borderRadius: radius.lg,
+    height: 46,
+    marginTop: spacing.md,
+  },
+  vendorCtaBtnText: {
+    ...typography.labelLg,
+    color: colors.onSecondary,
+    fontWeight: '700',
   },
   statsStrip: {
     flexDirection: 'row',
@@ -1415,26 +1352,6 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: '700',
   },
-  seeAllCard: {
-    width: '100%',
-    backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.xl,
-    overflow: 'hidden',
-  },
-  seeAllImage: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  seeAllBadge: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.surfaceContainerHigh,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1449,138 +1366,5 @@ const styles = StyleSheet.create({
   reviews: {
     ...typography.labelSm,
     color: colors.outline,
-  },
-  storeCard: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.secondaryContainer,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-  },
-  storeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  storeIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.surfaceContainerHigh,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  storeInfo: {
-    flex: 1,
-  },
-  storeName: {
-    ...typography.headlineMd,
-    color: colors.primary,
-  },
-  openBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(40,167,69,0.1)',
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-  },
-  openDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.statusSuccess,
-  },
-  openText: {
-    ...typography.labelSm,
-    color: colors.statusSuccess,
-    fontWeight: '700',
-  },
-  storeDesc: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-    marginTop: spacing.md,
-  },
-  tagRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginTop: spacing.md,
-  },
-  tag: {
-    backgroundColor: colors.surfaceContainerHigh,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 4,
-  },
-  tagText: {
-    ...typography.labelSm,
-    color: colors.onSurfaceVariant,
-  },
-  storeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.md,
-    marginTop: spacing.lg,
-  },
-  storeBtnText: {
-    ...typography.labelMd,
-    color: colors.onPrimary,
-    fontWeight: '700',
-  },
-  newsletter: {
-    marginTop: spacing.xxl,
-    marginHorizontal: spacing.md,
-    backgroundColor: colors.primaryContainer,
-    borderRadius: radius.xl,
-    alignItems: 'center',
-    paddingVertical: spacing.xl,
-    paddingHorizontal: spacing.lg,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  newsletterTitle: {
-    ...typography.displayLg,
-    color: colors.onPrimary,
-    textAlign: 'center',
-  },
-  newsletterSubtitle: {
-    ...typography.bodyMd,
-    color: colors.onPrimaryContainer,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-  },
-  newsletterForm: {
-    width: '100%',
-    marginTop: spacing.lg,
-    gap: spacing.sm,
-  },
-  newsletterInput: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    ...typography.bodyMd,
-    color: colors.onPrimary,
-  },
-  subscribeBtn: {
-    backgroundColor: colors.secondaryContainer,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  subscribeBtnText: {
-    ...typography.labelMd,
-    color: colors.onSecondaryContainer,
-    fontWeight: '700',
   },
 });

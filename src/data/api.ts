@@ -156,6 +156,17 @@ export function apiProductToProduct(api: ApiProduct): Product {
     badge = { label: 'Wholesale', variant: 'wholesale' };
   }
 
+  let badgeBottom: Product['badgeBottom'];
+  if (api.handmade) {
+    badgeBottom = { label: 'Handmade', variant: 'secondary' };
+  } else if (api.seasonal) {
+    badgeBottom = { label: 'Seasonal', variant: 'flash' };
+  } else if (api.holiday_special) {
+    badgeBottom = { label: 'Holiday Special', variant: 'flash' };
+  } else if (api.is_local) {
+    badgeBottom = { label: 'Local', variant: 'new' };
+  }
+
   const image = resolveImage(api);
   return {
     id: String(api.id),
@@ -193,7 +204,12 @@ export function apiProductToProduct(api: ApiProduct): Product {
     handmade: Boolean(api.handmade),
     deliveryFee: api.delivery_fee ?? 0,
     shippingFee: api.shipping_fee ?? 0,
+    sku: api.sku ?? undefined,
+    quality: api.quality ?? undefined,
+    productType: api.product_type ?? undefined,
+    originCountry: api.origin_country ?? undefined,
     badge,
+    badgeBottom,
   };
 }
 
@@ -992,6 +1008,19 @@ export async function apiUpdateProfile(
 }
 
 // ---------------------------------------------------------------------------
+// Profile Get API
+// ---------------------------------------------------------------------------
+
+export async function apiGetProfile(token: string): Promise<ApiUser | null> {
+  try {
+    const json = await request<{ user: ApiUser }>('/profile', { token });
+    return (json.data as { user: ApiUser }).user ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Surveys API
 // ---------------------------------------------------------------------------
 
@@ -1216,6 +1245,13 @@ export interface ApiInquiryResult {
   product_name: string;
   quantity_required: number;
   submitted_at: string;
+  product_id?: number;
+  product_image?: string | null;
+  vendor_id?: number;
+  vendor_name?: string;
+  estimated_total?: number;
+  delivery_progress?: number;
+  status_badge?: { bg: string; fg: string } | null;
 }
 
 export interface ApiInquiryInput {
@@ -1242,6 +1278,14 @@ export async function apiSubmitInquiry(
     body: payload,
   });
   return (json.data as { inquiry: ApiInquiryResult }).inquiry;
+}
+
+export async function apiGetMyInquiries(token: string): Promise<ApiInquiryResult[]> {
+  const json = await request<{ inquiries: ApiInquiryResult[] }>('/inquiries', {
+    method: 'GET',
+    token,
+  });
+  return (json.data as { inquiries: ApiInquiryResult[] }).inquiries;
 }
 
 export interface ApiChatReply {

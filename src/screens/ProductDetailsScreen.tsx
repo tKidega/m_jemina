@@ -17,6 +17,7 @@ import { useCart } from '../state/CartContext';
 import { useAuth } from '../state/AuthContext';
 import { useWishlist } from '../state/WishlistContext';
 import { apiAddReview, apiProductToProduct, fetchProductDetail } from '../data/api';
+import { formatUGX } from '../components/ProductCard';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
@@ -258,6 +259,40 @@ export function ProductDetailsScreen() {
               </View>
             ) : null}
           </View>
+
+          {/* Delivery & shipping info */}
+          {(resolved.deliveryFee !== undefined && resolved.deliveryFee > 0) || (resolved.shippingFee !== undefined && resolved.shippingFee > 0) ? (
+            <View style={styles.deliveryInfoCard}>
+              <View style={styles.deliveryInfoRow}>
+                <Icon name="local-shipping" size={18} color={colors.secondary} />
+                <Text style={styles.deliveryInfoLabel}>Shipping & Delivery</Text>
+              </View>
+              {resolved.shippingFee !== undefined && resolved.shippingFee > 0 ? (
+                <View style={styles.deliveryInfoLine}>
+                  <Text style={styles.deliveryInfoText}>Vendor → JEMINA Hub:</Text>
+                  <Text style={styles.deliveryInfoValue}>{formatUGX(resolved.shippingFee)}</Text>
+                </View>
+              ) : null}
+              {resolved.deliveryFee !== undefined && resolved.deliveryFee > 0 ? (
+                <View style={styles.deliveryInfoLine}>
+                  <Text style={styles.deliveryInfoText}>Hub → Customer:</Text>
+                  <Text style={styles.deliveryInfoValue}>{formatUGX(resolved.deliveryFee)}</Text>
+                </View>
+              ) : null}
+              {resolved.originCountry ? (
+                <View style={styles.deliveryInfoLine}>
+                  <Text style={styles.deliveryInfoText}>Origin:</Text>
+                  <Text style={styles.deliveryInfoValue}>{resolved.originCountry}</Text>
+                </View>
+              ) : null}
+              {resolved.quality ? (
+                <View style={styles.deliveryInfoLine}>
+                  <Text style={styles.deliveryInfoText}>Quality:</Text>
+                  <Text style={styles.deliveryInfoValue}>{resolved.quality}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
           {/* Spec bento */}
           {(() => {
@@ -726,6 +761,40 @@ const styles = StyleSheet.create({
   corporateSubtitle: {
     ...typography.bodyMd,
     color: colors.onSurfaceVariant,
+  },
+  deliveryInfoCard: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  deliveryInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  deliveryInfoLabel: {
+    ...typography.labelMd,
+    color: colors.onSurface,
+    fontWeight: '700',
+  },
+  deliveryInfoLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 3,
+  },
+  deliveryInfoText: {
+    ...typography.bodySm,
+    color: colors.outline,
+  },
+  deliveryInfoValue: {
+    ...typography.bodySm,
+    color: colors.onSurface,
+    fontWeight: '600',
   },
   specGrid: {
     flexDirection: 'row',

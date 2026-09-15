@@ -19,7 +19,6 @@ import {
   apiSubmitSurvey,
   ApiSurvey,
   ApiSurveyQuestion,
-  ApiVendorJourney,
 } from '../data/api';
 import { formatUGX } from '../components/ProductCard';
 import { colors } from '../theme/colors';
@@ -30,7 +29,6 @@ export function SurveysScreen() {
   const { token, isAuthenticated } = useAuth();
   const { goBack, navigate } = useNavigation();
   const [surveys, setSurveys] = useState<ApiSurvey[]>([]);
-  const [vendorJourney, setVendorJourney] = useState<ApiVendorJourney | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +51,6 @@ export function SurveysScreen() {
       try {
         const data = await apiGetSurveys(token);
         setSurveys(data.surveys);
-        setVendorJourney(data.vendorJourney);
         setError(null);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load surveys.');
@@ -70,30 +67,6 @@ export function SurveysScreen() {
   }, [loadSurveys]);
 
   const onRefresh = useCallback(() => loadSurveys(true), [loadSurveys]);
-
-  const renderActionsBanner = () => {
-    if (!vendorJourney) {
-      return null;
-    }
-    return (
-      <Pressable style={styles.actionsBanner} onPress={() => navigate('VendorActions')}>
-        <View style={styles.actionsBannerIcon}>
-          <Icon name="storefront" size={24} color={colors.onPrimary} />
-        </View>
-        <View style={styles.actionsBannerBody}>
-          <Text style={styles.actionsBannerTitle}>
-            {vendorJourney.has_vendor ? 'Your e-Store' : 'Start Selling on JEMINA'}
-          </Text>
-          <Text style={styles.actionsBannerSub}>
-            {vendorJourney.has_vendor
-              ? 'View your registered e-Store and vendor actions'
-              : 'Review packages, requirements and register your e-Store'}
-          </Text>
-        </View>
-        <Icon name="chevron-right" size={24} color={colors.onPrimary} />
-      </Pressable>
-    );
-  };
 
   const startSurvey = async (survey: ApiSurvey) => {
     setActiveSurvey(survey);
@@ -163,6 +136,10 @@ export function SurveysScreen() {
     return (
       <View style={styles.root}>
         <AppHeader title="Surveys" showBack onBack={goBack} />
+        <View style={styles.headerBanner}>
+          <Icon name="info" size={18} color={colors.onSecondaryContainer} />
+          <Text style={styles.headerBannerText}>Share your feedback to help improve JEMINA and earn store credits.</Text>
+        </View>
         <View style={styles.center}>
           <Icon name="edit-note" size={56} color={colors.outlineVariant} />
           <Text style={styles.centerTitle}>Sign in to take surveys</Text>
@@ -182,6 +159,10 @@ export function SurveysScreen() {
           <View style={styles.center}><Text style={styles.loadingText}>Loading survey...</Text></View>
         ) : (
           <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            <View style={styles.headerBanner}>
+              <Icon name="info" size={18} color={colors.onSecondaryContainer} />
+              <Text style={styles.headerBannerText}>Your responses help improve JEMINA and may earn you store credits.</Text>
+            </View>
             <Text style={styles.surveyTitle}>{activeSurvey.survey_name}</Text>
             {activeSurvey.survey_description ? (
               <Text style={styles.surveyDesc}>{activeSurvey.survey_description}</Text>
@@ -280,8 +261,11 @@ export function SurveysScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />}
         >
-          {renderActionsBanner()}
-          <View style={styles.centerEmpty}>
+          <View style={styles.headerBanner}>
+            <Icon name="info" size={18} color={colors.onSecondaryContainer} />
+            <Text style={styles.headerBannerText}>Share your feedback to help improve JEMINA and earn store credits.</Text>
+          </View>
+<View style={styles.centerEmpty}>
             <Icon name="edit-note" size={56} color={colors.outlineVariant} />
             <Text style={styles.centerTitle}>No surveys available</Text>
             <Text style={styles.centerSub}>Check back later for new surveys and credit rewards.</Text>
@@ -294,8 +278,11 @@ export function SurveysScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />}
         >
-          {renderActionsBanner()}
-          {surveys.map(survey => (
+          <View style={styles.headerBanner}>
+            <Icon name="info" size={18} color={colors.onSecondaryContainer} />
+            <Text style={styles.headerBannerText}>Share your feedback to help improve JEMINA and earn store credits.</Text>
+          </View>
+{surveys.map(survey => (
             <SurveyCard key={survey.id} survey={survey} onStart={() => startSurvey(survey)} />
           ))}
         </ScrollView>
@@ -364,7 +351,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xxl,
   },
   centerTitle: {
-    ...typography.headlineLg,
+    ...typography.headlineMd,
     color: colors.primary,
     textAlign: 'center',
     marginTop: spacing.lg,
@@ -383,6 +370,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.xxl,
     paddingHorizontal: spacing.xxl,
+  },
+  headerBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    backgroundColor: colors.secondaryContainer,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  headerBannerText: {
+    flex: 1,
+    ...typography.labelMd,
+    color: colors.onSecondaryContainer,
+    lineHeight: 20,
   },
   loadingText: {
     ...typography.bodyMd,
@@ -458,9 +460,9 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
   },
   metaValue: {
-    ...typography.headlineMd,
+    ...typography.labelLg,
     color: colors.secondary,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   completedChip: {
     flexDirection: 'row',
@@ -491,41 +493,11 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
     fontWeight: '600',
   },
-  actionsBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.statusSuccess,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-  },
-  actionsBannerIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.lg,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionsBannerBody: {
-    flex: 1,
-  },
-  actionsBannerTitle: {
-    ...typography.headlineMd,
-    color: colors.onPrimary,
-    fontWeight: '700',
-  },
-  actionsBannerSub: {
-    ...typography.labelMd,
-    color: colors.onPrimary,
-    marginTop: 2,
-  },
   startBtn: {
     paddingHorizontal: spacing.lg,
   },
   surveyTitle: {
-    ...typography.headlineLg,
+    ...typography.headlineMd,
     color: colors.primary,
     fontWeight: '700',
   },

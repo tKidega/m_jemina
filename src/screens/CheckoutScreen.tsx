@@ -92,6 +92,8 @@ export function CheckoutScreen() {
   const [voucherDiscount, setVoucherDiscount] = useState<number | null>(null);
   const [voucherMessage, setVoucherMessage] = useState<string | null>(null);
 
+  const totalShippingFees = vendorGroups.reduce((sum, g) => sum + g.shippingFee, 0);
+
   const loadAll = useCallback(async () => {
     if (!token) {
       setCreditBalance(null);
@@ -161,11 +163,12 @@ export function CheckoutScreen() {
 
   const platformFee = 1500;
   const totals = useMemo(() => {
-    const delivery = totalDeliveryFees;
+    const delivery = fulfilment === 'pickup' ? 0 : totalDeliveryFees;
+    const shipping = totalShippingFees;
     const discount = voucherDiscount ?? 0;
-    const total = subtotal + delivery + platformFee - discount;
-    return { subtotal, delivery, platformFee, discount, total: Math.max(total, 0) };
-  }, [subtotal, totalDeliveryFees, platformFee, voucherDiscount]);
+    const total = subtotal + shipping + delivery + platformFee - discount;
+    return { subtotal, shipping, delivery, platformFee, discount, total: Math.max(total, 0) };
+  }, [subtotal, totalDeliveryFees, totalShippingFees, platformFee, voucherDiscount, fulfilment]);
 
   const selectedPickupPoint = PICKUP_POINTS[0];
 
@@ -239,7 +242,21 @@ export function CheckoutScreen() {
     }
     if (authMode === 'demo') {
       clearCart();
-      navigate('Orders');
+      navigate('OrderConfirmation', {
+        orderId: 0,
+        orderNumber: 'DEMO-0001',
+        paymentMethod: paymentMethod,
+        paymentMethodLabel: paymentOptions.find(o => o.key === paymentMethod)?.label ?? paymentMethod,
+        fulfilment,
+        totals,
+        items: items.map(i => ({
+          product_name: i.product.title,
+          quantity: i.quantity,
+          unit_price: Number(i.product.price),
+          total: Number(i.product.price) * i.quantity,
+        })),
+        vendorGroupCount: vendorGroups.length,
+      });
       return;
     }
     if (!token) {
@@ -275,12 +292,32 @@ export function CheckoutScreen() {
       });
       clearCart();
       if (paymentMethod === 'credit' || paymentMethod === 'cod') {
-        navigate('Orders');
+        navigate('OrderConfirmation', {
+          orderId: order.id,
+          orderNumber: order.order_number,
+          paymentMethod: paymentMethod,
+          paymentMethodLabel: option.label,
+          fulfilment,
+          totals,
+          items: order.items ?? items.map(i => ({
+            product_name: i.product.title,
+            quantity: i.quantity,
+            unit_price: Number(i.product.price),
+            total: Number(i.product.price) * i.quantity,
+          })),
+          vendorGroupCount: vendorGroups.length,
+        });
       } else {
         navigate('Payment', {
           gateway: option.gateway as string,
           amount: totals.total,
           orderId: order.id,
+          orderNumber: order.order_number,
+          paymentMethod,
+          paymentMethodLabel: option.label,
+          fulfilment,
+          totals,
+          vendorGroupCount: vendorGroups.length,
         });
       }
     } catch (e) {
@@ -293,7 +330,8 @@ export function CheckoutScreen() {
   return (
     <View style={styles.root}>
       <AppHeader
-        title="Checkout & Payment"
+        title="Checkout"
+        titleStyle={styles.headerTitle}
         showBack
         onBack={goBack}
         right={
@@ -376,8 +414,8 @@ export function CheckoutScreen() {
                 <Icon name="location-on" size={20} color={colors.secondary} />
                 <View style={styles.flex}>
                   <View style={styles.cardLabelRow}>
-                    <Text style={styles.cardLabel}>Primary Delivery Location</Text>
-                    <View style={styles.chipPrimary}><Text style={styles.chipPrimaryText}>PRIMARY</Text></View>
+                    <Text style={styles.cardLabel}>Delivery Address</Text>
+                    <View style={styles.chipPrimary}><Text style={styles.chipPrimaryText}>FROM CART</Text></View>
                   </View>
                   {defaultAddress ? (
                     <>
@@ -389,9 +427,6 @@ export function CheckoutScreen() {
                   )}
                 </View>
               </View>
-              <Pressable onPress={() => navigate('AddressBook')} hitSlop={8}>
-                <Text style={styles.changeLink}>Change</Text>
-              </Pressable>
             </View>
           ) : (
             <View style={styles.card}>
@@ -403,9 +438,6 @@ export function CheckoutScreen() {
                   <Text style={styles.addressSub}>Collect your order at the Jemina Official pickup point.</Text>
                 </View>
               </View>
-              <Pressable onPress={() => navigate('AddressBook')} hitSlop={8}>
-                <Text style={styles.changeLink}>Change</Text>
-              </Pressable>
             </View>
           )}
 
@@ -440,8 +472,11 @@ export function CheckoutScreen() {
               ))}
               <View style={styles.deliveryFeeRow}>
                 <Icon name="local-shipping" size={14} color={colors.onSurfaceVariant} />
-                <Text style={styles.deliveryFeeLabel}>Vendor Delivery Fee</Text>
-                <Text style={styles.deliveryFeeValue}>{formatUGX(group.deliveryFee)}</Text>
+                <Text style={styles.deliveryFeeLabel}>
+                  {group.shippingFee > 0 ? `Shipping: ${formatUGX(group.shippingFee)}` : ''}
+                  {group.shippingFee > 0 && group.deliveryFee > 0 ? ' · ' : ''}
+                  Delivery: {formatUGX(fulfilment === 'pickup' ? 0 : group.deliveryFee)}
+                </Text>
               </View>
             </View>
           ))}
@@ -538,12 +573,18 @@ export function CheckoutScreen() {
           <View style={styles.card}>
             <Text style={styles.summaryHeader}>Payment Summary</Text>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Subtotal</Text>
+              <Text style={styles.summaryLabel}>Items Subtotal</Text>
               <Text style={styles.summaryValue}>{formatUGX(totals.subtotal)}</Text>
             </View>
+            {totals.shipping > 0 ? (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Shipping (Vendor → Hub)</Text>
+                <Text style={styles.summaryValue}>{formatUGX(totals.shipping)}</Text>
+              </View>
+            ) : null}
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Vendor Delivery Fees</Text>
-              <Text style={styles.summaryValue}>{formatUGX(totals.delivery)}</Text>
+              <Text style={styles.summaryLabel}>Delivery (Hub → You){fulfilment === 'pickup' ? ' — Self Pickup' : ''}</Text>
+              <Text style={[styles.summaryValue, fulfilment === 'pickup' && styles.discountValue]}>{fulfilment === 'pickup' ? 'FREE' : formatUGX(totals.delivery)}</Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Platform Escrow & Service Fee</Text>
@@ -551,8 +592,8 @@ export function CheckoutScreen() {
             </View>
             {totals.discount > 0 ? (
               <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: colors.statusSuccess }]}>JEMINA Credits Applied</Text>
-                <Text style={[styles.summaryValue, { color: colors.statusSuccess }]}>-{formatUGX(totals.discount)}</Text>
+                <Text style={styles.discountLabel}>Coupon Discount Applied</Text>
+                <Text style={styles.discountValue}>-{formatUGX(totals.discount)}</Text>
               </View>
             ) : null}
             <View style={styles.summaryDivider} />
@@ -585,7 +626,10 @@ export function CheckoutScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceContainerLowest,
+  },
+  headerTitle: {
+    ...typography.headlineSm,
   },
   flex: {
     flex: 1,
@@ -1082,6 +1126,16 @@ const styles = StyleSheet.create({
     ...typography.headlineSm,
     color: colors.secondary,
     fontWeight: '800',
+  },
+  discountLabel: {
+    ...typography.bodyMd,
+    color: colors.statusSuccess,
+    fontWeight: '600',
+  },
+  discountValue: {
+    ...typography.bodyMd,
+    color: colors.statusSuccess,
+    fontWeight: '700',
   },
   bottomBar: {
     position: 'absolute',

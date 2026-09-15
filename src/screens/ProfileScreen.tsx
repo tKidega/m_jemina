@@ -1,5 +1,5 @@
 ﻿import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AppHeader, HeaderActions } from '../components/AppHeader';
 import { BottomNav } from '../components/BottomNav';
 import { Icon, IconName } from '../components/Icon';
@@ -8,8 +8,8 @@ import { useAuth } from '../state/AuthContext';
 import { useCart } from '../state/CartContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import type { RouteName } from '../navigation/NavigationContext';
-import { apiGetCreditBalance, apiGetAddresses } from '../data/api';
-import type { ApiAddress } from '../data/api';
+import { apiGetCreditBalance, apiGetAddresses, apiGetProfile, absoluteUrl } from '../data/api';
+import type { ApiUser, ApiAddress } from '../data/api';
 import { formatUGX } from '../components/ProductCard';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -25,7 +25,7 @@ interface MenuRow {
 
 const MENU_ITEMS: MenuRow[] = [
   { icon: 'receipt-long', label: 'My Orders & Purchase History', route: 'Orders' },
-  { icon: 'request-quote', label: 'Wholesale Inquiries & RFQs', sub: 'B2B corporate quotes', route: 'ProductInquiry' },
+  { icon: 'request-quote', label: 'Wholesale Inquiries & RFQs', sub: 'B2B corporate quotes', route: 'MyInquiries' },
   { icon: 'favorite', label: 'My Wishlist & Saved Products', route: 'Wishlist' },
   { icon: 'local-shipping', label: 'Track Active Order', route: 'OrderTracking' },
   { icon: 'manage-accounts', label: 'Account Settings & Security', route: 'AccountSettings' },
@@ -39,12 +39,16 @@ export function ProfileScreen() {
   const { navigate } = useNavigation();
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [defaultAddress, setDefaultAddress] = useState<ApiAddress | null>(null);
+  const [profile, setProfile] = useState<ApiUser | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [subEmail, setSubEmail] = useState(user?.email ?? '');
+  const [subscribed, setSubscribed] = useState(false);
 
   const loadDashboard = useCallback(async () => {
     if (!isAuthenticated || !token) {
       setCreditBalance(null);
       setDefaultAddress(null);
+      setProfile(null);
       return;
     }
     try {
@@ -59,6 +63,12 @@ export function ProfileScreen() {
       setDefaultAddress(def);
     } catch {
       setDefaultAddress(null);
+    }
+    try {
+      const p = await apiGetProfile(token);
+      setProfile(p);
+    } catch {
+      setProfile(null);
     }
   }, [isAuthenticated, token]);
 
@@ -75,13 +85,14 @@ export function ProfileScreen() {
     }
   }, [loadDashboard]);
 
-  const displayName = user?.name ?? 'JEMINA Customer';
+  const displayName = profile?.name ?? user?.name ?? 'JEMINA Customer';
   const initials = displayName
     .split(' ')
     .map(part => part[0])
     .slice(0, 2)
     .join('')
     .toUpperCase();
+  const photoUrl = profile?.photo ? absoluteUrl(profile.photo) ?? profile.photo : undefined;
 
   const dashStats = [
     { label: 'Orders', value: '0' },
@@ -128,9 +139,13 @@ export function ProfileScreen() {
       >
         {/* User hero card */}
         <View style={styles.heroCard}>
-          <View style={styles.avatarFilled}>
-            <Text style={styles.avatarText}>{initials}</Text>
-          </View>
+          {photoUrl ? (
+            <Image source={{ uri: photoUrl }} style={styles.avatarPhoto} />
+          ) : (
+            <View style={styles.avatarFilled}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+          )}
           <View style={styles.heroInfo}>
             <View style={styles.roleChip}>
               <Text style={styles.roleText}>B2B Wholesale Buyer</Text>
@@ -218,6 +233,40 @@ export function ProfileScreen() {
           <Icon name="logout" size={18} color={colors.error} />
           <Text style={styles.logoutText}>Sign Out</Text>
         </Pressable>
+
+        {/* Newsletter subscription */}
+        <View style={styles.newsletterCard}>
+          <Icon name="mail" size={24} color={colors.primary} />
+          <Text style={styles.newsletterTitle}>Stay Ahead of the Curve</Text>
+          <Text style={styles.newsletterSub}>
+            Get deals, promotions, and new arrivals straight to your inbox.
+          </Text>
+          {subscribed ? (
+            <View style={styles.subSuccess}>
+              <Icon name="check-circle" size={18} color={colors.statusSuccess} />
+              <Text style={styles.subSuccessText}>Subscribed successfully!</Text>
+            </View>
+          ) : (
+            <View style={styles.newsletterForm}>
+              <TextInput
+                style={styles.newsletterInput}
+                placeholder="Enter your email address"
+                placeholderTextColor={colors.onSurfaceVariant}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={subEmail}
+                onChangeText={setSubEmail}
+              />
+              <Pressable
+                style={[styles.subscribeBtn, !subEmail && styles.subscribeBtnDisabled]}
+                onPress={() => { if (subEmail) setSubscribed(true); }}
+                disabled={!subEmail}
+              >
+                <Text style={styles.subscribeBtnText}>Subscribe</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
       </ScrollView>
       <BottomNav />
     </View>
@@ -254,6 +303,13 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(253,173,93,0.4)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarPhoto: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 2,
+    borderColor: 'rgba(253,173,93,0.4)',
   },
   avatarText: {
     ...typography.headlineMd,
@@ -503,5 +559,66 @@ const styles = StyleSheet.create({
   },
   signInBtn: {
     marginBottom: spacing.md,
+  },
+  newsletterCard: {
+    backgroundColor: colors.primaryContainer,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    alignItems: 'center',
+    marginTop: spacing.sm,
+  },
+  newsletterTitle: {
+    ...typography.headlineSm,
+    color: colors.onPrimaryContainer,
+    fontWeight: '700',
+    marginTop: spacing.sm,
+  },
+  newsletterSub: {
+    ...typography.bodySm,
+    color: colors.onPrimaryContainer,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  newsletterForm: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    width: '100%',
+  },
+  newsletterInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    backgroundColor: colors.surfaceContainerLowest,
+  },
+  subscribeBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    justifyContent: 'center',
+  },
+  subscribeBtnDisabled: {
+    opacity: 0.5,
+  },
+  subscribeBtnText: {
+    ...typography.labelMd,
+    color: colors.onPrimary,
+    fontWeight: '700',
+  },
+  subSuccess: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  subSuccessText: {
+    ...typography.labelMd,
+    color: colors.statusSuccess,
+    fontWeight: '600',
   },
 });

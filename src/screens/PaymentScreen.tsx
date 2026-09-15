@@ -169,7 +169,7 @@ export function PaymentScreen() {
             <Text style={[styles.statusTitle, styles.errorTitle]}>Payment not initiated</Text>
             <Text style={[styles.statusSub, styles.errorText]}>{error}</Text>
             <Button label="Retry" variant="primary" fullWidth onPress={initiate} style={styles.actionBtn} />
-            <Button label="Go to My Orders" variant="outline" fullWidth onPress={() => navigate('Orders')} />
+            <Button label="Go to My Orders" variant="outline" fullWidth onPress={() => navigate('OrderConfirmation', { orderId })} />
           </View>
         ) : result ? (
           <>
@@ -250,7 +250,7 @@ export function PaymentScreen() {
               onPress={checkStatus}
               style={styles.actionBtn}
             />
-            <Button label="Go to My Orders" variant="ghost" fullWidth onPress={() => navigate('Orders')} />
+            <Button label="Go to My Orders" variant="ghost" fullWidth onPress={() => navigate('OrderConfirmation', { orderId })} />
           </>
         ) : null}
 

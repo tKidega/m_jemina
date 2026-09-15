@@ -33,7 +33,9 @@ export type RouteName =
   | 'PaymentMethods'
   | 'Search'
   | 'AllProducts'
-  | 'FeaturedVendors';
+  | 'FeaturedVendors'
+  | 'MyInquiries'
+  | 'OrderConfirmation';
 export type TabName = 'Home' | 'Marketplace' | 'Cart' | 'Profile';
 
 interface NavState {

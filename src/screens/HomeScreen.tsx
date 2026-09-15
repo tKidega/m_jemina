@@ -1,7 +1,9 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
   Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -203,6 +205,8 @@ export function HomeScreen() {
   const [promotions, setPromotions] = useState<ApiPromotion[]>([]);
   const [activeSeasonSlug, setActiveSeasonSlug] = useState<string | null>(null);
   const [b2bModalOpen, setB2bModalOpen] = useState(false);
+  const [activeBannerIndex, setActiveBannerIndex] = useState(0);
+  const bannerScrollRef = useRef<ScrollView>(null);
   const { showPromo } = useNotification();
   const countdown = useFlashCountdown();
   const seasonalTabs = useMemo(() => buildSeasonalTabs(products, new Date()), [products]);
@@ -393,8 +397,15 @@ export function HomeScreen() {
 
   const flashCardWidth = Math.round((width - spacing.md * 2 - spacing.gutter) / 2);
   const productCardWidth = flashCardWidth;
-  const seasonalCardWidth = Math.round(width * 0.6);
+  const seasonalCardWidth = Math.round(width * 0.72);
+  const bannerCardWidth = width - spacing.lg * 2;
   const sectorTileWidth = Math.round((width - spacing.md * 2 - spacing.gutter * 3) / 4);
+
+  const onBannerMomentumEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (bannerCardWidth <= 0) return;
+    const idx = Math.round(e.nativeEvent.contentOffset.x / bannerCardWidth);
+    if (idx >= 0 && idx < bannerPromos.length) setActiveBannerIndex(idx);
+  };
 
   return (
     <View style={styles.root}>
@@ -670,15 +681,38 @@ export function HomeScreen() {
           {promotions.length > 0 ? (
             <View>
               {bannerPromos.length > 0 ? (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flashRow}>
-                  {bannerPromos.map(promo => (
-                    <PromoBannerCard
-                      key={promo.id}
-                      promo={promo}
-                      onPress={() => openPromo(promo)}
-                    />
-                  ))}
-                </ScrollView>
+                <View style={styles.bannerCarouselWrap}>
+                  <ScrollView
+                    ref={bannerScrollRef}
+                    horizontal
+                    pagingEnabled
+                    bounces={false}
+                    showsHorizontalScrollIndicator={false}
+                    snapToInterval={bannerCardWidth + spacing.gutter}
+                    decelerationRate="fast"
+                    contentContainerStyle={{ gap: spacing.gutter }}
+                    onMomentumScrollEnd={onBannerMomentumEnd}
+                  >
+                    {bannerPromos.map(promo => (
+                      <View key={promo.id} style={{ width: bannerCardWidth }}>
+                        <PromoBannerCard
+                          promo={promo}
+                          onPress={() => openPromo(promo)}
+                        />
+                      </View>
+                    ))}
+                  </ScrollView>
+                  {bannerPromos.length > 1 ? (
+                    <View style={styles.bannerDotsRow}>
+                      {bannerPromos.map((_, i) => (
+                        <View
+                          key={i}
+                          style={[styles.bannerDot, i === activeBannerIndex && styles.bannerDotActive]}
+                        />
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
               ) : null}
               {regularPromos.length > 0 ? (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flashRow}>
@@ -883,7 +917,7 @@ function PromoFlashCard({
           <Image source={{ uri: promoImageUrl(promo.image_url) }} style={styles.hlImage} resizeMode="cover" />
         ) : (
           <View style={styles.hlNoImage}>
-            <Icon name="auto-awesome" size={24} color={colors.secondary} />
+            <Icon name="auto-awesome" size={28} color={colors.secondary} />
           </View>
         )}
         <View style={styles.hlBadge}>
@@ -892,10 +926,13 @@ function PromoFlashCard({
       </View>
       <View style={styles.hlBody}>
         <Text style={styles.hlCategory} numberOfLines={1}>{promo.vendor?.name ?? 'JEMINA'}</Text>
-        <Text style={styles.hlTitle} numberOfLines={1}>{promo.title}</Text>
+        <Text style={styles.hlTitle} numberOfLines={2}>{promo.title}</Text>
+        {promo.description ? (
+          <Text style={styles.hlDesc} numberOfLines={2}>{promo.description}</Text>
+        ) : null}
         <View style={[styles.hlFoot, styles.hlFootEnd]}>
           <Pressable style={styles.hlBtn} onPress={onPress}>
-            <Text style={styles.hlBtnText}>View</Text>
+            <Text style={styles.hlBtnText}>View Offer</Text>
           </Pressable>
         </View>
       </View>
@@ -910,10 +947,9 @@ function PromoBannerCard({
   promo: ApiPromotion;
   onPress: () => void;
 }) {
-  const { width } = useWindowDimensions();
   return (
     <Pressable
-      style={[styles.bannerCard, { width: width - spacing.lg * 2 }]}
+      style={styles.bannerCard}
       onPress={onPress}
       accessibilityRole="button"
     >
@@ -927,6 +963,12 @@ function PromoBannerCard({
       <View style={styles.bannerOverlay}>
         <View style={styles.bannerBadge}>
           <Badge label={(promo.placement ?? 'BANNER').toUpperCase()} variant="flash" />
+        </View>
+        <View style={styles.bannerTextWrap}>
+          <Text style={styles.bannerTitle} numberOfLines={1}>{promo.title}</Text>
+          {promo.description ? (
+            <Text style={styles.bannerDesc} numberOfLines={1}>{promo.description}</Text>
+          ) : null}
         </View>
       </View>
     </Pressable>
@@ -1295,22 +1337,17 @@ const styles = StyleSheet.create({
   },
   hlCard: {
     flexShrink: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
     borderColor: colors.surfaceContainerHigh,
     borderRadius: radius.lg,
     overflow: 'hidden',
-    padding: spacing.sm,
-    gap: spacing.sm,
   },
   hlImageWrap: {
-    width: 84,
-    aspectRatio: 1,
+    width: '100%',
+    height: 140,
     position: 'relative',
     backgroundColor: colors.surfaceContainerLow,
-    borderRadius: radius.md,
     overflow: 'hidden',
   },
   hlImage: {
@@ -1325,15 +1362,12 @@ const styles = StyleSheet.create({
   },
   hlBadge: {
     position: 'absolute',
-    bottom: 4,
-    left: 4,
+    top: spacing.sm,
+    left: spacing.sm,
     zIndex: 1,
   },
   hlBody: {
-    flex: 1,
-    alignSelf: 'stretch',
-    justifyContent: 'center',
-    paddingVertical: 2,
+    padding: spacing.md,
   },
   hlCategory: {
     ...typography.labelSm,
@@ -1344,8 +1378,15 @@ const styles = StyleSheet.create({
   hlTitle: {
     ...typography.bodyMd,
     color: colors.onSurface,
-    fontWeight: '600',
-    marginTop: 2,
+    fontWeight: '700',
+    marginTop: 4,
+    lineHeight: 20,
+  },
+  hlDesc: {
+    ...typography.bodySm,
+    color: colors.onSurfaceVariant,
+    marginTop: 4,
+    lineHeight: 18,
   },
   hlFoot: {
     flexDirection: 'row',
@@ -1378,7 +1419,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     position: 'relative',
     height: 180,
-    borderRadius: radius.xl,
+    borderRadius: 5,
     overflow: 'hidden',
     backgroundColor: colors.surfaceContainerLow,
   },
@@ -1402,16 +1443,46 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    justifyContent: 'flex-end',
-    alignItems: 'flex-end',
+    justifyContent: 'space-between',
     padding: spacing.md,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(0,0,0,0.25)',
   },
   bannerBadge: {
-    position: 'absolute',
-    top: spacing.md,
-    left: spacing.md,
+    alignSelf: 'flex-start',
     zIndex: 1,
+  },
+  bannerTextWrap: {
+    gap: 2,
+  },
+  bannerTitle: {
+    ...typography.headlineSm,
+    color: colors.white,
+    fontWeight: '700',
+  },
+  bannerDesc: {
+    ...typography.bodySm,
+    color: 'rgba(255,255,255,0.85)',
+    lineHeight: 18,
+  },
+  bannerCarouselWrap: {
+    marginBottom: spacing.sm,
+  },
+  bannerDotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: spacing.sm,
+  },
+  bannerDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.outlineVariant,
+  },
+  bannerDotActive: {
+    width: 18,
+    backgroundColor: colors.secondary,
   },
   brandRow: {
     gap: spacing.gutter,

@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Clipboard, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
 import { EmptyState } from '../components/EmptyState';
 import { Icon } from '../components/Icon';
 import { useAuth } from '../state/AuthContext';
 import { useCart } from '../state/CartContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { apiGetOrder, apiGetOrders, ApiOrder } from '../data/api';
+import { apiGetOrder, apiGetOrders, ApiOrder, absoluteUrl } from '../data/api';
 import { formatUGX } from '../components/ProductCard';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -92,7 +92,8 @@ function OrderCard({ order, token }: { order: ApiOrder; token?: string | null })
   const placedAt = isDelivered(status) && order.delivered_at ? `Delivered on ${formatDateTime(order.delivered_at)}` : `Placed on ${formatDateTime(order.created_at)}`;
 
   const copyId = () => {
-    Alert.alert('Order ID', order.order_number, [{ text: 'OK' }]);
+    Clipboard.setString(order.order_number);
+    Alert.alert('Copied', `Order #${order.order_number} copied to clipboard.`, [{ text: 'OK' }]);
   };
 
   const onTrack = () => navigate('OrderTracking', { orderId: order.id });
@@ -127,7 +128,7 @@ function OrderCard({ order, token }: { order: ApiOrder; token?: string | null })
           {items.map((item, i) => (
             <View key={`${item.product_id}-${i}`} style={[styles.itemRow, i > 0 && styles.itemRowDivider]}>
               {item.product_image ? (
-                <Image source={{ uri: item.product_image }} style={styles.itemImage} resizeMode="cover" />
+                <Image source={{ uri: absoluteUrl(item.product_image) ?? item.product_image }} style={styles.itemImage} resizeMode="cover" onError={() => {}} />
               ) : (
                 <View style={[styles.itemImage, styles.itemImagePlaceholder]}>
                   <Icon name="store" size={20} color={colors.outlineVariant} />
@@ -173,7 +174,23 @@ function OrderCard({ order, token }: { order: ApiOrder; token?: string | null })
         </View>
       </View>
 
-      {showInvoice ? <InvoiceSection order={order} /> : null}
+      {showInvoice ? (
+        <Modal visible={showInvoice} animationType="slide" transparent onRequestClose={() => setShowInvoice(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalSheet}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Invoice — {order.order_number}</Text>
+                <Pressable onPress={() => setShowInvoice(false)} hitSlop={8}>
+                  <Icon name="close" size={24} color={colors.onSurface} />
+                </Pressable>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <InvoiceSection order={order} />
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
 
       <View style={styles.actionsRow}>
         {!isCancelled(status) && !isDelivered(status) ? (
@@ -212,28 +229,108 @@ function OrderCard({ order, token }: { order: ApiOrder; token?: string | null })
 }
 
 function InvoiceSection({ order }: { order: ApiOrder }) {
+  const shipping = order.shipping_amount ?? 0;
+  const tax = order.tax_amount ?? 0;
+  const subtotal = Math.max((order.total_amount ?? 0) - shipping - tax, 0);
+  const paid = order.payment_status?.toLowerCase() === 'paid';
+
   return (
     <View style={styles.invoice}>
-      {order.payment_method ? (
-        <View style={styles.invoiceRow}>
-          <Text style={styles.invoiceLabel}>Payment</Text>
-          <Text style={styles.invoiceValue}>{order.payment_method}</Text>
+      {/* Order header */}
+      <View style={styles.invoiceHeader}>
+        <Text style={styles.invoiceTitle}>JEMINA Marketplace</Text>
+        <Text style={styles.invoiceSubtitle}>Order Invoice</Text>
+      </View>
+
+      {/* Order info */}
+      <View style={styles.invoiceSection}>
+        <View style={styles.invoiceInfoRow}>
+          <Text style={styles.invoiceInfoLabel}>Order Number</Text>
+          <Text style={styles.invoiceInfoValue}>#{order.order_number}</Text>
+        </View>
+        <View style={styles.invoiceInfoRow}>
+          <Text style={styles.invoiceInfoLabel}>Order Date</Text>
+          <Text style={styles.invoiceInfoValue}>{formatDateTime(order.created_at)}</Text>
+        </View>
+        <View style={styles.invoiceInfoRow}>
+          <Text style={styles.invoiceInfoLabel}>Order Status</Text>
+          <View style={styles.invoiceStatusBadge}>
+            <Text style={styles.invoiceStatusText}>{order.status.toUpperCase()}</Text>
+          </View>
+        </View>
+        <View style={styles.invoiceInfoRow}>
+          <Text style={styles.invoiceInfoLabel}>Payment Status</Text>
+          <View style={[styles.invoiceStatusBadge, paid ? styles.invoiceStatusPaid : styles.invoiceStatusUnpaid]}>
+            <Text style={[styles.invoiceStatusText, paid ? styles.invoiceStatusTextPaid : styles.invoiceStatusTextUnpaid]}>
+              {paid ? 'PAID' : 'UNPAID'}
+            </Text>
+          </View>
+        </View>
+        {order.payment_method ? (
+          <View style={styles.invoiceInfoRow}>
+            <Text style={styles.invoiceInfoLabel}>Payment Method</Text>
+            <Text style={styles.invoiceInfoValue}>{order.payment_method}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      {/* Items list */}
+      {order.items && order.items.length > 0 ? (
+        <View style={styles.invoiceSection}>
+          <Text style={styles.invoiceSectionTitle}>Items Ordered</Text>
+          {order.items.map((item, idx) => (
+            <View key={idx} style={[styles.invoiceItemRow, idx > 0 && styles.invoiceItemDivider]}>
+              <View style={styles.invoiceItemInfo}>
+                <Text style={styles.invoiceItemName} numberOfLines={2}>{item.product_name}</Text>
+                <Text style={styles.invoiceItemQty}>Qty: {item.quantity} × {formatUGX(item.unit_price)}</Text>
+              </View>
+              <Text style={styles.invoiceItemTotal}>{formatUGX(item.total)}</Text>
+            </View>
+          ))}
         </View>
       ) : null}
-      {order.notes ? (
-        <View style={styles.invoiceRow}>
-          <Text style={styles.invoiceLabel}>Notes</Text>
-          <Text style={styles.invoiceValue} numberOfLines={3}>{order.notes}</Text>
+
+      {/* Price breakdown */}
+      <View style={styles.invoiceSection}>
+        <Text style={styles.invoiceSectionTitle}>Payment Summary</Text>
+        <View style={styles.invoicePriceRow}>
+          <Text style={styles.invoicePriceLabel}>Subtotal</Text>
+          <Text style={styles.invoicePriceValue}>{formatUGX(subtotal)}</Text>
         </View>
-      ) : null}
+        <View style={styles.invoicePriceRow}>
+          <Text style={styles.invoicePriceLabel}>Shipping / Delivery</Text>
+          <Text style={styles.invoicePriceValue}>{formatUGX(shipping)}</Text>
+        </View>
+        {tax > 0 ? (
+          <View style={styles.invoicePriceRow}>
+            <Text style={styles.invoicePriceLabel}>Taxes & Charges</Text>
+            <Text style={styles.invoicePriceValue}>{formatUGX(tax)}</Text>
+          </View>
+        ) : null}
+        <View style={styles.invoiceTotalDivider} />
+        <View style={styles.invoiceTotalRow}>
+          <Text style={styles.invoiceTotalLabel}>Total Amount</Text>
+          <Text style={styles.invoiceTotalValue}>{formatUGX(order.total_amount ?? 0)}</Text>
+        </View>
+      </View>
+
+      {/* Delivery address */}
       {order.shipping_address ? (
-        <View style={styles.addressBox}>
-          <Text style={styles.addressTitle}>Deliver to</Text>
-          <Text style={styles.addressText}>{order.shipping_address.name}</Text>
-          <Text style={styles.addressText}>
+        <View style={styles.invoiceSection}>
+          <Text style={styles.invoiceSectionTitle}>Delivery Address</Text>
+          <Text style={styles.invoiceAddressText}>{order.shipping_address.name}</Text>
+          <Text style={styles.invoiceAddressText}>
             {order.shipping_address.address}, {order.shipping_address.city}, {order.shipping_address.state} {order.shipping_address.zip_code}
           </Text>
-          <Text style={styles.addressText}>{order.shipping_address.country} · {order.shipping_address.phone}</Text>
+          <Text style={styles.invoiceAddressText}>{order.shipping_address.country} · {order.shipping_address.phone}</Text>
+        </View>
+      ) : null}
+
+      {/* Notes */}
+      {order.notes ? (
+        <View style={styles.invoiceSection}>
+          <Text style={styles.invoiceSectionTitle}>Order Notes</Text>
+          <Text style={styles.invoiceNotesText}>{order.notes}</Text>
         </View>
       ) : null}
     </View>
@@ -431,10 +528,10 @@ export function OrdersScreen() {
             </View>
             <View style={styles.helpBody}>
               <Text style={styles.helpTitle}>Need Help with an Order?</Text>
-              <Text style={styles.helpSub}>Contact Gulu Logistics Hub Dispatch</Text>
+              <Text style={styles.helpSub}>Contact Support & Helpdesk</Text>
             </View>
             <Pressable onPress={() => navigate('HelpCenter')} hitSlop={6}>
-              <Text style={styles.helpAction}>Call Helpdesk</Text>
+              <Text style={styles.helpAction}>Support</Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -595,7 +692,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   orderNumber: {
-    ...typography.headlineSm,
+    ...typography.labelLg,
     color: colors.primary,
     fontWeight: '800',
   },
@@ -615,6 +712,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: radius.full,
+    alignSelf: 'flex-start',
   },
   statusChipText: {
     ...typography.labelSm,
@@ -723,51 +821,161 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   breakdownTotalLabel: {
-    ...typography.headlineSm,
+    ...typography.labelLg,
     color: colors.secondary,
     fontWeight: '800',
   },
   breakdownTotalValue: {
-    ...typography.headlineSm,
+    ...typography.labelLg,
     color: colors.secondary,
     fontWeight: '800',
   },
   invoice: {
-    paddingHorizontal: spacing.sm,
-    paddingBottom: spacing.sm,
     gap: spacing.sm,
   },
-  invoiceRow: {
-    flexDirection: 'row',
+  invoiceHeader: {
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surfaceContainerHigh,
   },
-  invoiceLabel: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
+  invoiceTitle: {
+    ...typography.headlineSm,
+    color: colors.primary,
+    fontWeight: '800',
   },
-  invoiceValue: {
-    ...typography.bodyMd,
-    color: colors.onSurface,
-    fontWeight: '700',
-    flexShrink: 1,
-    textAlign: 'right',
+  invoiceSubtitle: {
+    ...typography.bodySm,
+    color: colors.outline,
+    marginTop: 2,
   },
-  addressBox: {
+  invoiceSection: {
     backgroundColor: colors.surfaceContainerLow,
-    borderRadius: radius.lg,
-    padding: spacing.md,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    gap: 6,
   },
-  addressTitle: {
+  invoiceSectionTitle: {
     ...typography.labelMd,
     color: colors.primary,
     fontWeight: '700',
-    marginBottom: spacing.xs,
+    marginBottom: 2,
   },
-  addressText: {
-    ...typography.bodyMd,
+  invoiceInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 3,
+  },
+  invoiceInfoLabel: {
+    ...typography.bodySm,
+    color: colors.outline,
+  },
+  invoiceInfoValue: {
+    ...typography.bodySm,
     color: colors.onSurface,
+    fontWeight: '600',
+    textAlign: 'right',
+    flex: 1,
+    marginLeft: spacing.sm,
+  },
+  invoiceStatusBadge: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  invoiceStatusText: {
+    ...typography.labelSm,
+    color: colors.onPrimary,
+    fontWeight: '700',
+    fontSize: 10,
+  },
+  invoiceStatusPaid: {
+    backgroundColor: colors.statusSuccess,
+  },
+  invoiceStatusUnpaid: {
+    backgroundColor: colors.statusFlash,
+  },
+  invoiceStatusTextPaid: {
+    color: '#fff',
+  },
+  invoiceStatusTextUnpaid: {
+    color: '#fff',
+  },
+  invoiceItemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingVertical: 6,
+  },
+  invoiceItemDivider: {
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceContainerHigh,
+  },
+  invoiceItemInfo: {
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  invoiceItemName: {
+    ...typography.bodySm,
+    color: colors.onSurface,
+    fontWeight: '600',
+  },
+  invoiceItemQty: {
+    ...typography.labelSm,
+    color: colors.outline,
+    marginTop: 2,
+  },
+  invoiceItemTotal: {
+    ...typography.labelMd,
+    color: colors.secondary,
+    fontWeight: '700',
+  },
+  invoicePriceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 2,
+  },
+  invoicePriceLabel: {
+    ...typography.bodySm,
+    color: colors.outline,
+  },
+  invoicePriceValue: {
+    ...typography.bodySm,
+    color: colors.onSurface,
+    fontWeight: '600',
+  },
+  invoiceTotalDivider: {
+    height: 1,
+    backgroundColor: colors.surfaceContainerHigh,
+    marginVertical: 4,
+  },
+  invoiceTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
+  invoiceTotalLabel: {
+    ...typography.labelLg,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  invoiceTotalValue: {
+    ...typography.headlineSm,
+    color: colors.secondary,
+    fontWeight: '800',
+  },
+  invoiceAddressText: {
+    ...typography.bodySm,
+    color: colors.onSurface,
+    lineHeight: 20,
+  },
+  invoiceNotesText: {
+    ...typography.bodySm,
+    color: colors.onSurfaceVariant,
+    fontStyle: 'italic',
   },
   actionsRow: {
     flexDirection: 'row',
@@ -855,5 +1063,30 @@ const styles = StyleSheet.create({
     ...typography.labelMd,
     color: colors.primary,
     fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.md,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalSheet: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: radius.xl,
+    padding: spacing.md,
+    maxHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  modalTitle: {
+    ...typography.headlineSm,
+    color: colors.onSurface,
+    fontWeight: '700',
+    flex: 1,
+    marginRight: spacing.sm,
   },
 });
