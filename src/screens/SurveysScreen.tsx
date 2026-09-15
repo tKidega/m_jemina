@@ -71,6 +71,30 @@ export function SurveysScreen() {
 
   const onRefresh = useCallback(() => loadSurveys(true), [loadSurveys]);
 
+  const renderActionsBanner = () => {
+    if (!vendorJourney) {
+      return null;
+    }
+    return (
+      <Pressable style={styles.actionsBanner} onPress={() => navigate('VendorActions')}>
+        <View style={styles.actionsBannerIcon}>
+          <Icon name="storefront" size={24} color={colors.onPrimary} />
+        </View>
+        <View style={styles.actionsBannerBody}>
+          <Text style={styles.actionsBannerTitle}>
+            {vendorJourney.has_vendor ? 'Your e-Store' : 'Start Selling on JEMINA'}
+          </Text>
+          <Text style={styles.actionsBannerSub}>
+            {vendorJourney.has_vendor
+              ? 'View your registered e-Store and vendor actions'
+              : 'Review packages, requirements and register your e-Store'}
+          </Text>
+        </View>
+        <Icon name="chevron-right" size={24} color={colors.onPrimary} />
+      </Pressable>
+    );
+  };
+
   const startSurvey = async (survey: ApiSurvey) => {
     setActiveSurvey(survey);
     setAnswers({});
@@ -250,11 +274,19 @@ export function SurveysScreen() {
           <Button label="Try Again" variant="primary" fullWidth onPress={() => loadSurveys()} style={styles.centerBtn} />
         </View>
       ) : surveys.length === 0 ? (
-        <View style={styles.center}>
-          <Icon name="edit-note" size={56} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>No surveys available</Text>
-          <Text style={styles.centerSub}>Check back later for new surveys and credit rewards.</Text>
-        </View>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />}
+        >
+          {renderActionsBanner()}
+          <View style={styles.centerEmpty}>
+            <Icon name="edit-note" size={56} color={colors.outlineVariant} />
+            <Text style={styles.centerTitle}>No surveys available</Text>
+            <Text style={styles.centerSub}>Check back later for new surveys and credit rewards.</Text>
+          </View>
+        </ScrollView>
       ) : (
         <ScrollView
           style={styles.scroll}
@@ -262,20 +294,7 @@ export function SurveysScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />}
         >
-          {vendorJourney?.both_completed ? (
-            <Pressable style={styles.actionsBanner} onPress={() => navigate('VendorActions')}>
-              <View style={styles.actionsBannerIcon}>
-                <Icon name="storefront" size={24} color={colors.onPrimary} />
-              </View>
-              <View style={styles.actionsBannerBody}>
-                <Text style={styles.actionsBannerTitle}>Vendor Actions Unlocked</Text>
-                <Text style={styles.actionsBannerSub}>
-                  {vendorJourney.has_vendor ? 'View your registered e-Store' : 'Review the agreement and register your e-Store'}
-                </Text>
-              </View>
-              <Icon name="chevron-right" size={24} color={colors.onPrimary} />
-            </Pressable>
-          ) : null}
+          {renderActionsBanner()}
           {surveys.map(survey => (
             <SurveyCard key={survey.id} survey={survey} onStart={() => startSurvey(survey)} />
           ))}
@@ -359,6 +378,11 @@ const styles = StyleSheet.create({
   },
   centerBtn: {
     width: '100%',
+  },
+  centerEmpty: {
+    alignItems: 'center',
+    paddingVertical: spacing.xxl,
+    paddingHorizontal: spacing.xxl,
   },
   loadingText: {
     ...typography.bodyMd,

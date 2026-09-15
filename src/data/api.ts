@@ -1090,6 +1090,7 @@ export async function apiCreateVendorStore(
     shop_owner: string;
     shop_email: string;
     shop_phone: string;
+    vendor_type?: string;
     pay_method?: string;
     terms: boolean;
   },

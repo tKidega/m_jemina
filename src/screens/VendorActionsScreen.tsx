@@ -33,6 +33,7 @@ interface StoreForm {
   shop_owner: string;
   shop_email: string;
   shop_phone: string;
+  vendor_type: string;
   pay_method: string;
   terms: boolean;
 }
@@ -42,6 +43,7 @@ const EMPTY_FORM: StoreForm = {
   shop_owner: '',
   shop_email: '',
   shop_phone: '',
+  vendor_type: 'local',
   pay_method: 'Momo',
   terms: false,
 };
@@ -151,6 +153,7 @@ export function VendorActionsScreen() {
         shop_owner: form.shop_owner.trim(),
         shop_email: form.shop_email.trim(),
         shop_phone: form.shop_phone.trim(),
+        vendor_type: form.vendor_type,
         pay_method: form.pay_method,
         terms: form.terms,
       });
@@ -170,7 +173,7 @@ export function VendorActionsScreen() {
         <View style={styles.center}>
           <Icon name="storefront" size={56} color={colors.outlineVariant} />
           <Text style={styles.centerTitle}>Sign in to access vendor actions</Text>
-          <Text style={styles.centerSub}>Complete both surveys to unlock vendor registration.</Text>
+          <Text style={styles.centerSub}>Review packages and requirements, then register your e-Store.</Text>
         </View>
       </View>
     );
@@ -203,51 +206,16 @@ export function VendorActionsScreen() {
 
   const journey = status?.journey;
 
-  if (!journey || !journey.both_completed) {
+  if (!journey) {
     return (
       <View style={styles.root}>
         <AppHeader title="Vendor Actions" showBack onBack={goBack} />
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />}
-        >
-          <View style={styles.lockedCard}>
-            <View style={styles.lockedIcon}>
-              <Icon name="lock" size={32} color={colors.statusFlash} />
-            </View>
-            <Text style={styles.lockedTitle}>Vendor Actions Locked</Text>
-            <Text style={styles.lockedBody}>
-              Complete both surveys to unlock the vendor actions, where you can review the Vendor Agreement and
-              register your e-Store.
-            </Text>
-            <View style={styles.stepRow}>
-              <View style={[styles.stepDot, journey?.user_survey_completed && styles.stepDotDone]}>
-                <Text style={styles.stepDotText}>{journey?.user_survey_completed ? '\u2713' : '1'}</Text>
-              </View>
-              <View style={styles.stepBody}>
-                <Text style={styles.stepTitle}>User Feedback</Text>
-                <Text style={styles.stepSub}>Complete the user experience survey</Text>
-              </View>
-              {journey?.user_survey_completed ? (
-                <Icon name="check-circle" size={20} color={colors.statusSuccess} />
-              ) : null}
-            </View>
-            <View style={styles.stepRow}>
-              <View style={[styles.stepDot, journey?.vendor_survey_completed && styles.stepDotDone]}>
-                <Text style={styles.stepDotText}>{journey?.vendor_survey_completed ? '\u2713' : '2'}</Text>
-              </View>
-              <View style={styles.stepBody}>
-                <Text style={styles.stepTitle}>Vendor Profile</Text>
-                <Text style={styles.stepSub}>Complete the vendor qualification survey</Text>
-              </View>
-              {journey?.vendor_survey_completed ? (
-                <Icon name="check-circle" size={20} color={colors.statusSuccess} />
-              ) : null}
-            </View>
-          </View>
-        </ScrollView>
+        <View style={styles.center}>
+          <Icon name="error-outline" size={48} color={colors.outlineVariant} />
+          <Text style={styles.centerTitle}>Couldn't load vendor actions</Text>
+          <Text style={styles.centerSub}>Please try again.</Text>
+          <Button label="Try Again" variant="primary" fullWidth onPress={() => load()} style={styles.centerBtn} />
+        </View>
       </View>
     );
   }
@@ -350,6 +318,20 @@ export function VendorActionsScreen() {
             editable={accepted}
             keyboardType="phone-pad"
           />
+          <Text style={styles.label}>Vendor Type</Text>
+          <View style={styles.typeRow}>
+            {['local', 'national', 'international'].map(type => (
+              <Pressable
+                key={type}
+                style={[styles.typeChip, accepted && form.vendor_type === type && styles.typeChipOn]}
+                onPress={() => accepted && setForm(f => ({ ...f, vendor_type: type }))}
+              >
+                <Text style={[styles.typeChipText, accepted && form.vendor_type === type && styles.typeChipTextOn]}>
+                  {type === 'local' ? 'Local' : type === 'national' ? 'National' : 'International'}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
           <Text style={styles.label}>Payment Method</Text>
           <View style={styles.payRow}>
             {['Momo', 'Visa', '$BTC'].map(method => (
@@ -518,70 +500,6 @@ const styles = StyleSheet.create({
   cardBtn: {
     marginTop: spacing.md,
   },
-  lockedCard: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.xl,
-    padding: spacing.xl,
-    alignItems: 'center',
-  },
-  lockedIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: radius.full,
-    backgroundColor: colors.surfaceContainerLow,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  lockedTitle: {
-    ...typography.headlineLg,
-    color: colors.primary,
-    fontWeight: '700',
-    marginTop: spacing.md,
-  },
-  lockedBody: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-    marginBottom: spacing.lg,
-  },
-  stepRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'stretch',
-    gap: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  stepDot: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.full,
-    backgroundColor: colors.surfaceContainerHigh,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepDotDone: {
-    backgroundColor: colors.statusSuccess,
-  },
-  stepDotText: {
-    ...typography.labelMd,
-    color: colors.onPrimary,
-    fontWeight: '700',
-  },
-  stepBody: {
-    flex: 1,
-  },
-  stepTitle: {
-    ...typography.headlineMd,
-    color: colors.onSurface,
-    fontWeight: '600',
-  },
-  stepSub: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-  },
   warningCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -620,6 +538,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     marginTop: spacing.xs,
+  },
+  typeRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  typeChip: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainerLowest,
+  },
+  typeChipOn: {
+    borderColor: colors.secondary,
+    backgroundColor: colors.secondaryContainer,
+  },
+  typeChipText: {
+    ...typography.labelMd,
+    color: colors.onSurfaceVariant,
+    fontWeight: '600',
+  },
+  typeChipTextOn: {
+    color: colors.onSecondary,
+    fontWeight: '700',
   },
   payChip: {
     flex: 1,

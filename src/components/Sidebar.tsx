@@ -30,6 +30,7 @@ const MY_ACCOUNT_LINKS: SidebarLink[] = [
   { label: 'Track Orders', icon: 'track-changes', route: 'OrderTracking' },
   { label: 'My Orders', icon: 'receipt-long', route: 'Orders' },
   { label: 'Surveys', icon: 'edit-note', route: 'Surveys' },
+  { label: 'Vendor Actions', icon: 'storefront', route: 'VendorActions' },
   { label: 'Address Book', icon: 'home', route: 'AddressBook' },
 ];
 
