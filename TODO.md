@@ -39,6 +39,24 @@ Legend: `[x]` done · `[ ]` pending.
 
 ---
 
+## Session (2026-09-17) — UI overhaul + reviews + orders fixes
+
+- [x] Home Promotions: banner uniform side insets (not edge-to-edge); flash cards same width as banner, one per view with snap paging; placement filter trims whitespace
+- [x] `SectionHeader`: action link moved inside the row — title left, link right, vertically centered (was dropping below the description)
+- [x] Contact Us / Wishlist / Account Settings profile tab (Personal/Address/About) / ProductDetails / VendorProfile restyled to Home–B2B patterns (smaller headers, tighter padding); Wishlist discounted-price bug fixed (rendered original price twice)
+- [x] Newsletter subscribe persists per account (`@jemina/newsletter/v1:<userId>`) — survives logout; shared by Profile + vendor screens; white CTA
+- [x] VendorProfile: real banner/logo from API with fallbacks (logo in DB is SVG → RN fallback; banner 404s until DB paths fixed — see below); dead Visit Store button removed; stats/services from live datapoints (fake 247/4.8/98 dropped); Featured / All Products / Shop Reviews tabs
+- [x] Vendor reviews end-to-end: new API `GET/POST /api/v1/vendors/{id}/reviews` (approved-only list; submit held `pending` until vendor approves, one-per-user, 409 duplicate); review list + form in vendor Reviews tab; already-reviewed alert; product Reviews tab also alerts on duplicate + success notice
+- [x] Orders: status badges single-line auto-width; invoice uses fetched detail (was empty) + SKU row; invoice title reduced to `labelSm`; order-list images fall back to placeholder on error
+- [x] Server: vendor agreement section 20 contacts corrected; homepage promo banner = images only (no links/clicks), committed + pushed (`77269da`, `a3b8b7d`); "Join our community" promo approved → both banners live in carousel
+- [x] Order items API: `sku` added + primary product image via `url` accessor (was broken `asset('storage/' + image_path)`); note `storage/app/public` is empty with no symlink — product webp files live under `public/frontend/img/products/`
+- [x] Release APK + AAB rebuilt + installed (emulator; phone disconnected at end of session)
+- [ ] UNCOMMITTED on VPS: `ApiOrderController.php` (sku + product_image fix), `ApiVendorController.php` + `routes/api.php` (vendor review endpoints) — commit/push when confirmed
+- [ ] Vendor logo is SVG in DB — phones can't render SVG; needs PNG/JPG re-upload via website
+- [ ] Confirm order images + invoice items live on device once installed
+
+---
+
 ## Core Epic — Shopping Loop
 
 - [x] Live auth (register/login/logout via Sanctum) with demo fallback — `AuthContext`

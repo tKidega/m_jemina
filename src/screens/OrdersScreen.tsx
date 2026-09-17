@@ -57,6 +57,7 @@ function OrderCard({ order, token }: { order: ApiOrder; token?: string | null })
   const [detail, setDetail] = useState<ApiOrder | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let active = true;
@@ -113,10 +114,10 @@ function OrderCard({ order, token }: { order: ApiOrder; token?: string | null })
         <View style={styles.chipStack}>
           <View style={[styles.statusChip, statusView.bg]}>
             {statusView.icon ? <Icon name={statusView.icon} size={12} color={statusView.fg} /> : null}
-            <Text style={[styles.statusChipText, { color: statusView.fg }]}>{statusView.label}</Text>
+            <Text numberOfLines={1} style={[styles.statusChipText, { color: statusView.fg }]}>{statusView.label}</Text>
           </View>
           <View style={[styles.statusChip, styles.chipMuted]}>
-            <Text style={[styles.statusChipText, { color: paid ? colors.onSurface : colors.statusFlash }]}>
+            <Text numberOfLines={1} style={[styles.statusChipText, { color: paid ? colors.onSurface : colors.statusFlash }]}>
               {paid ? (order.payment_method && order.payment_method.toLowerCase().includes('momo') ? 'PAID (Mobile Money)' : 'PAID') : 'UNPAID'}
             </Text>
           </View>
@@ -127,8 +128,13 @@ function OrderCard({ order, token }: { order: ApiOrder; token?: string | null })
         <View style={styles.itemsSection}>
           {items.map((item, i) => (
             <View key={`${item.product_id}-${i}`} style={[styles.itemRow, i > 0 && styles.itemRowDivider]}>
-              {item.product_image ? (
-                <Image source={{ uri: absoluteUrl(item.product_image) ?? item.product_image }} style={styles.itemImage} resizeMode="cover" onError={() => {}} />
+              {item.product_image && !failedImages[`${item.product_id}-${i}`] ? (
+                <Image
+                  source={{ uri: absoluteUrl(item.product_image) ?? item.product_image }}
+                  style={styles.itemImage}
+                  resizeMode="cover"
+                  onError={() => setFailedImages(prev => ({ ...prev, [`${item.product_id}-${i}`]: true }))}
+                />
               ) : (
                 <View style={[styles.itemImage, styles.itemImagePlaceholder]}>
                   <Icon name="store" size={20} color={colors.outlineVariant} />
@@ -185,7 +191,7 @@ function OrderCard({ order, token }: { order: ApiOrder; token?: string | null })
                 </Pressable>
               </View>
               <ScrollView showsVerticalScrollIndicator={false}>
-                <InvoiceSection order={order} />
+                <InvoiceSection order={detail ?? order} />
               </ScrollView>
             </View>
           </View>
@@ -282,6 +288,7 @@ function InvoiceSection({ order }: { order: ApiOrder }) {
             <View key={idx} style={[styles.invoiceItemRow, idx > 0 && styles.invoiceItemDivider]}>
               <View style={styles.invoiceItemInfo}>
                 <Text style={styles.invoiceItemName} numberOfLines={2}>{item.product_name}</Text>
+                {item.sku ? <Text style={styles.invoiceItemQty}>SKU: {item.sku}</Text> : null}
                 <Text style={styles.invoiceItemQty}>Qty: {item.quantity} × {formatUGX(item.unit_price)}</Text>
               </View>
               <Text style={styles.invoiceItemTotal}>{formatUGX(item.total)}</Text>
@@ -713,6 +720,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: radius.full,
     alignSelf: 'flex-start',
+    flexShrink: 0,
   },
   statusChipText: {
     ...typography.labelSm,
@@ -1083,7 +1091,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   modalTitle: {
-    ...typography.headlineSm,
+    ...typography.labelSm,
     color: colors.onSurface,
     fontWeight: '700',
     flex: 1,

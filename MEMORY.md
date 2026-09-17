@@ -400,6 +400,51 @@ Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes 
 - **Release APK 1.1.1 (versionCode 3)** built (`assembleRelease`, signing configured, hermès
   bundle) + installed on phone `0794415254003308` and emulator `emulator-5554`.
 
+### Session (2026-09-17 — UI overhaul, reviews, orders)
+
+- App UI overhaul batch (all `tsc` green; release APK + AAB rebuilt; emulator reinstalled, phone
+  disconnected at end so it still needs the latest install): Home Promotions widths (banner uniform
+  insets, flash cards = banner width, snap paging, placement trim hardening); `SectionHeader`
+  action moved inside the row (title left, See All right, vertically centered); Contact / Wishlist /
+  Account-profile-tab (Personal/Address/About) / ProductDetails (incl. dark B2B price card, stock
+  pill) / VendorProfile restyled (smaller headers, tighter padding, `borderLight` cards); Wishlist
+  discounted-price bug fixed (rendered original price twice); VendorProfile shows real banner/logo
+  with fallbacks, dead Visit Store removed, stats/services from live API (fake 247/4.8/98 dropped),
+  Featured / All Products / Shop Reviews tabs; newsletter subscribe persists per account
+  `@jemina/newsletter/v1:<userId>` shared by Profile + vendor screens, white CTA.
+- Vendor reviews end-to-end: `ApiVendorController@reviews` (public, approved-only) +
+  `@storeReview` (sanctum, `pending`, one-per-user, 409 duplicate) + routes
+  `GET/POST /api/v1/vendors/{id}/reviews` — verified live (GET `[]` 200; POST without token 401
+  with `Accept: application/json`; note: probing POST *without* an Accept header returns the
+  homepage HTML via login redirect — test with app headers). App: review list + form in vendor
+  Reviews tab, already-reviewed `Alert` + pending-approval notice; product Reviews tab also alerts
+  on duplicate + success notice. New `ApiVendorReview`/`apiGetVendorReviews`/`apiSubmitVendorReview`
+  in `api.ts`.
+- Orders: status badges single-line auto-width (`numberOfLines` + `flexShrink: 0`); invoice modal
+  uses fetched detail (`detail ?? order`, was empty) + SKU row; invoice title → `labelSm`; order
+  images fall back to placeholder on error (`failedImages` map).
+- Server changes on VPS: agreement section 20 contacts corrected (`77269da`); homepage promo
+  banner = images only, no links/click actions (`a3b8b7d`, view cache cleared); promo id 6
+  ("Join our community") approved → both banner promos live in the app carousel. API serves from
+  `/var/www/jemina` (live tree); `/var/www/html` is a stale copy — do not edit it.
+- Order items API fix: `sku` added + primary image via `$image->url` accessor (was broken
+  `asset('storage/' . image_path)` — wrong column, and `storage/app/public` is empty with no
+  symlink; product webp files live under `public/frontend/img/products/`). ProductImage `url`
+  accessor resolves storage → frontend → default, which is why app product images work.
+- Image diagnosis notes: emulator vs phone image question turned out to be backend URLs (both
+  fail); device network is fine (same Android 11, DNS + CDN reachability verified via adb).
+  Vendor logo in DB is SVG (`1788355969_logo.svg`) — RN `<Image>` cannot render SVG, app falls
+  back; needs PNG/JPG re-upload via website for the real logo to show.
+- UNCOMMITTED on VPS (pending user confirm): `ApiOrderController.php` (sku + product_image),
+  `ApiVendorController.php` + `routes/api.php` (vendor review endpoints). Backups in `/tmp`
+  (`ApiVendorController.php.bak-reviews`, `ApiOrderController.php.bak-orders`, etc.).
+- Remote-shell lessons (TAKE NOTE): the tool transport strips `'`/`"` chars from ssh remote
+  commands — never rely on quoting there (use quoteless commands); file bytes piped over stdin
+  keep `"` but the Write tool emits CRLF, so strip CR locally
+  (`[IO.File]::ReadAllText(...).Replace([string][char]13, '')`) before piping to `bash -s`;
+  in bash, `X=Y()` is a syntax error (looks like a function def) — quote it; prefer numeric enum
+  values over string literals in inline SQL.
+
 ### Audit (2026-09-06)
 
 - App code @ `2032ccf` is **ahead** of MEMORY/TODO docs (docs written at `f304f90`, many screens

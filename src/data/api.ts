@@ -549,6 +549,7 @@ export interface ApiOrderItem {
   id?: number;
   product_id: number;
   product_name: string;
+  sku?: string | null;
   quantity: number;
   unit_price: number;
   total: number;
@@ -857,6 +858,35 @@ export async function apiGetVendor(id: number | string): Promise<{
     data: { vendor: ApiVendorDetail; products: ApiProduct[] };
   }>(`/vendors/${id}`);
   return json.data;
+}
+
+export interface ApiVendorReview {
+  id: number;
+  name: string;
+  user_img?: string | null;
+  rating: number;
+  content: string;
+  created_at: string;
+}
+
+export async function apiGetVendorReviews(vendorId: number | string): Promise<ApiVendorReview[]> {
+  const data = await getJson<{ success: boolean; data: { reviews: ApiVendorReview[] } }>(
+    `/vendors/${vendorId}/reviews`,
+  );
+  return data.data.reviews ?? [];
+}
+
+export async function apiSubmitVendorReview(
+  token: string,
+  vendorId: number | string,
+  payload: { rating: number; content: string; name?: string },
+): Promise<string> {
+  const json = await request<{ review: ApiVendorReview }>(`/vendors/${vendorId}/reviews`, {
+    method: 'POST',
+    token,
+    body: payload,
+  });
+  return json.message ?? 'Review submitted.';
 }
 
 export interface ApiVendorSummary {

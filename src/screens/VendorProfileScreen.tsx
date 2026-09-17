@@ -1,5 +1,6 @@
-﻿import React, { useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -8,9 +9,10 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppHeader, HeaderNotificationButton, HeaderCartButton } from '../components/AppHeader';
 import { BottomNav } from '../components/BottomNav';
-import { Icon } from '../components/Icon';
+import { Icon, IconName } from '../components/Icon';
 import { Button } from '../components/Button';
 import { ChatView } from '../components/ChatView';
 import { useAuth } from '../state/AuthContext';
@@ -18,12 +20,16 @@ import { useNavigation } from '../navigation/NavigationContext';
 import { useCart } from '../state/CartContext';
 import { useCatalog } from '../state/CatalogContext';
 import {
+  absoluteUrl,
   apiGetVendor,
+  apiGetVendorReviews,
   apiProductToProduct,
+  apiSubmitVendorReview,
   apiVendorChatAsk,
   apiVendorChatNotify,
   makeConversationId,
   ApiVendorDetail,
+  ApiVendorReview,
 } from '../data/api';
 import { ProductCard, type Product } from '../components/ProductCard';
 import { colors } from '../theme/colors';
@@ -31,24 +37,27 @@ import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
 import { images } from '../data/images';
 
-const STATS = [
-  { label: 'Products', value: '247', trend: '+12%' },
-  { label: 'Response Time', value: '< 1hr', sub: 'Highly Responsive' },
-  { label: 'Service Area', value: 'Gulu, UG', sub: 'National Shipping' },
-  { label: 'Hours', value: 'Mon - Sat', sub: '8:00 AM - 6:00 PM' },
-];
+const SERVICE_STYLES: Record<string, { icon: IconName; bg: string; fg: string }> = {
+  retail: { icon: 'shopping-bag', bg: colors.primary, fg: colors.white },
+  wholesale: { icon: 'business-center', bg: colors.primaryContainer, fg: colors.onPrimaryContainer },
+  online: { icon: 'public', bg: colors.secondaryContainer, fg: colors.onSecondary },
+};
 
-const SERVICES = [
-  { label: 'Retail', icon: 'shopping-bag' as const, bg: colors.primary, fg: colors.white },
-  { label: 'Wholesale', icon: 'business-center' as const, bg: colors.primaryContainer, fg: colors.onPrimaryContainer },
-  { label: 'Online Sales', icon: 'public' as const, bg: colors.secondaryContainer, fg: colors.onSecondary },
-];
+const FALLBACK_SERVICES = ['Retail', 'Wholesale', 'Online Sales'];
+
+function formatReviewDate(value: string): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) {
+    return value;
+  }
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
 
 export function VendorProfileScreen() {
   const { goBack, navigate, switchTab, params } = useNavigation();
   const { addItem, itemCount } = useCart();
   const { products: catalogProducts, error, refresh } = useCatalog();
-  const { token, isAuthenticated } = useAuth();
+  const { user, token, isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [vendor, setVendor] = useState<ApiVendorDetail | null>(null);
   const [vendorProducts, setVendorProducts] = useState<Product[]>([]);
@@ -60,16 +69,135 @@ export function VendorProfileScreen() {
   const vendorId = params?.vendorId != null ? Number(params.vendorId) : undefined;
   const vendorNameParam = params?.vendorName as string | undefined;
 
+  const [bannerFailed, setBannerFailed] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
+  const [subEmail, setSubEmail] = useState('');
+  const [subscribed, setSubscribed] = useState(false);
+
+  const newsletterKey = user ? `@jemina/newsletter/v1:${user.id}` : null;
+
+  const [shopReviews, setShopReviews] = useState<ApiVendorReview[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsLoadedFor, setReviewsLoadedFor] = useState<number | null>(null);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [reviewDone, setReviewDone] = useState<string | null>(null);
+
+  const fetchShopReviews = useCallback(async () => {
+    if (vendorId == null) {
+      return;
+    }
+    setReviewsLoading(true);
+    try {
+      const list = await apiGetVendorReviews(vendorId);
+      setShopReviews(list);
+      setReviewsLoadedFor(vendorId);
+    } catch {
+      // keep existing list on refresh failure
+    } finally {
+      setReviewsLoading(false);
+    }
+  }, [vendorId]);
+
+  useEffect(() => {
+    if (activeTab === 2 && vendorId != null && reviewsLoadedFor !== vendorId) {
+      fetchShopReviews();
+    }
+  }, [activeTab, vendorId, reviewsLoadedFor, fetchShopReviews]);
+
+  const submitShopReview = useCallback(async () => {
+    if (!token) {
+      navigate('Login');
+      return;
+    }
+    if (vendorId == null || reviewSubmitting) {
+      return;
+    }
+    if (reviewRating === 0) {
+      setReviewError('Please select a star rating.');
+      return;
+    }
+    if (reviewComment.trim().length < 10) {
+      setReviewError('Please write a review of at least 10 characters.');
+      return;
+    }
+    setReviewSubmitting(true);
+    setReviewError(null);
+    try {
+      const message = await apiSubmitVendorReview(token, vendorId, {
+        rating: reviewRating,
+        content: reviewComment.trim(),
+        name: user?.name,
+      });
+      setReviewRating(0);
+      setReviewComment('');
+      setReviewDone(message);
+      setReviewsLoadedFor(null);
+      fetchShopReviews();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Could not submit your review.';
+      if (msg.toLowerCase().includes('already')) {
+        Alert.alert('Already reviewed', 'You have already submitted a review for this vendor.');
+        setReviewDone('You have already submitted a review for this vendor.');
+      } else {
+        setReviewError(msg);
+      }
+    } finally {
+      setReviewSubmitting(false);
+    }
+  }, [token, vendorId, reviewRating, reviewComment, reviewSubmitting, user, navigate, fetchShopReviews]);
+
+  useEffect(() => {
+    if (newsletterKey == null) {
+      setSubscribed(false);
+      return;
+    }
+    AsyncStorage.getItem(newsletterKey)
+      .then(raw => {
+        if (!raw) {
+          setSubscribed(false);
+          return;
+        }
+        try {
+          const saved = JSON.parse(raw) as { subscribed?: boolean; email?: string };
+          setSubscribed(saved.subscribed === true);
+          if (typeof saved.email === 'string' && saved.email) {
+            setSubEmail(saved.email);
+          }
+        } catch {
+          setSubscribed(false);
+        }
+      })
+      .catch(() => {});
+  }, [newsletterKey]);
+
+  const handleSubscribe = useCallback(() => {
+    const email = subEmail.trim();
+    if (!email || newsletterKey == null) {
+      return;
+    }
+    setSubscribed(true);
+    AsyncStorage.setItem(newsletterKey, JSON.stringify({ subscribed: true, email })).catch(() => {});
+  }, [subEmail, newsletterKey]);
+
   useEffect(() => {
     if (vendorId == null) {
       setVendor(null);
       setVendorProducts([]);
       setVendorLoading(false);
+      setBannerFailed(false);
+      setLogoFailed(false);
       return;
     }
     let cancelled = false;
     setVendorLoading(true);
     setVendorError(null);
+    setBannerFailed(false);
+    setLogoFailed(false);
+    setReviewDone(null);
+    setReviewError(null);
     apiGetVendor(vendorId)
       .then(data => {
         if (cancelled) {
@@ -94,10 +222,13 @@ export function VendorProfileScreen() {
   }, [vendorId]);
 
   const displayName = vendor?.name ?? vendorNameParam ?? 'Jemina Official';
-  const displayRating = vendor?.rating ?? 4.8;
-  const reviewCount = vendor?.review_count ?? 98;
-  const tagline =
-    vendor?.description ?? (vendorNameParam ? `${displayName} on JEMINA Marketplace.` : undefined);
+  const displayRating = vendor?.rating ?? 0;
+  const displayRatingText = displayRating > 0 ? displayRating.toFixed(1) : '—';
+  const reviewCount = vendor?.review_count ?? 0;
+  const tagline = vendor?.description ?? `${displayName} on JEMINA Marketplace.`;
+  const bannerUrl = vendor?.banner ? absoluteUrl(vendor.banner) : undefined;
+  const logoRawUrl = vendor?.logo ? absoluteUrl(vendor.logo) : undefined;
+  const logoUrl = logoRawUrl && !/\.svg(\?|#|$)/i.test(logoRawUrl) ? logoRawUrl : undefined;
 
   const PRODUCTS =
     vendorProducts.length > 0
@@ -116,6 +247,48 @@ export function VendorProfileScreen() {
           inquiry: p.actionVariant === 'inquiry',
         }));
 
+  const featuredProducts = PRODUCTS.filter(p => p.badge?.variant === 'featured');
+  const serviceChips = (
+    vendor?.services_offered
+      ? vendor.services_offered.split(',').map(s => s.trim()).filter(Boolean)
+      : FALLBACK_SERVICES
+  )
+    .slice(0, 4)
+    .map(label => {
+      const key = label.toLowerCase().startsWith('online') ? 'online' : label.toLowerCase();
+      return {
+        label,
+        ...(SERVICE_STYLES[key] ?? {
+          icon: 'store' as IconName,
+          bg: colors.surfaceContainer,
+          fg: colors.onSurfaceVariant,
+        }),
+      };
+    });
+  const stats = [
+    { label: 'Products', value: String(vendor?.product_count ?? vendorProducts.length) },
+    { label: 'Rating', value: displayRatingText },
+    { label: 'Reviews', value: String(reviewCount) },
+    { label: 'Location', value: vendor?.location ?? '—' },
+  ];
+  const renderGrid = (list: typeof PRODUCTS) => (
+    <View style={styles.productGrid}>
+      {list.map(p => (
+        <View key={p.id} style={styles.productCardWrap}>
+          <ProductCard
+            product={p}
+            compact
+            imageHeight={120}
+            actionVariant={p.inquiry ? 'inquiry' : 'addToCart'}
+            onPress={() => navigate('ProductDetails', { product: p })}
+            onInquiry={() => navigate('ProductInquiry', { product: p })}
+            onAddToCart={() => addItem(p)}
+          />
+        </View>
+      ))}
+    </View>
+  );
+
   return (
     <View style={styles.root}>
       <AppHeader
@@ -132,14 +305,32 @@ export function VendorProfileScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Cover */}
         <View style={styles.coverWrap}>
-          <Image source={{ uri: images.vendorCover }} style={styles.coverImage} resizeMode="cover" />
+          {bannerUrl && !bannerFailed ? (
+            <Image
+              source={{ uri: bannerUrl }}
+              style={styles.coverImage}
+              resizeMode="cover"
+              onError={() => setBannerFailed(true)}
+            />
+          ) : (
+            <Image source={{ uri: images.vendorCover }} style={styles.coverImage} resizeMode="cover" />
+          )}
           <View style={styles.coverOverlay} />
         </View>
 
         {/* Profile card */}
         <View style={styles.profileCard}>
           <View style={styles.logoWrap}>
-            <Image source={{ uri: images.vendorLogo }} style={styles.logo} resizeMode="contain" />
+            {logoUrl && !logoFailed ? (
+              <Image
+                source={{ uri: logoUrl }}
+                style={styles.logo}
+                resizeMode="contain"
+                onError={() => setLogoFailed(true)}
+              />
+            ) : (
+              <Image source={{ uri: images.vendorLogo }} style={styles.logo} resizeMode="contain" />
+            )}
           </View>
           <View style={styles.profileMain}>
             <View style={styles.nameRow}>
@@ -149,19 +340,15 @@ export function VendorProfileScreen() {
                 <Text style={styles.verifiedText}>Verified Vendor</Text>
               </View>
             </View>
-            <Text style={styles.tagline}>
-              {tagline ??
-                'Test vendor Two. All products listed are for testing purposes only. Uganda\'s premier marketplace connection.'}
-            </Text>
+            <Text style={styles.tagline}>{tagline}</Text>
           </View>
           <View style={styles.profileSide}>
             <View style={styles.ratingCard}>
-              <Text style={styles.ratingBig}>{displayRating.toFixed(1)}</Text>
+              <Text style={styles.ratingBig}>{displayRatingText}</Text>
               <Icon name="star" size={18} color={colors.secondary} />
               <Text style={styles.ratingCount}>{reviewCount} Reviews</Text>
             </View>
             <View style={styles.profileActions}>
-              <Button label="Visit Store" variant="primary" onPress={() => {}} style={styles.visitBtn} />
               <Button
                 label={isAuthenticated && token ? 'Chat with Shop' : 'Sign in to Chat'}
                 variant="secondary"
@@ -193,18 +380,10 @@ export function VendorProfileScreen() {
 
         {/* Stats */}
         <View style={styles.statsGrid}>
-          {STATS.map(s => (
+          {stats.map(s => (
             <View key={s.label} style={styles.statCard}>
               <Text style={styles.statLabel}>{s.label}</Text>
-              <Text style={styles.statValue}>{s.value}</Text>
-              {s.trend ? (
-                <View style={styles.trendRow}>
-                  <Icon name="trending-up" size={13} color={colors.statusSuccess} />
-                  <Text style={styles.trendText}>{s.trend}</Text>
-                </View>
-              ) : (
-                <Text style={styles.statSub}>{s.sub}</Text>
-              )}
+              <Text style={styles.statValue} numberOfLines={1}>{s.value}</Text>
             </View>
           ))}
         </View>
@@ -213,7 +392,7 @@ export function VendorProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Services Offered</Text>
           <View style={styles.servicesRow}>
-            {SERVICES.map(s => (
+            {serviceChips.map(s => (
               <View key={s.label} style={[styles.serviceChip, { backgroundColor: s.bg }]}>
                 <Icon name={s.icon} size={16} color={s.fg} />
                 <Text style={[styles.serviceText, { color: s.fg }]}>{s.label}</Text>
@@ -224,7 +403,7 @@ export function VendorProfileScreen() {
 
         {/* Tabs */}
         <View style={styles.tabBar}>
-          {[`All Products`, `Reviews (${reviewCount})`].map((t, i) => (
+          {['Featured', 'All Products', 'Shop Reviews'].map((t, i) => (
             <Pressable key={t} style={styles.tab} onPress={() => setActiveTab(i)}>
               <Text style={[styles.tabText, i === activeTab && styles.tabTextActive]}>{t}</Text>
               <View style={[styles.tabIndicator, i === activeTab && styles.tabIndicatorActive]} />
@@ -248,28 +427,114 @@ export function VendorProfileScreen() {
           </Pressable>
         </View>
 
-        {/* Product grid */}
+        {/* Product grids */}
         {activeTab === 0 ? (
-          <View style={styles.productGrid}>
-            {PRODUCTS.map(p => (
-              <View key={p.id} style={styles.productCardWrap}>
-                <ProductCard
-                  product={p}
-                  compact
-                  imageHeight={120}
-                  actionVariant={p.inquiry ? 'inquiry' : 'addToCart'}
-                  onPress={() => navigate('ProductDetails', { product: p })}
-                  onInquiry={() => navigate('ProductInquiry', { product: p })}
-                  onAddToCart={() => addItem(p)}
-                />
-              </View>
-            ))}
-          </View>
+          featuredProducts.length > 0 ? (
+            renderGrid(featuredProducts)
+          ) : (
+            <View style={styles.reviewsEmpty}>
+              <Icon name="star" size={32} color={colors.outlineVariant} />
+              <Text style={styles.reviewsEmptyText}>No featured products yet</Text>
+              <Text style={styles.reviewsEmptySub}>See all products for the full catalogue.</Text>
+            </View>
+          )
+        ) : activeTab === 1 ? (
+          renderGrid(PRODUCTS)
         ) : (
-          <View style={styles.reviewsEmpty}>
-            <Icon name="star" size={36} color={colors.outlineVariant} />
-            <Text style={styles.reviewsEmptyText}>No written reviews yet</Text>
-            <Text style={styles.reviewsEmptySub}>Be the first to review this store's products.</Text>
+          <View style={styles.reviewsWrap}>
+            <View style={styles.reviewSummary}>
+              <Text style={styles.reviewBig}>{displayRatingText}</Text>
+              <View style={styles.reviewMeta}>
+                <Text style={styles.reviewCount}>
+                  {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}
+                </Text>
+                <Text style={styles.reviewSub}>from verified buyers of this store</Text>
+              </View>
+            </View>
+            {reviewsLoading && shopReviews.length === 0 ? (
+              <View style={styles.reviewsEmpty}>
+                <Text style={styles.reviewsEmptySub}>Loading reviews...</Text>
+              </View>
+            ) : shopReviews.length > 0 ? (
+              <View style={styles.reviewList}>
+                {shopReviews.map(r => (
+                  <View key={r.id} style={styles.reviewItem}>
+                    <View style={styles.reviewAvatar}>
+                      <Text style={styles.reviewAvatarText}>
+                        {(r.name || 'J').trim().charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={styles.reviewBody}>
+                      <View style={styles.reviewTop}>
+                        <Text style={styles.reviewName} numberOfLines={1}>{r.name}</Text>
+                        <View style={styles.reviewStarsRow}>
+                          {[1, 2, 3, 4, 5].map(n => (
+                            <Icon
+                              key={n}
+                              name={r.rating >= n ? 'star' : 'star-border'}
+                              size={12}
+                              color={colors.secondary}
+                            />
+                          ))}
+                        </View>
+                      </View>
+                      <Text style={styles.reviewDate}>{formatReviewDate(r.created_at)}</Text>
+                      <Text style={styles.reviewContentText}>{r.content}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.reviewsEmpty}>
+                <Icon name="star" size={32} color={colors.outlineVariant} />
+                <Text style={styles.reviewsEmptyText}>No written reviews yet</Text>
+                <Text style={styles.reviewsEmptySub}>Be the first to review this store.</Text>
+              </View>
+            )}
+            <Text style={styles.reviewFormTitle}>Write a review</Text>
+            {!isAuthenticated || !token ? (
+              <Button
+                label="Sign in to write a review"
+                variant="outline"
+                fullWidth
+                onPress={() => navigate('Login')}
+              />
+            ) : reviewDone ? (
+              <View style={styles.reviewDoneBox}>
+                <Icon name="check-circle" size={18} color={colors.statusSuccess} />
+                <Text style={styles.reviewDoneText}>{reviewDone}</Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.reviewStars}>
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <Pressable key={n} onPress={() => setReviewRating(n)} hitSlop={6}>
+                      <Icon
+                        name={reviewRating >= n ? 'star' : 'star-border'}
+                        size={28}
+                        color={colors.secondary}
+                      />
+                    </Pressable>
+                  ))}
+                </View>
+                <TextInput
+                  style={styles.reviewInput}
+                  placeholder="Share your experience with this store..."
+                  placeholderTextColor={colors.onSurfaceVariant}
+                  multiline
+                  value={reviewComment}
+                  onChangeText={setReviewComment}
+                />
+                {reviewError ? <Text style={styles.reviewErrorText}>{reviewError}</Text> : null}
+                <Button
+                  label={reviewSubmitting ? 'Submitting...' : 'Submit Review'}
+                  variant="primary"
+                  fullWidth
+                  onPress={submitShopReview}
+                />
+                <Text style={styles.reviewHint}>Reviews appear here after the vendor approves them.</Text>
+              </>
+            )}
           </View>
         )}
 
@@ -285,15 +550,31 @@ export function VendorProfileScreen() {
           <Text style={styles.newsletterSubtitle}>
             Get deals, promotions, and new arrivals straight to your inbox.
           </Text>
-          <View style={styles.newsletterForm}>
-            <TextInput
-              style={styles.newsletterInput}
-              placeholder="Enter your email"
-              placeholderTextColor={colors.onSurfaceVariant}
-              keyboardType="email-address"
-            />
-            <Button label="Subscribe" variant="primary" onPress={() => {}} style={styles.subscribeBtn} />
-          </View>
+          {subscribed ? (
+            <View style={styles.subSuccess}>
+              <Icon name="check-circle" size={18} color={colors.white} />
+              <Text style={styles.subSuccessText}>Subscribed successfully!</Text>
+            </View>
+          ) : (
+            <View style={styles.newsletterForm}>
+              <TextInput
+                style={styles.newsletterInput}
+                placeholder="Enter your email"
+                placeholderTextColor={colors.onSurfaceVariant}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={subEmail}
+                onChangeText={setSubEmail}
+              />
+              <Pressable
+                style={[styles.subscribeBtnFill, !subEmail.trim() && styles.subscribeBtnDisabled]}
+                onPress={handleSubscribe}
+                disabled={!subEmail.trim()}
+              >
+                <Text style={styles.subscribeBtnFillText}>Subscribe</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
 
         {/* Footer */}
@@ -375,7 +656,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   coverWrap: {
-    height: 170,
+    height: 148,
     position: 'relative',
   },
   coverImage: {
@@ -391,13 +672,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.35)',
   },
   profileCard: {
-    marginHorizontal: spacing.lg,
-    marginTop: -56,
+    marginHorizontal: spacing.md,
+    marginTop: -48,
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
     borderColor: colors.borderLight,
     borderRadius: radius.xl,
-    padding: spacing.xl,
+    padding: spacing.md,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
@@ -406,16 +687,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoWrap: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     borderWidth: 4,
     borderColor: colors.surfaceContainerLowest,
     backgroundColor: colors.white,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -68,
+    marginTop: -56,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -423,12 +704,12 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   logo: {
-    width: 84,
-    height: 84,
+    width: 68,
+    height: 68,
   },
   profileMain: {
     alignItems: 'center',
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
   },
   nameRow: {
     flexDirection: 'row',
@@ -436,8 +717,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   name: {
-    ...typography.headlineLg,
+    ...typography.headlineSm,
     color: colors.primary,
+    fontWeight: '700',
   },
   verifiedChip: {
     flexDirection: 'row',
@@ -449,12 +731,12 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   verifiedText: {
-    ...typography.labelMd,
+    ...typography.labelSm,
     color: colors.secondary,
     fontWeight: '700',
   },
   tagline: {
-    ...typography.bodyMd,
+    ...typography.bodySm,
     color: colors.onSurfaceVariant,
     textAlign: 'center',
     marginTop: spacing.sm,
@@ -462,9 +744,9 @@ const styles = StyleSheet.create({
   },
   profileSide: {
     width: '100%',
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
     alignItems: 'center',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   ratingCard: {
     flexDirection: 'row',
@@ -478,7 +760,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   ratingBig: {
-    ...typography.headlineMd,
+    ...typography.headlineSm,
     color: colors.secondary,
     fontWeight: '700',
   },
@@ -499,9 +781,9 @@ const styles = StyleSheet.create({
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.gutter,
-    paddingHorizontal: spacing.lg,
-    marginTop: spacing.xl,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.md,
   },
   statCard: {
     width: '48%',
@@ -509,20 +791,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderLight,
     borderRadius: radius.xl,
-    padding: spacing.lg,
+    padding: spacing.md,
     alignItems: 'center',
   },
   statLabel: {
-    ...typography.labelMd,
+    ...typography.labelSm,
     color: colors.onSurfaceVariant,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   statValue: {
-    ...typography.displayLg,
+    ...typography.headlineSm,
     color: colors.primary,
     fontWeight: '700',
-    fontSize: 26,
     marginTop: 2,
   },
   trendRow: {
@@ -543,46 +824,48 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   section: {
-    marginTop: spacing.xl,
-    paddingHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.md,
   },
   sectionTitle: {
-    ...typography.headlineMd,
+    ...typography.labelLg,
     color: colors.primary,
-    marginBottom: spacing.md,
+    fontWeight: '700',
+    marginBottom: spacing.sm,
   },
   servicesRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   serviceChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     borderRadius: radius.lg,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
   },
   serviceText: {
-    ...typography.labelMd,
+    ...typography.labelSm,
     fontWeight: '700',
   },
   tabBar: {
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
-    paddingHorizontal: spacing.lg,
-    marginTop: spacing.xl,
-    gap: spacing.xl,
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.md,
+    gap: spacing.lg,
   },
   tab: {
-    paddingBottom: spacing.md,
+    paddingBottom: spacing.sm,
     paddingHorizontal: spacing.sm,
   },
   tabText: {
-    ...typography.headlineMd,
+    ...typography.labelLg,
     color: colors.onSurfaceVariant,
+    fontWeight: '700',
   },
   tabTextActive: {
     color: colors.secondary,
@@ -600,9 +883,9 @@ const styles = StyleSheet.create({
   },
   shopTools: {
     flexDirection: 'row',
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.lg,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
   },
   searchBox: {
     flex: 1,
@@ -641,17 +924,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.gutter,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
   },
   productCardWrap: {
     width: '48%',
   },
   reviewsEmpty: {
     alignItems: 'center',
-    paddingVertical: spacing.xxl,
+    paddingVertical: spacing.xl,
   },
   reviewsEmptyText: {
-    ...typography.headlineMd,
+    ...typography.headlineSm,
     color: colors.onSurfaceVariant,
     marginTop: spacing.md,
   },
@@ -666,10 +949,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    paddingVertical: spacing.xxl,
+    paddingVertical: spacing.xl,
   },
   loadingText: {
-    ...typography.headlineMd,
+    ...typography.bodyMd,
     color: colors.onSurfaceVariant,
   },
   vendorErrorBox: {
@@ -685,17 +968,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   newsletter: {
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.xl,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
     backgroundColor: colors.primaryContainer,
     borderRadius: radius.xl,
     alignItems: 'center',
-    paddingVertical: spacing.xl,
-    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
   },
   newsletterTitle: {
-    ...typography.displayLg,
+    ...typography.headlineSm,
     color: colors.white,
+    fontWeight: '700',
     textAlign: 'center',
   },
   newsletterSubtitle: {
@@ -706,14 +990,14 @@ const styles = StyleSheet.create({
   },
   newsletterForm: {
     width: '100%',
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
     gap: spacing.sm,
   },
   newsletterInput: {
     backgroundColor: colors.white,
     borderRadius: radius.lg,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     ...typography.bodyMd,
     color: colors.onSurface,
   },
@@ -721,30 +1005,197 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   footer: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.lg,
   },
   footerTitle: {
-    ...typography.headlineMd,
+    ...typography.labelLg,
     color: colors.primary,
-    marginBottom: spacing.md,
+    fontWeight: '700',
+    marginBottom: spacing.sm,
   },
   footerText: {
     ...typography.bodyMd,
     color: colors.onSurfaceVariant,
     lineHeight: 22,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   contactRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    marginBottom: spacing.md,
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
   },
   contactText: {
     ...typography.labelMd,
     color: colors.onSurfaceVariant,
+  },
+  reviewsWrap: {
+    paddingHorizontal: spacing.md,
+  },
+  reviewSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  reviewBig: {
+    ...typography.headlineMd,
+    color: colors.primary,
+    fontWeight: '800',
+  },
+  reviewMeta: {
+    flex: 1,
+  },
+  reviewCount: {
+    ...typography.labelLg,
+    color: colors.onSurface,
+    fontWeight: '700',
+  },
+  reviewSub: {
+    ...typography.bodySm,
+    color: colors.outline,
+    marginTop: 1,
+  },
+  subSuccess: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  subSuccessText: {
+    ...typography.labelMd,
+    color: colors.white,
+    fontWeight: '600',
+  },
+  subscribeBtnFill: {
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subscribeBtnFillText: {
+    ...typography.labelMd,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  subscribeBtnDisabled: {
+    opacity: 0.5,
+  },
+  reviewList: {
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  reviewItem: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  reviewAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.secondaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reviewAvatarText: {
+    ...typography.labelLg,
+    color: colors.onSecondaryContainer,
+    fontWeight: '700',
+  },
+  reviewBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  reviewTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  reviewName: {
+    ...typography.labelMd,
+    color: colors.onSurface,
+    fontWeight: '700',
+    flex: 1,
+  },
+  reviewStarsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 1,
+  },
+  reviewDate: {
+    ...typography.labelSm,
+    color: colors.outline,
+    marginTop: 1,
+  },
+  reviewContentText: {
+    ...typography.bodyMd,
+    color: colors.onSurfaceVariant,
+    marginTop: spacing.xs,
+  },
+  reviewFormTitle: {
+    ...typography.labelLg,
+    color: colors.onSurface,
+    fontWeight: '700',
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  reviewStars: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  reviewInput: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    minHeight: 80,
+    textAlignVertical: 'top',
+    marginBottom: spacing.sm,
+  },
+  reviewErrorText: {
+    ...typography.labelMd,
+    color: colors.statusFlash,
+    marginBottom: spacing.sm,
+  },
+  reviewHint: {
+    ...typography.labelMd,
+    color: colors.onSurfaceVariant,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
+  reviewDoneBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginTop: spacing.sm,
+  },
+  reviewDoneText: {
+    ...typography.bodyMd,
+    color: colors.statusSuccess,
+    flex: 1,
+    fontWeight: '600',
   },
   chatOverlay: {
     position: 'absolute',

@@ -1,5 +1,6 @@
 ﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -95,6 +96,7 @@ export function ProductDetailsScreen() {
   const [reviewComment, setReviewComment] = useState('');
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [reviewDone, setReviewDone] = useState<string | null>(null);
 
   const product = (params?.product as Product | undefined) ?? FALLBACK_PRODUCT;
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
@@ -126,6 +128,10 @@ export function ProductDetailsScreen() {
 
   useEffect(() => {
     let cancelled = false;
+    setReviewDone(null);
+    setReviewError(null);
+    setReviewRating(0);
+    setReviewComment('');
     fetchProductDetail(product.id)
       .then(api => {
         if (!cancelled) {
@@ -157,8 +163,15 @@ export function ProductDetailsScreen() {
       await apiAddReview(token, product.id, { rating: reviewRating, comment: reviewComment.trim() });
       setReviewRating(0);
       setReviewComment('');
+      setReviewDone('Thank you! Your review has been submitted.');
     } catch (e) {
-      setReviewError(e instanceof Error ? e.message : 'Could not submit your review.');
+      const message = e instanceof Error ? e.message : 'Could not submit your review.';
+      if (message.toLowerCase().includes('already reviewed')) {
+        Alert.alert('Already reviewed', 'You have already reviewed this product.');
+        setReviewDone('You have already reviewed this product.');
+      } else {
+        setReviewError(message);
+      }
     } finally {
       setReviewSubmitting(false);
     }
@@ -231,7 +244,9 @@ export function ProductDetailsScreen() {
             </View>
             <Text style={styles.reviewCount}>({reviewCount} Reviews)</Text>
             <View style={styles.metaDivider} />
-            <Text style={styles.stockText}>{resolved.stock ?? 'IN STOCK'}</Text>
+            <View style={styles.stockPill}>
+              <Text style={styles.stockText}>{resolved.stock ?? 'IN STOCK'}</Text>
+            </View>
           </View>
 
           <View style={styles.priceCard}>
@@ -244,7 +259,7 @@ export function ProductDetailsScreen() {
             </View>
             {resolved.minOrder ? (
               <View style={styles.minOrderRow}>
-                <Icon name="inventory" size={14} color={colors.onSurfaceVariant} />
+                <Icon name="inventory" size={14} color={colors.outlineVariant} />
                 <Text style={styles.minOrder}>{resolved.minOrder}</Text>
               </View>
             ) : null}
@@ -255,7 +270,7 @@ export function ProductDetailsScreen() {
                   <Text style={styles.corporateTitle}>Corporate Ready</Text>
                   <Text style={styles.corporateSubtitle}>Contact vendor for wholesale custom pricing</Text>
                 </View>
-                <Icon name="verified" size={28} color={colors.secondary} />
+                <Icon name="verified" size={28} color={colors.secondaryFixed} />
               </View>
             ) : null}
           </View>
@@ -457,6 +472,11 @@ export function ProductDetailsScreen() {
               </View>
               {!isAuthenticated ? (
                 <Button label="Sign in to write a review" variant="outline" fullWidth onPress={() => navigate('Login')} style={styles.reviewBtn} />
+              ) : reviewDone ? (
+                <View style={styles.reviewDoneBox}>
+                  <Icon name="check-circle" size={20} color={colors.statusSuccess} />
+                  <Text style={styles.reviewDoneText}>{reviewDone}</Text>
+                </View>
               ) : (
                 <>
                   <Text style={styles.reviewFormTitle}>Write a review</Text>
@@ -574,13 +594,13 @@ const styles = StyleSheet.create({
   },
   thumbRow: {
     flexDirection: 'row',
-    gap: spacing.lg,
-    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
   },
   thumb: {
-    width: 72,
-    height: 72,
+    width: 64,
+    height: 64,
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.borderLight,
@@ -598,21 +618,21 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   infoSection: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     marginTop: spacing.sm,
   },
   breadcrumb: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   breadcrumbText: {
-    ...typography.labelMd,
+    ...typography.labelSm,
     color: colors.outline,
   },
   breadcrumbSep: {
-    ...typography.labelMd,
+    ...typography.labelSm,
     color: colors.outline,
   },
   breadcrumbActive: {
@@ -624,8 +644,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   title: {
-    ...typography.displayLgMobile,
+    ...typography.headlineSm,
     color: colors.onSurface,
+    fontWeight: '700',
   },
   titleFlex: {
     flex: 1,
@@ -648,10 +669,26 @@ const styles = StyleSheet.create({
   reviewBtn: {
     marginTop: spacing.md,
   },
+  reviewDoneBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginTop: spacing.md,
+  },
+  reviewDoneText: {
+    ...typography.bodyMd,
+    color: colors.statusSuccess,
+    flex: 1,
+    fontWeight: '600',
+  },
   reviewFormTitle: {
-    ...typography.headlineMd,
+    ...typography.labelLg,
     color: colors.onSurface,
-    marginTop: spacing.lg,
+    fontWeight: '700',
+    marginTop: spacing.md,
     marginBottom: spacing.sm,
   },
   reviewStars: {
@@ -667,7 +704,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderLight,
     padding: spacing.md,
-    minHeight: 96,
+    minHeight: 80,
     textAlignVertical: 'top',
     marginBottom: spacing.sm,
   },
@@ -681,14 +718,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    marginVertical: spacing.lg,
+    marginVertical: spacing.md,
   },
   stars: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   reviewCount: {
-    ...typography.bodyMd,
+    ...typography.bodySm,
     color: colors.onSurfaceVariant,
   },
   metaDivider: {
@@ -702,13 +739,19 @@ const styles = StyleSheet.create({
     color: colors.statusSuccess,
     fontWeight: '700',
   },
+  stockPill: {
+    backgroundColor: 'rgba(40,167,69,0.12)',
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
   priceCard: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.inverseSurface,
     borderWidth: 1,
-    borderColor: colors.outlineVariant,
+    borderColor: colors.secondaryContainer,
     borderRadius: radius.xl,
-    padding: spacing.lg,
-    marginBottom: spacing.xl,
+    padding: spacing.md,
+    marginBottom: spacing.md,
   },
   priceRow: {
     flexDirection: 'row',
@@ -717,14 +760,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   price: {
-    ...typography.headlineLg,
-    color: colors.secondary,
+    ...typography.headlineMd,
+    color: colors.secondaryFixed,
     fontWeight: '700',
-    fontSize: 20,
   },
   originalPrice: {
-    ...typography.bodyLg,
-    color: colors.outline,
+    ...typography.bodyMd,
+    color: colors.outlineVariant,
     textDecorationLine: 'line-through',
   },
   offBadge: {
@@ -737,13 +779,13 @@ const styles = StyleSheet.create({
   },
   minOrder: {
     ...typography.labelMd,
-    color: colors.onSurfaceVariant,
+    color: colors.primaryFixedDim,
   },
   divider: {
     height: 1,
     backgroundColor: colors.outlineVariant,
     opacity: 0.3,
-    marginVertical: spacing.lg,
+    marginVertical: spacing.md,
   },
   corporateRow: {
     flexDirection: 'row',
@@ -754,13 +796,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   corporateTitle: {
-    ...typography.headlineMd,
-    color: colors.onSurface,
+    ...typography.labelLg,
+    color: colors.white,
     fontWeight: '700',
   },
   corporateSubtitle: {
     ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
+    color: colors.primaryFixedDim,
   },
   deliveryInfoCard: {
     backgroundColor: colors.white,
@@ -768,7 +810,7 @@ const styles = StyleSheet.create({
     borderColor: colors.borderLight,
     borderRadius: radius.lg,
     padding: spacing.md,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.md,
   },
   deliveryInfoRow: {
     flexDirection: 'row',
@@ -799,8 +841,8 @@ const styles = StyleSheet.create({
   specGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.lg,
-    marginBottom: spacing.xl,
+    gap: spacing.md,
+    marginBottom: spacing.md,
   },
   specCard: {
     width: '47%',
@@ -834,7 +876,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderLight,
     borderRadius: radius.xl,
-    padding: spacing.lg,
+    padding: spacing.md,
   },
   vendorLogo: {
     width: 44,
@@ -847,7 +889,7 @@ const styles = StyleSheet.create({
   vendorLogoText: {
     color: colors.white,
     fontWeight: '700',
-    fontSize: 16,
+    fontSize: 14,
   },
   vendorInfo: {
     flex: 1,
@@ -883,15 +925,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   tabSection: {
-    marginTop: spacing.xl,
+    marginTop: spacing.md,
   },
   tabRow: {
     flexDirection: 'row',
-    paddingHorizontal: spacing.lg,
-    gap: spacing.xl,
+    paddingHorizontal: spacing.md,
+    gap: spacing.lg,
   },
   tab: {
-    paddingBottom: spacing.md,
+    paddingBottom: spacing.sm,
     paddingHorizontal: spacing.sm,
     alignItems: 'center',
   },
@@ -915,21 +957,21 @@ const styles = StyleSheet.create({
     backgroundColor: colors.secondary,
   },
   tabContent: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.lg,
     borderTopWidth: 1,
     borderTopColor: colors.borderLight,
   },
   description: {
-    ...typography.bodyLg,
+    ...typography.bodyMd,
     color: colors.onSurfaceVariant,
-    lineHeight: 26,
+    lineHeight: 22,
   },
   detailGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.lg,
-    marginTop: spacing.xl,
+    gap: spacing.md,
+    marginTop: spacing.md,
   },
   detailCard: {
     width: '47%',
@@ -937,7 +979,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderLight,
     borderRadius: radius.lg,
-    padding: spacing.lg,
+    padding: spacing.md,
   },
   detailLabel: {
     ...typography.labelMd,
@@ -950,10 +992,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   specSectionTitle: {
-    ...typography.headlineMd,
+    ...typography.labelLg,
     color: colors.onSurface,
     fontWeight: '700',
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
     marginTop: spacing.sm,
   },
   specBulletRow: {
@@ -973,28 +1015,29 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   ratingBig: {
-    ...typography.displayLg,
+    ...typography.headlineLg,
     color: colors.onSurface,
   },
   wholesaleSection: {
-    paddingHorizontal: spacing.lg,
-    marginTop: spacing.xl,
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.md,
   },
   wholesaleCard: {
     backgroundColor: colors.primaryContainer,
     borderRadius: radius.xl,
-    padding: spacing.xl,
+    padding: spacing.lg,
   },
   wholesaleTitle: {
-    ...typography.headlineMd,
+    ...typography.labelLg,
     color: colors.white,
-    marginBottom: spacing.lg,
+    fontWeight: '700',
+    marginBottom: spacing.md,
   },
   benefitRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.md,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   benefitText: {
     ...typography.bodyMd,
@@ -1011,7 +1054,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceContainerLowest,
     borderTopWidth: 1,
     borderTopColor: colors.borderLight,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
   },
   inquireBtn: {
@@ -1045,9 +1088,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     shadowColor: colors.secondary,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
   },
   addText: {
     ...typography.labelMd,
