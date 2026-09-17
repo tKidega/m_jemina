@@ -1,5 +1,6 @@
 ﻿import React, { useCallback, useEffect, useState } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppHeader, HeaderActions } from '../components/AppHeader';
 import { BottomNav } from '../components/BottomNav';
 import { Icon, IconName } from '../components/Icon';
@@ -43,6 +44,45 @@ export function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [subEmail, setSubEmail] = useState(user?.email ?? '');
   const [subscribed, setSubscribed] = useState(false);
+
+  const newsletterKeyFor = (id: string) => `@jemina/newsletter/v1:${id}`;
+
+  useEffect(() => {
+    if (!user) {
+      setSubscribed(false);
+      setSubEmail('');
+      return;
+    }
+    setSubEmail(user.email ?? '');
+    AsyncStorage.getItem(newsletterKeyFor(user.id))
+      .then(raw => {
+        if (!raw) {
+          setSubscribed(false);
+          return;
+        }
+        try {
+          const saved = JSON.parse(raw) as { subscribed?: boolean; email?: string };
+          setSubscribed(saved.subscribed === true);
+          if (typeof saved.email === 'string' && saved.email) {
+            setSubEmail(saved.email);
+          }
+        } catch {
+          setSubscribed(false);
+        }
+      })
+      .catch(() => {});
+  }, [user]);
+
+  const handleSubscribe = useCallback(() => {
+    const email = subEmail.trim();
+    if (!email || !user) {
+      return;
+    }
+    setSubscribed(true);
+    AsyncStorage.setItem(newsletterKeyFor(user.id), JSON.stringify({ subscribed: true, email })).catch(
+      () => {},
+    );
+  }, [subEmail, user]);
 
   const loadDashboard = useCallback(async () => {
     if (!isAuthenticated || !token) {
@@ -236,14 +276,14 @@ export function ProfileScreen() {
 
         {/* Newsletter subscription */}
         <View style={styles.newsletterCard}>
-          <Icon name="mail" size={24} color={colors.primary} />
+          <Icon name="mail" size={24} color={colors.white} />
           <Text style={styles.newsletterTitle}>Stay Ahead of the Curve</Text>
           <Text style={styles.newsletterSub}>
             Get deals, promotions, and new arrivals straight to your inbox.
           </Text>
           {subscribed ? (
             <View style={styles.subSuccess}>
-              <Icon name="check-circle" size={18} color={colors.statusSuccess} />
+              <Icon name="check-circle" size={18} color={colors.white} />
               <Text style={styles.subSuccessText}>Subscribed successfully!</Text>
             </View>
           ) : (
@@ -259,7 +299,7 @@ export function ProfileScreen() {
               />
               <Pressable
                 style={[styles.subscribeBtn, !subEmail && styles.subscribeBtnDisabled]}
-                onPress={() => { if (subEmail) setSubscribed(true); }}
+                onPress={handleSubscribe}
                 disabled={!subEmail}
               >
                 <Text style={styles.subscribeBtnText}>Subscribe</Text>
@@ -569,13 +609,13 @@ const styles = StyleSheet.create({
   },
   newsletterTitle: {
     ...typography.headlineSm,
-    color: colors.onPrimaryContainer,
+    color: colors.white,
     fontWeight: '700',
     marginTop: spacing.sm,
   },
   newsletterSub: {
     ...typography.bodySm,
-    color: colors.onPrimaryContainer,
+    color: colors.white,
     textAlign: 'center',
     marginTop: spacing.xs,
     marginBottom: spacing.md,
@@ -597,7 +637,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceContainerLowest,
   },
   subscribeBtn: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.white,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
@@ -608,7 +648,7 @@ const styles = StyleSheet.create({
   },
   subscribeBtnText: {
     ...typography.labelMd,
-    color: colors.onPrimary,
+    color: colors.primary,
     fontWeight: '700',
   },
   subSuccess: {
@@ -618,7 +658,7 @@ const styles = StyleSheet.create({
   },
   subSuccessText: {
     ...typography.labelMd,
-    color: colors.statusSuccess,
+    color: colors.white,
     fontWeight: '600',
   },
 });

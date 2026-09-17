@@ -40,13 +40,13 @@ export function SectionHeader({
             {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
           </View>
         </View>
+        {actionLabel ? (
+          <Pressable style={styles.action} onPress={onAction} hitSlop={8}>
+            <Text style={styles.actionText}>{actionLabel}</Text>
+            <Icon name="chevron-right" size={14} color={colors.secondary} />
+          </Pressable>
+        ) : null}
       </View>
-      {actionLabel ? (
-        <Pressable style={styles.action} onPress={onAction} hitSlop={8}>
-          <Text style={styles.actionText}>{actionLabel}</Text>
-          <Icon name="chevron-right" size={14} color={colors.secondary} />
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -58,6 +58,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
   left: {
     flexDirection: 'row',
@@ -83,9 +84,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    alignSelf: 'flex-end',
+    alignSelf: 'center',
     gap: 2,
-    marginTop: 6,
+    marginTop: 0,
   },
   actionText: {
     ...typography.labelMd,

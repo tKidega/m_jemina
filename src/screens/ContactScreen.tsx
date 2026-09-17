@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
 import { Icon, IconName } from '../components/Icon';
+import { SectionHeader } from '../components/SectionHeader';
 import { Button } from '../components/Button';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
@@ -107,6 +108,7 @@ export function ContactScreen() {
           </View>
 
           {/* Contact info */}
+          <SectionHeader title="Contact Information" subtitle="Call, email or visit our store" />
           <View style={styles.card}>
             {CONTACT_ROWS.map((row, i) => (
               <Pressable
@@ -129,8 +131,8 @@ export function ContactScreen() {
           </View>
 
           {/* Business hours */}
+          <SectionHeader title="Business Hours" subtitle="When our support team is available" />
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Business Hours</Text>
             {BUSINESS_HOURS.map(row => (
               <View key={row.days} style={styles.hoursRow}>
                 <Text style={styles.hoursDays}>{row.days}</Text>
@@ -140,9 +142,8 @@ export function ContactScreen() {
           </View>
 
           {/* Contact form */}
+          <SectionHeader title="Send us a Message" subtitle="Use the form below to send us a quick message." />
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Send us a Message</Text>
-            <Text style={styles.cardSub}>Use the form below to send us a quick message.</Text>
 
             {sent ? (
               <View style={styles.successBox}>

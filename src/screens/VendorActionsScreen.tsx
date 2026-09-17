@@ -23,6 +23,7 @@ import {
   apiCreateVendorStore,
   ApiVendorActionsStatus,
   ApiVendorAgreement,
+  ApiAgreementSection,
 } from '../data/api';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -47,6 +48,39 @@ const EMPTY_FORM: StoreForm = {
   pay_method: 'Momo',
   terms: false,
 };
+
+const VENDOR_SUPPORT_EMAIL = 'support@jemi-na.com';
+const VENDOR_SUPPORT_PHONE = '+256 765 369 348';
+
+function withCorrectContact(section: ApiAgreementSection): ApiAgreementSection {
+  const fixText = (text: string) =>
+    text
+      .replace(/[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}/g, VENDOR_SUPPORT_EMAIL)
+      .replace(/\+256(?:[\s-]?\d){9}/g, VENDOR_SUPPORT_PHONE)
+      .replace(/\+256[\s-]*X{5,}/gi, VENDOR_SUPPORT_PHONE);
+  return {
+    ...section,
+    blocks: section.blocks.map(block => {
+      if (block.type === 'list') {
+        return { ...block, items: block.items.map(fixText) };
+      }
+      return { ...block, text: fixText(block.text) };
+    }),
+  };
+}
+
+function applyContactCorrections(sections: ApiAgreementSection[]): ApiAgreementSection[] {
+  let target = -1;
+  if (sections.length >= 20 && /20|contact/i.test(sections[19].heading)) {
+    target = 19;
+  } else {
+    target = sections.findIndex(s => /contact|support/i.test(s.heading));
+  }
+  if (target < 0) {
+    return sections;
+  }
+  return sections.map((s, i) => (i === target ? withCorrectContact(s) : s));
+}
 
 export function VendorActionsScreen() {
   const { token, isAuthenticated } = useAuth();
@@ -107,7 +141,7 @@ export function VendorActionsScreen() {
     setAgreementLoading(true);
     try {
       const data = await apiGetVendorAgreement(token);
-      setAgreement(data);
+      setAgreement({ ...data, sections: applyContactCorrections(data.sections) });
       setShowAgreement(true);
     } catch (e) {
       Alert.alert('Could not load agreement', e instanceof Error ? e.message : 'Please try again.');

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
+import { SectionHeader } from '../components/SectionHeader';
 import { Button } from '../components/Button';
 import { EmptyState } from '../components/EmptyState';
 import { useAuth } from '../state/AuthContext';
@@ -152,7 +153,9 @@ export function EditProfileScreen({ embedded = false }: { embedded?: boolean }) 
             </View>
           ) : null}
 
-          <Text style={styles.sectionTitle}>Personal</Text>
+          <View style={styles.sectionHead}>
+            <SectionHeader icon="person" title="Personal" subtitle="Your name, contact and preferences" />
+          </View>
           <View style={styles.card}>
             <Text style={styles.label}>Full Name</Text>
             <View style={styles.inputWrap}>
@@ -197,7 +200,9 @@ export function EditProfileScreen({ embedded = false }: { embedded?: boolean }) 
             </View>
           </View>
 
-          <Text style={styles.sectionTitle}>Address</Text>
+          <View style={styles.sectionHead}>
+            <SectionHeader icon="location-on" title="Address" subtitle="Where your orders are delivered" />
+          </View>
           <View style={styles.card}>
             <Text style={styles.label}>Street Address</Text>
             <View style={styles.inputWrap}>
@@ -226,7 +231,9 @@ export function EditProfileScreen({ embedded = false }: { embedded?: boolean }) 
             </View>
           </View>
 
-          <Text style={styles.sectionTitle}>About</Text>
+          <View style={styles.sectionHead}>
+            <SectionHeader icon="info" title="About" subtitle="Tell us a little about yourself" />
+          </View>
           <View style={styles.card}>
             <Text style={styles.label}>Bio</Text>
             <TextInput
@@ -293,11 +300,8 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     paddingBottom: spacing.xxl,
   },
-  sectionTitle: {
-    ...typography.headlineMd,
-    color: colors.primary,
+  sectionHead: {
     marginTop: spacing.lg,
-    marginBottom: spacing.sm,
   },
   card: {
     backgroundColor: colors.surfaceContainerLowest,
@@ -305,9 +309,6 @@ const styles = StyleSheet.create({
     borderColor: colors.borderLight,
     borderRadius: radius.xl,
     padding: spacing.lg,
-  },
-  field: {
-    marginBottom: spacing.md,
   },
   label: {
     ...typography.labelMd,
@@ -323,7 +324,7 @@ const styles = StyleSheet.create({
     borderColor: colors.borderLight,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceContainerLow,
     marginTop: spacing.xs,
   },
   input: {

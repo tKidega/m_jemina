@@ -318,8 +318,8 @@ export function HomeScreen() {
 
   const stores = liveVendors.length > 0 ? liveVendors : DEFAULT_STORES;
   const jeminaStore = stores.find(s => s.name.toLowerCase().includes('jemina')) ?? DEFAULT_STORES[0];
-  const bannerPromos = promotions.filter(p => (p.placement ?? '').toLowerCase() === 'banner');
-  const regularPromos = promotions.filter(p => (p.placement ?? '').toLowerCase() !== 'banner');
+  const bannerPromos = promotions.filter(p => (p.placement ?? '').trim().toLowerCase() === 'banner');
+  const regularPromos = promotions.filter(p => (p.placement ?? '').trim().toLowerCase() !== 'banner');
 
   const featuredProduct = featuredProducts[0];
   const smallProducts = flashSaleProducts.slice(0, 8);
@@ -398,7 +398,7 @@ export function HomeScreen() {
   const flashCardWidth = Math.round((width - spacing.md * 2 - spacing.gutter) / 2);
   const productCardWidth = flashCardWidth;
   const seasonalCardWidth = Math.round(width * 0.72);
-  const bannerCardWidth = width - spacing.lg * 2;
+  const bannerCardWidth = Math.round(width - spacing.md * 2);
   const sectorTileWidth = Math.round((width - spacing.md * 2 - spacing.gutter * 3) / 4);
 
   const onBannerMomentumEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -688,9 +688,8 @@ export function HomeScreen() {
                     pagingEnabled
                     bounces={false}
                     showsHorizontalScrollIndicator={false}
-                    snapToInterval={bannerCardWidth + spacing.gutter}
+                    snapToInterval={bannerCardWidth}
                     decelerationRate="fast"
-                    contentContainerStyle={{ gap: spacing.gutter }}
                     onMomentumScrollEnd={onBannerMomentumEnd}
                   >
                     {bannerPromos.map(promo => (
@@ -715,12 +714,18 @@ export function HomeScreen() {
                 </View>
               ) : null}
               {regularPromos.length > 0 ? (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flashRow}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.flashRow}
+                  snapToInterval={bannerCardWidth + spacing.gutter}
+                  decelerationRate="fast"
+                >
                   {regularPromos.slice(0, 8).map(promo => (
                     <PromoFlashCard
                       key={promo.id}
                       promo={promo}
-                      width={seasonalCardWidth}
+                      width={bannerCardWidth}
                       onPress={() => openPromo(promo)}
                     />
                   ))}
@@ -912,19 +917,10 @@ function PromoFlashCard({
 }) {
   return (
     <Pressable style={[styles.hlCard, { width }]} onPress={onPress}>
-      <View style={styles.hlImageWrap}>
-        {promo.image_url ? (
-          <Image source={{ uri: promoImageUrl(promo.image_url) }} style={styles.hlImage} resizeMode="cover" />
-        ) : (
-          <View style={styles.hlNoImage}>
-            <Icon name="auto-awesome" size={28} color={colors.secondary} />
-          </View>
-        )}
+      <View style={styles.hlBody}>
         <View style={styles.hlBadge}>
           <Badge label={(promo.type ?? 'PROMO').toUpperCase()} variant="flash" />
         </View>
-      </View>
-      <View style={styles.hlBody}>
         <Text style={styles.hlCategory} numberOfLines={1}>{promo.vendor?.name ?? 'JEMINA'}</Text>
         <Text style={styles.hlTitle} numberOfLines={2}>{promo.title}</Text>
         {promo.description ? (
@@ -960,17 +956,7 @@ function PromoBannerCard({
           <Icon name="auto-awesome" size={32} color={colors.secondary} />
         </View>
       )}
-      <View style={styles.bannerOverlay}>
-        <View style={styles.bannerBadge}>
-          <Badge label={(promo.placement ?? 'BANNER').toUpperCase()} variant="flash" />
-        </View>
-        <View style={styles.bannerTextWrap}>
-          <Text style={styles.bannerTitle} numberOfLines={1}>{promo.title}</Text>
-          {promo.description ? (
-            <Text style={styles.bannerDesc} numberOfLines={1}>{promo.description}</Text>
-          ) : null}
-        </View>
-      </View>
+      <View style={styles.bannerOverlay} />
     </Pressable>
   );
 }

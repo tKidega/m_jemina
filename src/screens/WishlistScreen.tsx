@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppHeader, HeaderNotificationButton, HeaderCartButton } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
+import { SectionHeader } from '../components/SectionHeader';
 import { Button } from '../components/Button';
 import { EmptyState } from '../components/EmptyState';
 import { useAuth } from '../state/AuthContext';
@@ -93,6 +94,24 @@ export function WishlistScreen() {
     }
   };
 
+  const confirmClearAll = useCallback(() => {
+    if (items.length === 0) {
+      return;
+    }
+    Alert.alert('Clear Wishlist', 'Remove all items from your wishlist?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear All',
+        style: 'destructive',
+        onPress: async () => {
+          for (const item of items) {
+            await handleRemove(item.product.id);
+          }
+        },
+      },
+    ]);
+  }, [items, handleRemove]);
+
   if (!isAuthenticated) {
     return (
       <View style={styles.root}>
@@ -135,26 +154,13 @@ export function WishlistScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
           }
         >
-          <View style={styles.headerRow}>
-            <View style={styles.headerLeft}>
-              <Icon name="favorite" size={20} color={colors.secondary} />
-              <Text style={styles.headerCount}>
-                {items.length} {items.length === 1 ? 'item' : 'items'} saved
-              </Text>
-            </View>
-            <Pressable style={styles.clearAllBtn} onPress={() => {
-              Alert.alert('Clear Wishlist', 'Remove all items from your wishlist?', [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Clear All', style: 'destructive', onPress: async () => {
-                  for (const item of items) {
-                    await handleRemove(item.product.id);
-                  }
-                }},
-              ]);
-            }}>
-              <Text style={styles.clearAllText}>Clear All</Text>
-            </Pressable>
-          </View>
+          <SectionHeader
+            icon="favorite"
+            title="Saved Items"
+            subtitle={`${items.length} ${items.length === 1 ? 'item' : 'items'} saved for later`}
+            actionLabel="Clear All"
+            onAction={confirmClearAll}
+          />
           {error ? (
             <View style={styles.errorBox}>
               <Icon name="info" size={16} color={colors.statusFlash} />
@@ -208,9 +214,9 @@ export function WishlistScreen() {
                     </View>
                   ) : null}
                   <View style={styles.priceRow}>
-                    <Text style={styles.price}>{formatUGX(item.product.price)}</Text>
-                    {hasDiscount && item.product.discounted_price != null ? (
-                      <Text style={styles.originalPrice}>{formatUGX(item.product.price)}</Text>
+                    <Text style={styles.price}>{product.price}</Text>
+                    {product.originalPrice ? (
+                      <Text style={styles.originalPrice}>{product.originalPrice}</Text>
                     ) : null}
                   </View>
                   <Button
@@ -283,7 +289,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: colors.surfaceContainerHigh,
+    borderColor: colors.borderLight,
     borderRadius: radius.xl,
     marginBottom: spacing.md,
     overflow: 'hidden',
