@@ -1,5 +1,6 @@
 import type { Product, ProductSpecifications } from '../components/ProductCard';
 import { images } from './images';
+import { getDeviceModel } from '../lib/device';
 
 export const API_BASE_URL = 'https://jemi-na.com/api/v1';
 
@@ -407,18 +408,20 @@ function toLoginResult(
 }
 
 export async function apiLogin(email: string, password: string): Promise<LoginResult> {
+  const deviceName = await getDeviceModel();
   const json = await request<AuthUserResult>('/auth/login', {
     method: 'POST',
-    body: { email, password, device_name: 'm_jemina_app' },
+    body: { email, password, device_name: deviceName },
     allowFailed: true,
   });
   return toLoginResult(json);
 }
 
 export async function apiGoogleLogin(idToken: string): Promise<LoginResult> {
+  const deviceName = await getDeviceModel();
   const json = await request<AuthUserResult>('/auth/google', {
     method: 'POST',
-    body: { id_token: idToken, device_name: 'm_jemina_app' },
+    body: { id_token: idToken, device_name: deviceName },
     allowFailed: true,
   });
   return toLoginResult(json);
@@ -428,9 +431,10 @@ export async function apiVerifyTwoFactor(
   email: string,
   code: string,
 ): Promise<AuthUserResult> {
+  const deviceName = await getDeviceModel();
   const json = await request<AuthUserResult>('/auth/two-factor/verify', {
     method: 'POST',
-    body: { email, code, device_name: 'm_jemina_app' },
+    body: { email, code, device_name: deviceName },
   });
   return json.data as AuthUserResult;
 }
@@ -474,6 +478,74 @@ export async function apiRemoveDeviceToken(fcmToken: string, token: string): Pro
 export async function apiGetUser(token: string): Promise<ApiUser> {
   const json = await request<{ user: ApiUser }>('/auth/user', { token });
   return (json.data as { user: ApiUser }).user;
+}
+
+/* ─── Security: 2FA Management ──────────────────────── */
+
+export interface ApiTwoFactorStatus {
+  enabled: boolean;
+  confirmed_at: string | null;
+  has_recovery_codes: boolean;
+}
+
+export interface ApiTwoFactorSetup {
+  secret: string;
+  qr_url: string;
+}
+
+export interface ApiSession {
+  id: number;
+  name: string;
+  is_current: boolean;
+  last_used_at: string | null;
+  created_at: string | null;
+}
+
+export async function apiGetTwoFactorStatus(token: string): Promise<ApiTwoFactorStatus> {
+  const json = await request<{ enabled: boolean; confirmed_at: string | null; has_recovery_codes: boolean }>(
+    '/security/2fa/status',
+    { token },
+  );
+  return json.data as ApiTwoFactorStatus;
+}
+
+export async function apiEnableTwoFactor(token: string): Promise<ApiTwoFactorSetup> {
+  const json = await request<{ secret: string; qr_url: string }>(
+    '/security/2fa/enable',
+    { method: 'POST', token },
+  );
+  return json.data as ApiTwoFactorSetup;
+}
+
+export async function apiConfirmTwoFactor(token: string, code: string): Promise<string[]> {
+  const json = await request<{ recovery_codes: string[] }>(
+    '/security/2fa/confirm',
+    { method: 'POST', token, body: { code } },
+  );
+  return (json.data as { recovery_codes: string[] }).recovery_codes ?? [];
+}
+
+export async function apiDisableTwoFactor(token: string, password: string): Promise<void> {
+  await request('/security/2fa/disable', {
+    method: 'POST',
+    token,
+    body: { password },
+  });
+}
+
+/* ─── Security: Session Management ──────────────────── */
+
+export async function apiGetSessions(token: string): Promise<ApiSession[]> {
+  const json = await request<{ sessions: ApiSession[] }>('/security/sessions', { token });
+  return (json.data as { sessions: ApiSession[] }).sessions ?? [];
+}
+
+export async function apiRevokeSession(token: string, sessionId: number): Promise<void> {
+  await request(`/security/sessions/${sessionId}`, { method: 'DELETE', token });
+}
+
+export async function apiRevokeOtherSessions(token: string): Promise<void> {
+  await request('/security/sessions/revoke-others', { method: 'POST', token });
 }
 
 export async function apiGetCart(token: string): Promise<ApiCartItem[]> {
@@ -1282,6 +1354,22 @@ export interface ApiInquiryResult {
   estimated_total?: number;
   delivery_progress?: number;
   status_badge?: { bg: string; fg: string } | null;
+  delivery_location?: string;
+  inquiry_subject?: string;
+  inquiry_message?: string;
+  replies_count?: number;
+  latest_reply?: {
+    vendor_name: string;
+    message: string;
+    offered_price?: number;
+    quoted_unit_price?: number;
+    timestamp: string;
+    is_recommended?: boolean;
+  } | null;
+  budget_target?: number;
+  destination?: string;
+  is_draft?: boolean;
+  expires_at?: string;
 }
 
 export interface ApiInquiryInput {

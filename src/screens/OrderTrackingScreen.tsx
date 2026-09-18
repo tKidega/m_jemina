@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Image,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -56,17 +57,20 @@ function primaryTracking(items: ApiOrder['items']): ApiTrackingInfo | undefined 
 
 function StepNode({ state }: { state: 'done' | 'active' | 'upcoming' }) {
   return (
-    <View
-      style={[
-        styles.stepNode,
-        state === 'done' && styles.stepNodeDone,
-        state === 'active' && styles.stepNodeActive,
-        state === 'upcoming' && styles.stepNodeUpcoming,
-      ]}
-    >
-      {state === 'done' ? <Icon name="check" size={16} color={colors.onPrimary} /> : null}
-      {state === 'active' ? <Icon name="local-shipping" size={18} color={colors.onSecondary} /> : null}
-      {state === 'upcoming' ? <View style={styles.stepNodeDot} /> : null}
+    <View style={styles.stepNodeOuter}>
+      {state === 'active' ? <View style={styles.stepNodeRing} /> : null}
+      <View
+        style={[
+          styles.stepNode,
+          state === 'done' && styles.stepNodeDone,
+          state === 'active' && styles.stepNodeActive,
+          state === 'upcoming' && styles.stepNodeUpcoming,
+        ]}
+      >
+        {state === 'done' ? <Icon name="check" size={16} color={colors.onPrimary} /> : null}
+        {state === 'active' ? <Icon name="local-shipping" size={18} color={colors.onSecondary} /> : null}
+        {state === 'upcoming' ? <View style={styles.stepNodeDot} /> : null}
+      </View>
     </View>
   );
 }
@@ -328,7 +332,7 @@ export function OrderTrackingScreen() {
     return (
       <View style={styles.root}>
         <AppHeader
-          title="Track Order"
+          title={`Track Order ${activeOrder.order_number}`}
           showBack
           onBack={goBack}
           right={
@@ -350,9 +354,19 @@ export function OrderTrackingScreen() {
           <TrackingOverview order={activeOrder} />
         </ScrollView>
         <View style={styles.bottomBar}>
-          <Pressable style={styles.bottomActionPrimary} onPress={refreshDetail}>
-            <Icon name="sync" size={20} color={colors.onSecondary} />
-            <Text style={styles.bottomActionPrimaryText}>Refresh Status</Text>
+          <Pressable
+            style={styles.bottomActionPrimary}
+            onPress={() => {
+              const phone = activeOrder.items?.[0]?.tracking?.carrier;
+              if (phone) {
+                Linking.openURL(`tel:${phone}`);
+              } else {
+                Alert.alert('Contact Carrier', 'No carrier phone number available yet.');
+              }
+            }}
+          >
+            <Icon name="call" size={20} color={colors.onSecondary} />
+            <Text style={styles.bottomActionPrimaryText}>Call Courier</Text>
           </Pressable>
           <Pressable style={styles.bottomActionOutline} onPress={() => navigate('HelpCenter')}>
             <Icon name="flag" size={20} color={colors.primaryContainer} />
@@ -469,10 +483,44 @@ function TrackingOverview({ order }: { order: ApiOrder }) {
         </View>
         <View style={styles.cardDivider} />
         <View style={styles.carrierRow}>
-          <Icon name="badge" size={18} color={colors.outline} />
+          <View style={styles.carrierAvatar}>
+            <Icon name="person" size={20} color={colors.onSecondary} />
+          </View>
           <View style={styles.carrierBody}>
             <Text style={styles.carrierName}>{carrier}</Text>
             <Text style={styles.carrierSub}>{carrierSub}</Text>
+          </View>
+          {tracking?.tracking_number ? (
+            <Pressable
+              style={styles.carrierCallBtn}
+              onPress={() => Alert.alert('Contact Carrier', `Tracking: ${tracking.tracking_number}\nCarrier: ${carrier}`)}
+              hitSlop={6}
+            >
+              <Icon name="call" size={18} color={colors.onPrimary} />
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+
+      <View style={styles.etaCard}>
+        <View style={styles.etaRow}>
+          <View style={styles.etaIcon}>
+            <Icon name="schedule" size={20} color={colors.onPrimary} />
+          </View>
+          <View style={styles.etaBody}>
+            <Text style={styles.etaLabel}>Estimated Delivery</Text>
+            <Text style={styles.etaValue}>
+              {delivered
+                ? `Delivered ${formatDate(order.delivered_at)}`
+                : tracking?.dispatched_at
+                  ? 'Tomorrow by 4:00 PM'
+                  : 'Pending dispatch'}
+            </Text>
+          </View>
+          <View style={[styles.etaBadge, delivered && styles.etaBadgeDone]}>
+            <Text style={[styles.etaBadgeText, delivered && styles.etaBadgeTextDone]}>
+              {delivered ? 'DONE' : 'ON SCHEDULE'}
+            </Text>
           </View>
         </View>
       </View>
@@ -530,6 +578,29 @@ function TrackingOverview({ order }: { order: ApiOrder }) {
         <TrackingTimeline tracking={tracking} delivered={delivered} />
       </View>
 
+      {!delivered ? (
+        <View style={styles.otpCard}>
+          <View style={styles.otpHeader}>
+            <Icon name="qr-code" size={22} color={colors.primary} />
+            <Text style={styles.otpTitle}>Delivery Verification OTP</Text>
+          </View>
+          <Text style={styles.otpDesc}>Show this code to the courier upon delivery to release escrow.</Text>
+          <View style={styles.otpCodeRow}>
+            <Text style={styles.otpCode}>
+              {tracking?.tracking_number
+                ? tracking.tracking_number.slice(-3).padStart(3, '0')
+                : '---'}
+            </Text>
+            <View style={styles.otpSeparator} />
+            <Text style={styles.otpCode}>
+              {tracking?.tracking_number
+                ? tracking.tracking_number.slice(0, 3).padStart(3, '0')
+                : '---'}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
       <View style={styles.card}>
         <View style={styles.sectionHeader}>
           <View style={styles.sectionTitleWrap}>
@@ -540,23 +611,38 @@ function TrackingOverview({ order }: { order: ApiOrder }) {
           </View>
           {tracking?.tracking_number ? <Text style={styles.sectionMeta}>Consignment #{tracking.tracking_number}</Text> : null}
         </View>
-        {items.map((item, i) => (
-          <View key={`${item.product_id}-${i}`} style={[styles.shipItem, i > 0 && styles.shipItemDivider]}>
-            {item.product_image ? (
-              <Image source={{ uri: item.product_image }} style={styles.shipImage} resizeMode="cover" />
-            ) : (
-              <View style={[styles.shipImage, styles.shipImagePlaceholder]}>
-                <Icon name="store" size={20} color={colors.outlineVariant} />
+        {items.map((item, i) => {
+          const categoryBadge = item.sku?.includes('IRR') ? 'IRRIGATION'
+            : item.sku?.includes('AGR') ? 'AGRO'
+            : item.product_name.toLowerCase().includes('solar') ? 'ENERGY'
+            : item.product_name.toLowerCase().includes('pump') ? 'IRRIGATION'
+            : null;
+          return (
+            <View key={`${item.product_id}-${i}`} style={[styles.shipItem, i > 0 && styles.shipItemDivider]}>
+              {item.product_image ? (
+                <Image source={{ uri: item.product_image }} style={styles.shipImage} resizeMode="cover" />
+              ) : (
+                <View style={[styles.shipImage, styles.shipImagePlaceholder]}>
+                  <Icon name="store" size={20} color={colors.outlineVariant} />
+                </View>
+              )}
+              <View style={styles.shipItemBody}>
+                <View style={styles.shipItemNameRow}>
+                  <Text style={styles.shipItemName} numberOfLines={2}>{item.product_name}</Text>
+                  {categoryBadge ? (
+                    <View style={styles.categoryBadge}>
+                      <Text style={styles.categoryBadgeText}>{categoryBadge}</Text>
+                    </View>
+                  ) : null}
+                </View>
+                {item.sku ? <Text style={styles.shipItemSku}>SKU: {item.sku}</Text> : null}
+                <Text style={styles.shipItemNote}>Qty: {item.quantity} unit{item.quantity === 1 ? '' : 's'}</Text>
+                <ItemTrackingInfo tracking={item.tracking} />
+                <Text style={styles.shipItemTotal}>{formatUGX(item.total)}</Text>
               </View>
-            )}
-            <View style={styles.shipItemBody}>
-              <Text style={styles.shipItemName} numberOfLines={2}>{item.product_name}</Text>
-              <Text style={styles.shipItemNote}>Qty: {item.quantity} unit{item.quantity === 1 ? '' : 's'}</Text>
-              <ItemTrackingInfo tracking={item.tracking} />
-              <Text style={styles.shipItemTotal}>{formatUGX(item.total)}</Text>
             </View>
-          </View>
-        ))}
+          );
+        })}
         <View style={styles.breakdown}>
           <View style={styles.breakdownRow}>
             <Text style={styles.breakdownLabel}>Wholesale Subtotal</Text>
@@ -767,8 +853,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
+  carrierAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   carrierBody: {
     flex: 1,
+  },
+  carrierCallBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   carrierName: {
     ...typography.labelMd,
@@ -960,6 +1062,23 @@ const styles = StyleSheet.create({
   stepRail: {
     alignItems: 'center',
   },
+  stepNodeOuter: {
+    position: 'relative',
+    width: 28,
+    height: 28,
+    zIndex: 10,
+  },
+  stepNodeRing: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: colors.tertiary,
+    opacity: 0.4,
+  },
   stepNode: {
     width: 28,
     height: 28,
@@ -1078,10 +1197,35 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  shipItemNameRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
   shipItemName: {
     ...typography.labelLg,
     color: colors.primary,
     fontWeight: '600',
+    flex: 1,
+  },
+  categoryBadge: {
+    backgroundColor: colors.secondaryContainer,
+    borderRadius: radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    alignSelf: 'flex-start',
+  },
+  categoryBadgeText: {
+    ...typography.labelSm,
+    color: colors.onSecondaryContainer,
+    fontWeight: '700',
+    fontSize: 9,
+    letterSpacing: 0.5,
+  },
+  shipItemSku: {
+    ...typography.labelSm,
+    color: colors.outline,
+    marginTop: 1,
   },
   shipItemNote: {
     ...typography.bodySm,
@@ -1146,6 +1290,101 @@ const styles = StyleSheet.create({
     ...typography.labelMd,
     color: colors.primary,
     fontWeight: '700',
+  },
+  etaCard: {
+    backgroundColor: colors.primaryContainer,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  etaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  etaIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  etaBody: {
+    flex: 1,
+  },
+  etaLabel: {
+    ...typography.labelSm,
+    color: colors.onPrimaryContainer,
+    opacity: 0.7,
+  },
+  etaValue: {
+    ...typography.headlineSm,
+    color: colors.onPrimaryContainer,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  etaBadge: {
+    backgroundColor: colors.onPrimaryContainer,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+  },
+  etaBadgeDone: {
+    backgroundColor: colors.secondary,
+  },
+  etaBadgeText: {
+    ...typography.labelSm,
+    color: colors.primaryContainer,
+    fontWeight: '700',
+    fontSize: 10,
+  },
+  etaBadgeTextDone: {
+    color: colors.onSecondary,
+  },
+  otpCard: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  otpHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: 4,
+  },
+  otpTitle: {
+    ...typography.headlineSm,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  otpDesc: {
+    ...typography.bodySm,
+    color: colors.onSurfaceVariant,
+    marginBottom: spacing.md,
+  },
+  otpCodeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.lg,
+    gap: spacing.md,
+  },
+  otpCode: {
+    ...typography.headlineLg,
+    color: colors.primary,
+    fontWeight: '700',
+    fontSize: 32,
+    letterSpacing: 4,
+  },
+  otpSeparator: {
+    width: 2,
+    height: 32,
+    backgroundColor: colors.outlineVariant,
+    borderRadius: 1,
   },
   bottomBar: {
     flexDirection: 'row',

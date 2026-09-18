@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppHeader } from '../components/AppHeader';
 import { Icon, IconName } from '../components/Icon';
 import { Button } from '../components/Button';
@@ -160,6 +161,27 @@ export function CheckoutScreen() {
       setPaymentMethod('cod');
     }
   }, [defaultSavedMethod, paymentMethod]);
+
+  /* Prefill an applied coupon from the Saved Wishlist & Coupons screen */
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem('@jemina/coupons/applied/v1')
+      .then(raw => {
+        if (cancelled || !raw) return;
+        try {
+          const codes = JSON.parse(raw) as string[];
+          if (codes.length > 0) {
+            setVoucherCode(prev => (prev.trim() ? prev : codes[0]));
+          }
+        } catch {
+          /* ignore */
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const platformFee = 1500;
   const totals = useMemo(() => {

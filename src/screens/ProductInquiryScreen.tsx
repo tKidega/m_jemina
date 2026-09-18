@@ -1,5 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,7 +16,7 @@ import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { apiSubmitInquiry, ApiInquiryResult } from '../data/api';
+import { apiSubmitInquiry, ApiInquiryResult, fetchProducts, apiProductToProduct } from '../data/api';
 import type { Product } from '../components/ProductCard';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -33,12 +35,32 @@ export function ProductInquiryScreen() {
   const { user, token, isAuthenticated } = useAuth();
   const product = params?.product as Product | undefined;
 
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(product ?? null);
+
+  useEffect(() => {
+    if (!product && !productsLoading && products.length === 0) {
+      setProductsLoading(true);
+      fetchProducts()
+        .then(apiProducts => {
+          const list = apiProducts.map(apiProductToProduct);
+          setProducts(list);
+        })
+        .catch(() => {})
+        .finally(() => setProductsLoading(false));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product]);
+
+  const effectiveProduct = selectedProduct ?? product;
+
   const [form, setForm] = useState({
     name: user?.name ?? '',
     email: user?.email ?? '',
     phone: user?.phone ?? '',
     company: '',
-    quantity: String(product?.minOrderValue ?? 1),
+    quantity: String(effectiveProduct?.minOrderValue ?? 1),
     location: '',
     subject: 'bulk_order' as typeof SUBJECTS[number]['key'],
     message: '',
@@ -47,25 +69,66 @@ export function ProductInquiryScreen() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ApiInquiryResult | null>(null);
 
-  const minOrder = useMemo(() => product?.minOrderValue ?? 1, [product]);
+  const minOrder = useMemo(() => effectiveProduct?.minOrderValue ?? 1, [effectiveProduct]);
 
   const setField = (key: keyof typeof form) => (value: string) => {
     setForm(prev => ({ ...prev, [key]: value }));
     setError(null);
   };
 
-  if (!product) {
+  if (!effectiveProduct) {
     return (
       <View style={styles.root}>
-        <AppHeader title="Product Inquiry" showBack onBack={goBack} />
-        <View style={styles.centerBox}>
-          <Icon name="error-outline" size={40} color={colors.error} />
-          <Text style={styles.centerTitle}>Product not found</Text>
-          <Text style={styles.centerText}>Please open the product again and retry your inquiry.</Text>
-        </View>
+        <AppHeader title="Select a Product" showBack onBack={goBack} />
+        {productsLoading ? (
+          <View style={styles.centerBox}>
+            <ActivityIndicator size="large" color={colors.secondary} />
+            <Text style={[styles.centerText, { marginTop: spacing.md }]}>Loading products...</Text>
+          </View>
+        ) : products.length === 0 ? (
+          <View style={styles.centerBox}>
+            <Icon name="inventory" size={48} color={colors.outlineVariant} />
+            <Text style={styles.centerTitle}>No products available</Text>
+            <Text style={styles.centerText}>Browse the marketplace and use the inquiry button on a product.</Text>
+            <Button label="Browse Marketplace" variant="primary" onPress={() => navigate('Marketplace')} style={{ marginTop: spacing.lg }} />
+          </View>
+        ) : (
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xxl }}
+            showsVerticalScrollIndicator={false}
+          >
+            <Text style={[typography.bodyMd, { color: colors.onSurfaceVariant, marginBottom: spacing.md }]}>
+              Select a B2B product to make a wholesale inquiry:
+            </Text>
+            {products.map(p => (
+              <Pressable
+                key={p.id}
+                style={styles.productPickCard}
+                onPress={() => setSelectedProduct(p)}
+              >
+                {p.image ? (
+                  <Image source={{ uri: p.image.startsWith('/') ? `https://jemi-na.com${p.image}` : p.image }} style={styles.productPickImg} />
+                ) : (
+                  <View style={[styles.productPickImg, { backgroundColor: colors.surfaceContainerLow, alignItems: 'center', justifyContent: 'center' }]}>
+                    <Icon name="inventory" size={24} color={colors.outlineVariant} />
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.productPickName} numberOfLines={2}>{p.title}</Text>
+                  <Text style={styles.productPickPrice}>{p.price}</Text>
+                  {p.category ? <Text style={styles.productPickCat}>{p.category}</Text> : null}
+                </View>
+                <Icon name="chevron-right" size={20} color={colors.outline} />
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
       </View>
     );
   }
+
+  const prod = effectiveProduct!;
 
   const handleSubmit = async () => {
     setError(null);
@@ -102,8 +165,8 @@ export function ProductInquiryScreen() {
     setSubmitting(true);
     try {
       const inquiry = await apiSubmitInquiry(token, {
-        product_id: product.id,
-        vendor_id: product.vendor?.id ?? 1,
+        product_id: prod.id,
+        vendor_id: prod.vendor?.id ?? 1,
         user_name: form.name.trim(),
         user_email: form.email.trim(),
         user_phone: form.phone.trim(),
@@ -172,17 +235,17 @@ export function ProductInquiryScreen() {
               {/* Product summary */}
               <View style={styles.productCard}>
                 <View style={styles.productThumb}>
-                  {product.image ? (
-                    <Text style={styles.productThumbPlaceholder}>{product.title.slice(0, 1).toUpperCase()}</Text>
+                  {prod.image ? (
+                    <Text style={styles.productThumbPlaceholder}>{prod.title.slice(0, 1).toUpperCase()}</Text>
                   ) : (
                     <Icon name="store" size={28} color={colors.outlineVariant} />
                   )}
                 </View>
                 <View style={styles.productInfo}>
-                  <Text style={styles.productCategory}>{product.category}</Text>
-                  <Text style={styles.productTitle} numberOfLines={2}>{product.title}</Text>
-                  <Text style={styles.productPrice}>{product.price}</Text>
-                  <Text style={styles.productMinOrder}>{product.minOrder}</Text>
+                  <Text style={styles.productCategory}>{prod.category}</Text>
+                  <Text style={styles.productTitle} numberOfLines={2}>{prod.title}</Text>
+                  <Text style={styles.productPrice}>{prod.price}</Text>
+                  <Text style={styles.productMinOrder}>{prod.minOrder}</Text>
                 </View>
               </View>
 
@@ -587,5 +650,37 @@ const styles = StyleSheet.create({
   },
   doneBtn: {
     marginTop: spacing.lg,
+  },
+  productPickCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.lg,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  productPickImg: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.md,
+  },
+  productPickName: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    fontWeight: '600',
+  },
+  productPickPrice: {
+    ...typography.labelLg,
+    color: colors.secondary,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  productPickCat: {
+    ...typography.labelSm,
+    color: colors.onSurfaceVariant,
+    marginTop: 2,
   },
 });

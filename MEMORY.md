@@ -445,6 +445,149 @@ Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes 
   in bash, `X=Y()` is a syntax error (looks like a function def) — quote it; prefer numeric enum
   values over string literals in inline SQL.
 
+### Session (2026-09-17 later — Product Details redesign, VERIFIED on emulator)
+
+- `ProductDetailsScreen.tsx` fully rewritten to the Stitch design (`d6e01214f3f741dc9c923c05d0d27c35`
+  in project 15521520191945729458) and verified END-TO-END on `emulator-5554` via uiautomator
+  dumps (final release APK on device). Details in TODO.md session block.
+- Header: favorite toggle moved to header (thought ❤ is a Stitch adornment, not a button), +
+  `HeaderNotificationButton` + `HeaderCartButton`; breadcrumb `Home / IT & Technology`; hero 1:1,
+  pills "VERIFIED WHOLESALE & RETAIL" (gated `isWholesale || bulkOrder || corporateReady ||
+  minOrder`) + always "ESCROW PROTECTED".
+- Price card verified live: RETAIL PRICE, BULK MOQ 10+, UGX 45,000, Corporate Ready, "Contact
+  vendor for wholesale custom pricing" (product id=1 Dlight Solar Lantern-Reading Light S30,
+  `wholesale/bulk/corp` all true). Vendor card "JO | Jemina Official | Gulu, Uganda | Visit Store";
+  dispatch box "within 24h", "Hub > Customer: UGX 5,000", "Free Pickup at JEMINA Hub".
+- Agronomic Specifications bento (Material Plastic / Color Orange / Power Source Solar / Warranty
+  2 Years); tabs `Specs & Agronomy / Bulk & Wholesale / Reviews / Escrow & Returns` all verified;
+  Reviews shows 0.0 / "Based on 0 reviews" + Write a review form.
+- Qty flow verified: pills Single 1 / 10 Bulk / 50 Commercial → tap "10 Bulk" → stepper 10 →
+  `Total: UGX 450,000` → `Add to Cart · UGX 450,000` → cart badge "Cart, 1 items"
+  (`addItem` increments existing line qty — confirmed). Bottom bar = +/− stepper,
+  Bulk Inquiry (disabled unless `corporateReady`), Add to Cart, escrow microcopy.
+- **Catalog reality**: live API has exactly 1 product (id=1, cat 2 "IT & Technology"). Deals/See All
+  and VendorProfile grid legitimately show "No products found"; only Home → Tech tile → IT & Solar
+  collection surfaces the product card. Not a bug.
+- **Promo popup gotcha (do NOT change)**: `HomeScreen` `autoShowPopup` effect re-opens a promo on
+  every Home mount (AsyncStorage `PROMO_POPUP_INDEX_KEY` cycle). During verification we temporarily
+  disabled it, then FULLY REVERTED (HomeScreen git diff empty). Plain `input tap` on the popup X is
+  flaky — a press-hold `adb shell input swipe x y (x+1) (y+1) 400` works; X bounds vary per promo,
+  always re-dump first.
+- Emulator display: `wm size` 1080x2400, density 420, dumps bounded [0,0][1080,2274]. Read dump XML
+  with `[System.IO.File]::ReadAllText(p, [System.Text.Encoding]::UTF8)` (PS 5.1 `Get-Content -Raw`
+  garbles UTF-8). Home bottom nav = Home / B2B / Cart / Profile; Home header has no Search button.
+- Final state: release APK rebuilt (~1m10s, original promo behavior restored, smoke-tested pid 10358),
+  installed on emulator. `tsc --noEmit` + targeted eslint green. Only uncommitted files:
+  `ProductDetailsScreen.tsx` (+741/−388) + `Icon.tsx` (+`savings`).
+- Phone install STILL BLOCKED: WiFi adb `192.168.15.34:5555` → connection refused (10061); user must
+  re-enable WiFi debugging on the Infinix X6816, then `adb connect 192.168.15.34:5555` and
+  `adb install -r android\app\build\outputs\apk\release\app-release.apk`.
+
+### Session (2026-09-17 — Saved Wishlist & Coupons screen, Stitch import)
+
+`WishlistScreen.tsx` rewritten to the **"JEMINA Wishlist & Coupons"** Stitch screen
+(`53c769ddde0d40b7aa515f9658c31af7`, project `15521520191945729458` — the last generated in the JEMINA
+App UI Redesign project; the alternative desktop Wishlist/Vouchers screens live in project
+`15080787849175372678`). Renamed from "Wishlist" → **"Saved Wishlist & Coupons"** (Profile menu entry
+updated too, now with sub "Saved products & promo codes").
+- Layout per design: 2 summary stat cards (Saved Items / Promo Coupons applied), trust strip
+  ("JEMINA Escrow Protected · MTN & Airtel MoMo" + "Audit Verified"), **Available Promo Coupons** section
+  (coupon cards w/ badge, "UGX 50,000 OFF"/"FREE DISPATCH" title, desc, code, Copy & Apply, meta) +
+  **Enter Code** modal that validates via the live `apiValidateVoucher`; collapsible **How to Redeem**
+  2-step guide; **Wholesale & Agri Wishlist** with sort ("Date Added / Price High→Low / Price Low→High"
+  cycling) + filter chips (All Items / Price Dropped / In Stock at Hub / Solar & Irrigation — keyword
+  matched on name since wishlist payload has no category); product cards (discount pill, delete,
+  price + strikethrough + Save row, stock/out-of-stock line, Details + Move to Cart / Notify Stock);
+  freight strip; sticky bottom bar "Total Available (N items)" + **Move All to Cart** (adds all in-stock
+  then switches to Cart tab). Live data from `GET /profile/wishlist`.
+- **Coupons data source:** no "list my vouchers" API exists (only `/vouchers/validate` + `/vouchers/apply`),
+  so coupon cards use the two design-driven sample codes (`GULU-AGRI-50K`, `FREESHIP-NORTH`). Applied
+  codes persist to AsyncStorage `@jemina/coupons/applied/v1` and **Checkout pre-fills the voucher input**
+  from the first applied code (already-mounted effect; discount still requires tapping Apply in checkout).
+  "Copy & Apply" copies to OS clipboard (added dep `@react-native-clipboard/clipboard@^1.16.3` — native
+  module; first build took ~10min).
+- New `Icon` names added: `bookmark`, `bookmark-add`, `confirmation-number`, `local-offer`,
+  `compare-arrows`, `event-available`, `delete`, `notifications-active`.
+- `tsc` + `eslint` green; release APK rebuilt + installed on emulator `emulator-5554` + phone
+  `0794415254003308`; verified via uiautomator (stats, trust strip, coupon cards, wishlist card with
+  Dlight live data, Move All to Cart bar). Link in source for future coupon listing API:
+  `GET /api/v1/vouchers/mine` (web customer vouchers exist in `customer_vouchers.blade.php`).
+
+### Session (2026-09-17 fixes — cart image, Account security width, survey UI cleanup)
+
+Three on-device-reported fixes (APK rebuilt, both devices installed, verified via uiautomator):
+- **Cart product images (SERVER fix, deployed):** `ApiCartController::productImages` previously
+  `->filter($isAbsolute)` on raw `image_url` (nearly all relative → `images: []` in cart response).
+  Rewrote to map `$image->url` (the `ProductImage` accessor, same as `ApiProductController`/order-items
+  fix) + photo fallback via `asset('frontend/img/products/'.$photo)`. Deployed to VPS via scp
+  (backup `/tmp/ApiCartController.php.bak-cart`, `php -l` clean, config/route/view caches cleared;
+  `cache:clear` errored on permissions — harmless). **Verified live:** fresh throwaway user
+  (`cartver.20260917230155@example.com`) → login → POST /cart → GET /cart returns 4 product image URLs
+  (`/public/frontend/img/products/products/1/...webp`); emulator cart now renders an image `ImageView`
+  for the Dlight product. Note: `bits.bytes.loko@gmail.com` / `timBOi@admin420` now returns
+  "Invalid credentials" live — password changed or 2FA; use a fresh register for API tests.
+- **Account & Security "Security & 2FA" too-narrow card:** `SecurityTab` wrapped its content in
+  `<View style={styles.scrollContent}>` INSIDE the tab `ScrollView` whose `contentContainerStyle` was
+  also `scrollContent` → double 16dp horizontal padding → card inset 84px per side (density 2.625).
+  Added `styles.tabContent` (`gap` only, no padding) for the SecurityTab wrapper; card now spans 996px
+  (42px inset) like the profile card. Verified via dump.
+- **Surveys & Feedback:** hero title "Northern Uganda Trader Rewards" → **"Jemina Survey Rewards"**;
+  removed the `Reward: {formatUGX(credit_reward)} Escrow Credit` chip (server awards no credit —
+  `credit_awarded: 0`); `claimedRewards` display pinned to 0 (badge + "Rewards Claimed" stat);
+  stats-row values reduced `headlineSm` → `labelLg` (+ tighter statLabel lineHeight). Vendor card still
+  shows "Verified Vendor Badge + Tier 2 Escrow Limit". VERIFIED: badge "UGX 0 Credits", no reward chip.
+  Note: survey availability shows 0/2 completed for user 7 — the vendor survey `completed` flag flipped
+  server-side during testing (no submit happened from this device), i.e. data, not code.
+
+### Session (2026-09-17 latest — Surveys: input types + progress save/resume + Stitch redesign)
+
+**Live survey types confirmed from VPS `survey_questions`:** User (id 1) = radio/checkbox + 4 optional
+`textarea`; Vendor (id 2) = radio/checkbox + required `select` (Q22 revenue/Q25 years/Q28 returns/
+Q29 payout), `text` Q23 (category), `textarea` Q30 (brand values). The app previously rendered ONLY
+radio/checkbox — select/text/textarea showed no input at all.
+
+- `SurveysScreen.tsx` rewritten (Stitch screen `48414eec4468416bb00a1c7059f54894`): renders `select`
+  as radio-style options w/ "Select an option" hint, `text` and `textarea` as `TextInput`s. Question
+  flow is index-driven: `activeIdx` lifted to the parent; **"Save & Next" actually advances**, required
+  enforced; the old "first unanswered question" model was removed because it unmounted text inputs after
+  the first keystroke.
+- **Progress save/resume:** drafts in AsyncStorage `@jemina/surveys/drafts/v1:<userId>` =
+  `{ [surveyId]: { answers, activeIdx } }`, debounced 300ms, hydrated on mount, cleared on submit AND
+  on user switch. Collapsed card becomes "In Progress · X/N answered" + "% bar" + "Continue Survey (N Qs)";
+  expanding resumes at the saved question. **VERIFIED end-to-end on `emulator-5554`:** answered 3/10
+  (radio→Yes, select→"1M - 5M", text→"Agro inputs and solar"), force-stop + relaunch → card showed
+  "In Progress · 3/10 answered" + "Continue Survey (10 Qs)", reopened at Q4 of 10.
+- **Stitch visuals:** header "Surveys & Feedback"; hero "Northern Uganda Trader Rewards" (+ verified
+  chip; Gulu/Lira/Kitgum copy); grouped sections "Community & Platform UX" / "B2B Supplier Compliance";
+  card meta "{N} Questions · ~{m} mins"; vendor card reward chip always "Verified Vendor Badge + Tier 2
+  Escrow Limit"; "% completed · X/N answered" labels; arrow/chevron CTA icons; updated security copy.
+  `Rewards Claimed` stat = sum of completed surveys' `credit_reward`.
+- `tsc --noEmit` + `eslint` green (fixed 1 exhaustive-deps: capture `userId`), release APK rebuilt +
+  installed on emulator `emulator-5554` + phone `0794415254003308`. Note: `bits.bytes.loko@gmail.com`
+  (user 7) has the USER survey completed, so only the vendor survey's flow was exercised on-device.
+
+### Session (2026-09-17 latest — Account & Security + Payments + Address redesign)
+
+- `AccountSettingsScreen.tsx` rewritten to Stitch design (`f080120b22324d5f93b5544c8ceddb91`): 4 tabs
+  replaced the old 3 (now `security | payments | logistics | preferences`). Profile summary card
+  above tabs (avatar initials + verified check, name, role badge, email/phone, edit). Segmented
+  chips (Security & 2FA active orange, Payment Rails, Logistics & Hub, Preferences).
+- Security & 2FA tab: STRICT badge, 2FA toggle + phone, password card (45 days, Update), biometric
+  toggle, active device sessions (TECNO Camon 20 current + Chrome Windows 11 secondary).
+- Payments tab: `PaymentMethodsScreen embedded` — redesigned with JEMINA Credits Box (UGX 145,000,
+  Top Up, Credit History, Escrow Clearance), styled payment method cards (colored provider logos:
+  MTN=#ffcc00, Airtel=#ff0000, Visa=#1a1f71), dashed "Add Mobile Money / Card" button; all CRUD
+  + modal preserved.
+- Logistics tab: `AddressBookScreen embedded` — redesigned with Delivery & Logistics Hub section
+  (default address + Gulu Central Hub card), saved addresses list, dashed "Add Delivery Address";
+  all CRUD + modal preserved.
+- Preferences tab: Trade Alerts toggles (SMS/WhatsApp + Price Drops), Tax Records & Data (URA EFRIS
+  invoices + Export Activity Log + Deactivate Account).
+- `Icon.tsx` — added `fingerprint`, `laptop-windows`, `pin-drop`, `campaign`, `cloud-download`,
+  `no-accounts`. `App.tsx` routes updated for new tab names.
+- `tsc --noEmit` + `eslint` green on all 4 files. No APK build or device install yet (per user
+  request).
+
 ### Audit (2026-09-06)
 
 - App code @ `2032ccf` is **ahead** of MEMORY/TODO docs (docs written at `f304f90`, many screens
@@ -564,3 +707,94 @@ payload extended with `pickup_point`/`fulfilment` (backend ignores for now); Tot
   enabling `flutterwave` + `mtn_mobile_money` so the saved-method checkout path works.
 - Optional: address/payment-method editor screens in Profile; vendor-specific delivery fee config
   (currently product-level `delivery_fee`).
+
+### Session: Order Tracking Stitch Redesign (2026-09-17)
+
+**Source:** Stitch project `projects/155215201919457294558`, screen `b72d405b2c274b2d9c2f2fc932040981`
+("Track Order #JEM-84920").
+
+**Changes to `OrderTrackingScreen.tsx`:**
+- Added `Linking` import for phone call functionality.
+- Header now shows `Track Order {order_number}` (dynamic from API data).
+- Carrier row redesigned: avatar circle + carrier name + tracking number + call button (phone icon).
+- Added **Estimated Delivery ETA banner** after carrier card — green `primaryContainer` background,
+  "ON SCHEDULE" / "DONE" badge, shows estimated delivery date or "Pending dispatch".
+- Added **Delivery Verification OTP section** after timeline — derives 6-digit code from tracking
+  number (last 3 + first 3), displayed in large monospace text with separator; hidden when order
+  is delivered.
+- **Category badges** on items — derived from SKU pattern or product name (ENERGY, IRRIGATION, AGRO).
+- **SKU shown** on items when available.
+- **StepNode ring effect** — active step gets an outer ring (tertiary color, 0.4 opacity) for visual
+  emphasis matching the Stitch design.
+- **Bottom bar** changed from "Refresh Status" → "Call Courier" (opens carrier phone via `Linking`)
+  + "Report Issue" (navigates to HelpCenter).
+
+**New styles added:** `carrierAvatar`, `carrierCallBtn`, `etaCard/Row/Icon/Body/Label/Value/Badge`,
+`otpCard/Header/Title/Desc/CodeRow/Code/Separator`, `stepNodeOuter/Ring`,
+`shipItemNameRow`, `categoryBadge/Text`, `shipItemSku`.
+
+**Verification:** `tsc --noEmit` + `eslint` — 0 errors, 0 warnings.
+
+---
+
+### Session: Surveys Redesign + 2FA/Sessions Backend (2026-09-17)
+
+**Completed this session:**
+
+1. **SurveysScreen redesigned** to match Stitch design (screen `48414eec4468416bb00a1c7059f54894`):
+   - Hero card with "JEMINA Survey" title (user updated from "Northern Uganda Trader Rewards")
+   - Credits badge, stats row (Available / Completed / Rewards Claimed)
+   - Survey cards with icon, reward chips, tags (Payment Rails, Hub Logistics, App Speed), progress
+   - Question preview with progress bar, skip option, submit flow
+   - Security/encryption notice card at bottom
+   - New icons added: `quiz`, `assignment`, `payments`, `verified-user`, `monetization-on`, `lock`, `account-balance-wallet`, `insights`, `security`
+
+2. **Backend 2FA + Session API** (`api.php` + `ApiAuthController.php`):
+   - `GET /security/2fa/status` — returns enabled/confirmed_at/has_recovery_codes
+   - `POST /security/2fa/enable` — generates TOTP secret + QR URL
+   - `POST /security/2fa/confirm` — verifies code, activates 2FA, returns recovery codes
+   - `POST /security/2fa/disable` — requires password, disables 2FA
+   - `GET /security/sessions` — lists personal_access_tokens with is_current flag
+   - `DELETE /security/sessions/{id}` — revokes a specific session
+   - `POST /security/sessions/revoke-others` — revokes all sessions except current
+
+3. **Frontend API functions** added to `api.ts`:
+   - `apiGetTwoFactorStatus`, `apiEnableTwoFactor`, `apiConfirmTwoFactor`, `apiDisableTwoFactor`
+   - `apiGetSessions`, `apiRevokeSession`, `apiRevokeOtherSessions`
+
+4. **AccountSettingsScreen** wired to real APIs:
+   - 2FA toggle calls enable/disable flow with QR code + password confirmation
+   - Biometric toggle uses `react-native-biometrics`
+   - Device sessions loaded from API, revoke/sign-out-others buttons functional
+   - Real device name via `getDeviceModel()` instead of hardcoded "TECNO Camon 20"
+
+5. **Device name** in `api.ts` login calls updated from hardcoded `'m_jemina_app'` to real device model via `getDeviceModel()`.
+
+**Verification:** `tsc --noEmit` + `eslint` — 0 errors. APK built + installed on both devices (Infinix phone + emulator).
+
+### Session (2026-09-18) — Stitch UI redesigns, VPS fixes, global font reduction
+
+**VPS 500 Error Fix:**
+- Root cause: `storage/framework/views/` files owned by `root:root` — Apache (`www-data`) couldn't recompile Blade views
+- Fix: `chown -R www-data:www-data /var/www/jemina/storage` + `php artisan view:clear`
+- No signs of hack: SSH logs clean (all `webadmin` from 41.75.x.x), no suspicious cron jobs, no malicious code, git status clean
+- PHP files in `/tmp/` are legitimate admin scripts (banner cache purge, vendor link check, etc.)
+
+**Stitch Designs Imported & Implemented:**
+- `7bf3be2e8d234a65a3fea95021a25e05` — Wholesale Inquiries & RFQs → `MyInquiriesScreen.tsx`
+- `24e4532bdc294c65a852fad31d450b49` — Help & Support → `HelpCenterScreen.tsx`
+- `61c09abed5964cf5a9a85cf6d0258acb` — Credits & Wallet → `CreditHistoryScreen.tsx`
+
+**Screens Updated:**
+- `MyInquiriesScreen.tsx` — Full Stitch redesign with metric cards, filter chips, inquiry cards, negotiation ribbon, escrow banner. Back button → Profile. Extended `ApiInquiryResult` type.
+- `HelpCenterScreen.tsx` — Entire screen scrollable (hero + tabs + content in one ScrollView). "Jemina Virtual Assistant" renamed. 3 tabs: Support Tickets / AI Chatbot / FAQ & Knowledge. 10 FAQ items matching website. Emergency helpline banner.
+- `CreditHistoryScreen.tsx` — Full Stitch redesign: hero balance card (BOU Escrow Protected, balance, sub-ledger, quick actions), Buy Trade Credits with 3 tiers, Wallet Privileges perks, Trade Credit Ledger with filters and color-coded transaction items.
+- `SurveysScreen.tsx` — Reduced hero + card title fonts. "Jemina Feedback Guarantee" replaces "Escrow & Northern Trade Guarantee". Credits go to Credit balance, not mobile money.
+- `WishlistScreen.tsx` — Real system coupon `JEMINA5` replaces fake design coupons. Product images fixed (`resolveWishlistImage()` fallback for `/public/storage` paths). "My Jemina Wishlist" title.
+- `ProductInquiryScreen.tsx` — Product picker list when no product passed (fetches from API, user selects then sees inquiry form).
+
+**Typography:** Global font size reduction: `headlineLg/displayLg` 28→24, `headlineMd` 22→18, `headlineSm` 18→15, `bodyLg` 16→14, `bodyMd` 14→13, `bodySm` 12→11, `labelLg` 14→13, `labelMd` 12→11.
+
+**New Icons:** `smart_toy`, `crisis-alert`, `chat_apps_script`, `reply`, `add_card`, `qr_code_scanner`, `percent`.
+
+**Verification:** `tsc --noEmit` + `eslint` — 0 errors. APK built + installed on both devices (phone `0794415254003308` + emulator `emulator-5554`).

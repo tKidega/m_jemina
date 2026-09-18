@@ -22,7 +22,6 @@ import {
   apiSavePaymentMethod,
   apiUpdatePaymentMethod,
   apiDeletePaymentMethod,
-  apiSetDefaultPaymentMethod,
   ApiPaymentMethod,
   ApiPaymentMethodType,
 } from '../data/api';
@@ -52,6 +51,16 @@ const PROVIDERS: Record<ApiPaymentMethodType, { id: string; label: string }[]> =
   ],
 };
 
+const PROVIDER_COLORS: Record<string, { bg: string; text: string; short: string }> = {
+  mtn: { bg: '#ffcc00', text: '#000000', short: 'MTN' },
+  airtel: { bg: '#ff0000', text: '#ffffff', short: 'AIR' },
+  visa: { bg: '#1a1f71', text: '#ffffff', short: 'VISA' },
+  mastercard: { bg: '#eb001b', text: '#ffffff', short: 'MC' },
+  stripe: { bg: '#635bff', text: '#ffffff', short: 'STR' },
+  paypal: { bg: '#003087', text: '#ffffff', short: 'PP' },
+  flutterwave: { bg: '#f5a623', text: '#ffffff', short: 'FLW' },
+};
+
 function accountLabel(type: ApiPaymentMethodType): string {
   if (type === 'card') return 'Card Number';
   if (type === 'mobile_money') return 'Phone Number';
@@ -67,15 +76,9 @@ function accountPlaceholder(type: ApiPaymentMethodType): string {
 function maskedAccount(method: ApiPaymentMethod): string {
   if (method.type === 'card') {
     const last4 = method.account_number.slice(-4);
-    return `â€¢â€¢â€¢â€¢ ${last4}`;
+    return `•••• ${last4}`;
   }
   return method.account_number;
-}
-
-function typeIcon(type: ApiPaymentMethodType): IconName {
-  if (type === 'card') return 'credit-card';
-  if (type === 'mobile_money') return 'smartphone';
-  return 'account-balance-wallet';
 }
 
 function typeLabel(type: ApiPaymentMethodType): string {
@@ -104,55 +107,98 @@ function emptyForm(): MethodForm {
   };
 }
 
-function MethodCard({ method, onEdit, onDelete, onSetDefault }: {
+/* ─── JEMINA Credits Box ─────────────────────────────── */
+
+function CreditsBox() {
+  return (
+    <View style={styles.creditsBox}>
+      <View style={styles.creditsTop}>
+        <View>
+          <Text style={styles.creditsLabel}>JEMINA B2B Credit Balance</Text>
+          <Text style={styles.creditsAmount}>UGX 145,000</Text>
+        </View>
+        <Pressable style={styles.topUpBtn}>
+          <Icon name="add-circle" size={18} color={colors.white} />
+          <Text style={styles.topUpBtnText}>Top Up</Text>
+        </Pressable>
+      </View>
+      <View style={styles.creditsDivider} />
+      <View style={styles.creditsFooter}>
+        <Text style={styles.creditsFooterLabel}>Automatic Escrow Clearance</Text>
+        <Text style={styles.creditsFooterValue}>Enabled</Text>
+      </View>
+      <Pressable style={styles.creditHistoryBtn}>
+        <Text style={styles.creditHistoryText}>Credit History</Text>
+        <Icon name="chevron-right" size={16} color={colors.primaryFixedDim} />
+      </Pressable>
+    </View>
+  );
+}
+
+/* ─── Payment Method Card ────────────────────────────── */
+
+function MethodCard({
+  method,
+  onEdit,
+  onDelete,
+}: {
   method: ApiPaymentMethod;
   onEdit: () => void;
   onDelete: () => void;
-  onSetDefault: () => void;
 }) {
+  const pc = PROVIDER_COLORS[method.provider] ?? {
+    bg: colors.surfaceContainerHigh,
+    text: colors.onSurface,
+    short: method.provider.slice(0, 3).toUpperCase(),
+  };
+
   return (
-    <View style={styles.card}>
-      <View style={styles.cardTop}>
-        <View style={styles.cardTitleRow}>
-          <View style={styles.typeIcon}>
-            <Icon name={typeIcon(method.type)} size={20} color={colors.primary} />
-          </View>
-          <View style={styles.cardTitleBody}>
-            <Text style={styles.cardName}>{method.provider.charAt(0).toUpperCase() + method.provider.slice(1)}</Text>
-            <Text style={styles.cardType}>{typeLabel(method.type)}</Text>
-          </View>
+    <View style={styles.methodCard}>
+      <View style={styles.methodLeft}>
+        <View style={[styles.methodLogo, { backgroundColor: pc.bg }]}>
+          <Text style={[styles.methodLogoText, { color: pc.text }]}>{pc.short}</Text>
         </View>
-        <View style={styles.cardActions}>
-          <Pressable onPress={onEdit} style={styles.actionBtn} hitSlop={8}>
-            <Icon name="edit" size={18} color={colors.onSurfaceVariant} />
-          </Pressable>
-          <Pressable onPress={onDelete} style={styles.actionBtn} hitSlop={8}>
-            <Icon name="delete-outline" size={18} color={colors.error} />
-          </Pressable>
+        <View style={styles.methodInfo}>
+          <View style={styles.methodNameRow}>
+            <Text style={styles.methodName}>
+              {method.provider.charAt(0).toUpperCase() + method.provider.slice(1)}
+            </Text>
+            {method.is_default ? (
+              <View style={styles.primaryBadge}>
+                <Text style={styles.primaryBadgeText}>Primary</Text>
+              </View>
+            ) : null}
+          </View>
+          <Text style={styles.methodAccount}>{maskedAccount(method)}</Text>
+          {method.expiry_date ? (
+            <Text style={styles.methodExpiry}>Expires {method.expiry_date}</Text>
+          ) : null}
+          <Text style={styles.methodNote}>
+            {method.is_default
+              ? 'Default for Escrow Payouts & USSD Push'
+              : typeLabel(method.type)}
+          </Text>
         </View>
       </View>
-      <View style={styles.cardDetails}>
-        <Text style={styles.cardAccount}>{maskedAccount(method)}</Text>
-        {method.account_name ? <Text style={styles.cardName}>{method.account_name}</Text> : null}
-        {method.expiry_date ? (
-          <Text style={styles.cardType}>Expires {method.expiry_date}</Text>
-        ) : null}
-      </View>
-      <View style={styles.cardBottom}>
+      <View style={styles.methodRight}>
         {method.is_default ? (
-          <View style={styles.defaultChip}>
-            <Icon name="check-circle" size={14} color={colors.statusSuccess} />
-            <Text style={styles.defaultChipText}>Default</Text>
-          </View>
+          <Icon name="check-circle" size={22} color={colors.statusSuccess} />
         ) : (
-          <Pressable onPress={onSetDefault} hitSlop={8}>
-            <Text style={styles.setDefaultText}>Set as default</Text>
-          </Pressable>
+          <View style={styles.methodActions}>
+            <Pressable onPress={onEdit} hitSlop={8} style={styles.methodActionBtn}>
+              <Icon name="edit" size={18} color={colors.outline} />
+            </Pressable>
+            <Pressable onPress={onDelete} hitSlop={8} style={styles.methodActionBtn}>
+              <Icon name="delete-outline" size={18} color={colors.error} />
+            </Pressable>
+          </View>
         )}
       </View>
     </View>
   );
 }
+
+/* ─── Main Screen ────────────────────────────────────── */
 
 export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean }) {
   const { token, isAuthenticated } = useAuth();
@@ -173,11 +219,8 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
         setLoading(false);
         return;
       }
-      if (isRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
       try {
         const data = await apiGetPaymentMethods(token);
         setMethods(data);
@@ -220,9 +263,7 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
   };
 
   const closeModal = () => {
-    if (saving) {
-      return;
-    }
+    if (saving) return;
     setModalOpen(false);
     setEditing(null);
     setForm(emptyForm());
@@ -235,9 +276,7 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
   };
 
   const handleSave = async () => {
-    if (!token) {
-      return;
-    }
+    if (!token) return;
     if (!form.account_number.trim()) {
       setFormError('Please enter the account details.');
       return;
@@ -270,9 +309,7 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
   };
 
   const handleDelete = async (method: ApiPaymentMethod) => {
-    if (!token) {
-      return;
-    }
+    if (!token) return;
     try {
       await apiDeletePaymentMethod(token, method.id);
       load();
@@ -281,23 +318,17 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
     }
   };
 
-  const handleSetDefault = async (method: ApiPaymentMethod) => {
-    if (!token) {
-      return;
-    }
-    try {
-      await apiSetDefaultPaymentMethod(token, method.id);
-      load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to set default payment method.');
-    }
-  };
-
   if (!isAuthenticated || !token) {
     return (
       <View style={styles.root}>
         {!embedded ? <AppHeader title="Payment Methods" showBack onBack={goBack} /> : null}
-        <EmptyState icon="credit-card" title="Sign in to manage payment methods" subtitle="Save a card or mobile money number for faster checkout after signing in." actionLabel="Sign In" onAction={() => navigate('Login')} />
+        <EmptyState
+          icon="credit-card"
+          title="Sign in to manage payment methods"
+          subtitle="Save a card or mobile money number for faster checkout after signing in."
+          actionLabel="Sign In"
+          onAction={() => navigate('Login')}
+        />
       </View>
     );
   }
@@ -305,47 +336,89 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
   return (
     <View style={styles.root}>
       {!embedded ? <AppHeader title="Payment Methods" showBack onBack={goBack} /> : null}
-      <View style={styles.topBar}>
-        <Button label="+ Add Method" variant="secondary" onPress={openCreate} style={styles.addBtn} />
-      </View>
       {loading ? (
         <View style={styles.center}>
           <Text style={styles.loadingText}>Loading payment methods...</Text>
         </View>
       ) : error ? (
-        <EmptyState icon="error-outline" title="Couldn't load payment methods" subtitle={error} actionLabel="Try Again" onAction={() => load()} />
-      ) : methods.length === 0 ? (
-        <EmptyState icon="account-balance-wallet" title="No payment methods saved" subtitle="Add a credit card, mobile money number, or Cloud Pay account for faster checkout." actionLabel="Add Payment Method" onAction={openCreate} />
+        <EmptyState
+          icon="error-outline"
+          title="Couldn't load payment methods"
+          subtitle={error}
+          actionLabel="Try Again"
+          onAction={() => load()}
+        />
       ) : (
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
+          }
         >
-          {methods.map(method => (
-            <MethodCard
-              key={method.id}
-              method={method}
-              onEdit={() => openEdit(method)}
-              onDelete={() => handleDelete(method)}
-              onSetDefault={() => handleSetDefault(method)}
-            />
-          ))}
+          {/* JEMINA Credits Box */}
+          <CreditsBox />
+
+          {/* Section Header */}
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionHeaderLeft}>
+              <View style={styles.sectionIcon}>
+                <Icon name="account-balance-wallet" size={18} color={colors.primary} />
+              </View>
+              <Text style={styles.sectionTitle}>Saved Payment Methods</Text>
+            </View>
+            <Text style={styles.methodCount}>
+              {methods.length} {methods.length === 1 ? 'method' : 'methods'}
+            </Text>
+          </View>
+
+          {/* Payment Method Cards */}
+          {methods.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Icon name="account-balance-wallet" size={40} color={colors.outline} />
+              <Text style={styles.emptyTitle}>No payment methods saved</Text>
+              <Text style={styles.emptySub}>
+                Add a credit card, mobile money number, or Cloud Pay account for faster checkout.
+              </Text>
+            </View>
+          ) : (
+            methods.map(method => (
+              <MethodCard
+                key={method.id}
+                method={method}
+                onEdit={() => openEdit(method)}
+                onDelete={() => handleDelete(method)}
+              />
+            ))
+          )}
+
+          {/* Add Payment Button */}
+          <Pressable style={styles.addPaymentBtn} onPress={openCreate}>
+            <Icon name="add" size={18} color={colors.primaryContainer} />
+            <Text style={styles.addPaymentText}>Add Mobile Money / Card</Text>
+          </Pressable>
         </ScrollView>
       )}
 
+      {/* Add/Edit Modal */}
       <Modal visible={modalOpen} animationType="slide" transparent onRequestClose={closeModal}>
-        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{editing ? 'Edit Payment Method' : 'Add Payment Method'}</Text>
+              <Text style={styles.modalTitle}>
+                {editing ? 'Edit Payment Method' : 'Add Payment Method'}
+              </Text>
               <Pressable onPress={closeModal} hitSlop={8}>
                 <Icon name="close" size={24} color={colors.onSurface} />
               </Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {formError ? <Text style={styles.formError}>{formError}</Text> : null}
+
               <Text style={styles.label}>Payment Type</Text>
               <View style={styles.typeRow}>
                 {TYPE_OPTIONS.map(option => {
@@ -356,12 +429,19 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
                       style={[styles.typeChip, active && styles.typeChipActive]}
                       onPress={() => changeType(option.id)}
                     >
-                      <Icon name={option.icon} size={16} color={active ? colors.onSecondary : colors.primary} />
-                      <Text style={[styles.typeChipText, active && styles.typeChipTextActive]}>{option.label}</Text>
+                      <Icon
+                        name={option.icon}
+                        size={16}
+                        color={active ? colors.onSecondary : colors.primary}
+                      />
+                      <Text style={[styles.typeChipText, active && styles.typeChipTextActive]}>
+                        {option.label}
+                      </Text>
                     </Pressable>
                   );
                 })}
               </View>
+
               <Text style={styles.label}>Provider</Text>
               <View style={styles.providerRow}>
                 {PROVIDERS[form.type].map(provider => {
@@ -372,11 +452,16 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
                       style={[styles.providerChip, active && styles.providerChipActive]}
                       onPress={() => setForm(f => ({ ...f, provider: provider.id }))}
                     >
-                      <Text style={[styles.providerChipText, active && styles.providerChipTextActive]}>{provider.label}</Text>
+                      <Text
+                        style={[styles.providerChipText, active && styles.providerChipTextActive]}
+                      >
+                        {provider.label}
+                      </Text>
                     </Pressable>
                   );
                 })}
               </View>
+
               <Text style={styles.label}>{accountLabel(form.type)}</Text>
               <TextInput
                 style={styles.input}
@@ -384,10 +469,17 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
                 onChangeText={t => setForm(f => ({ ...f, account_number: t }))}
                 placeholder={accountPlaceholder(form.type)}
                 placeholderTextColor={colors.outline}
-                keyboardType={form.type === 'mobile_money' ? 'phone-pad' : form.type === 'cloud_pay' ? 'email-address' : 'default'}
+                keyboardType={
+                  form.type === 'mobile_money'
+                    ? 'phone-pad'
+                    : form.type === 'cloud_pay'
+                      ? 'email-address'
+                      : 'default'
+                }
                 autoCapitalize="none"
                 autoCorrect={false}
               />
+
               {form.type === 'card' ? (
                 <>
                   <Text style={styles.label}>Expiry Date</Text>
@@ -410,13 +502,24 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
                   />
                 </>
               ) : null}
-              <Pressable style={styles.checkboxRow} onPress={() => setForm(f => ({ ...f, is_default: !f.is_default }))}>
+
+              <Pressable
+                style={styles.checkboxRow}
+                onPress={() => setForm(f => ({ ...f, is_default: !f.is_default }))}
+              >
                 <View style={[styles.checkbox, form.is_default && styles.checkboxOn]}>
                   {form.is_default ? <Icon name="check" size={16} color={colors.onSecondary} /> : null}
                 </View>
                 <Text style={styles.checkboxLabel}>Set as default payment method</Text>
               </Pressable>
-              <Button label={saving ? 'Saving...' : 'Save Method'} variant="primary" fullWidth onPress={handleSave} style={styles.saveBtn} />
+
+              <Button
+                label={saving ? 'Saving...' : 'Save Method'}
+                variant="primary"
+                fullWidth
+                onPress={handleSave}
+                style={styles.saveBtn}
+              />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -425,122 +528,160 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
   );
 }
 
+/* ─── Styles ─────────────────────────────────────────── */
+
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scroll: {
-    flex: 1,
-  },
-  content: {
-    padding: spacing.md,
-    paddingBottom: spacing.xxl,
-    gap: spacing.sm,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xxl,
-  },
-  topBar: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.surfaceContainerHighest,
-  },
-  addBtn: {
-    alignSelf: 'flex-start',
-  },
-  loadingText: {
-    ...typography.bodyMd,
-    color: colors.outline,
-  },
-  card: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: colors.surfaceContainerHighest,
+  root: { flex: 1, backgroundColor: colors.background },
+  scroll: { flex: 1 },
+  content: { padding: spacing.md, paddingBottom: spacing.xxl, gap: spacing.md },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xxl },
+  loadingText: { ...typography.bodyMd, color: colors.outline },
+
+  /* Credits Box */
+  creditsBox: {
+    backgroundColor: colors.primaryContainer,
     borderRadius: radius.lg,
     padding: spacing.md,
-    marginBottom: spacing.sm,
   },
-  cardTop: {
+  creditsTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  creditsLabel: {
+    ...typography.labelSm,
+    color: colors.primaryFixedDim,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  creditsAmount: {
+    ...typography.headlineMd,
+    color: colors.onPrimary,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  topUpBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.secondaryContainer,
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  topUpBtnText: {
+    ...typography.labelMd,
+    color: colors.white,
+    fontWeight: '700',
+  },
+  creditsDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    marginVertical: spacing.sm,
+  },
+  creditsFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  creditsFooterLabel: { ...typography.bodySm, color: colors.primaryFixedDim },
+  creditsFooterValue: { ...typography.bodySm, color: colors.white, fontWeight: '600' },
+  creditHistoryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 2,
+    marginTop: spacing.sm,
+  },
+  creditHistoryText: {
+    ...typography.bodySm,
+    color: colors.primaryFixedDim,
+  },
+
+  /* Section Header */
+  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  cardTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    flex: 1,
-  },
-  typeIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  sectionHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.sm,
     backgroundColor: colors.surfaceContainerLow,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardTitleBody: {
-    flex: 1,
+  sectionTitle: { ...typography.headlineSm, color: colors.onSurface, fontWeight: '700' },
+  methodCount: { ...typography.labelSm, color: colors.outline },
+
+  /* Empty Card */
+  emptyCard: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    gap: 8,
   },
-  cardName: {
-    ...typography.bodyMd,
-    color: colors.onSurface,
-    fontWeight: '700',
-  },
-  cardType: {
-    ...typography.bodySm,
-    color: colors.outline,
-    marginTop: 1,
-  },
-  cardActions: {
+  emptyTitle: { ...typography.labelLg, color: colors.onSurface, fontWeight: '600' },
+  emptySub: { ...typography.bodySm, color: colors.outline, textAlign: 'center' },
+
+  /* Method Card */
+  methodCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
+    justifyContent: 'space-between',
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.lg,
+    padding: spacing.md,
   },
-  actionBtn: {
-    padding: 4,
+  methodLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  methodLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  cardDetails: {
-    marginTop: spacing.sm,
+  methodLogoText: { ...typography.labelSm, fontWeight: '800' },
+  methodInfo: { flex: 1 },
+  methodNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  methodName: { ...typography.labelLg, color: colors.onSurface, fontWeight: '600' },
+  primaryBadge: {
+    backgroundColor: '#333e48',
+    borderRadius: radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
   },
-  cardAccount: {
-    ...typography.bodyMd,
-    color: colors.onSurface,
-    fontWeight: '700',
-  },
-  cardBottom: {
-    marginTop: spacing.sm,
-  },
-  defaultChip: {
+  primaryBadgeText: { ...typography.labelSm, color: colors.white, fontWeight: '700', fontSize: 9 },
+  methodAccount: { ...typography.bodySm, color: colors.outline, marginTop: 2 },
+  methodExpiry: { ...typography.bodySm, color: colors.outline, marginTop: 1 },
+  methodNote: { ...typography.labelSm, color: colors.secondary, fontWeight: '500', marginTop: 2 },
+  methodRight: { marginLeft: 8 },
+  methodActions: { flexDirection: 'row', gap: 4 },
+  methodActionBtn: { padding: 4 },
+
+  /* Add Payment Button */
+  addPaymentBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    alignSelf: 'flex-start',
-    backgroundColor: colors.secondaryFixed,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1.5,
+    borderColor: colors.outline,
+    borderStyle: 'dashed',
+    borderRadius: radius.lg,
+    paddingVertical: 14,
   },
-  defaultChipText: {
-    ...typography.labelSm,
-    color: colors.onSecondaryFixed,
-    fontWeight: '700',
-  },
-  setDefaultText: {
-    ...typography.labelLg,
-    color: colors.secondary,
-    fontWeight: '700',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
+  addPaymentText: { ...typography.labelLg, color: colors.primaryContainer, fontWeight: '600' },
+
+  /* Modal */
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: colors.background,
     borderTopLeftRadius: radius.xl,
@@ -555,17 +696,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: spacing.md,
   },
-  modalTitle: {
-    ...typography.headlineMd,
-    color: colors.onSurface,
-    fontWeight: '700',
-  },
-  label: {
-    ...typography.labelLg,
-    color: colors.onSurface,
-    marginBottom: spacing.xs,
-    marginTop: spacing.sm,
-  },
+  modalTitle: { ...typography.headlineMd, color: colors.onSurface, fontWeight: '700' },
+  label: { ...typography.labelLg, color: colors.onSurface, marginBottom: spacing.xs, marginTop: spacing.sm },
   input: {
     borderWidth: 1,
     borderColor: colors.surfaceContainerHighest,
@@ -577,10 +709,7 @@ const styles = StyleSheet.create({
     fontFamily: typography.bodyMd.fontFamily,
     fontSize: typography.bodyMd.fontSize,
   },
-  typeRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
+  typeRow: { flexDirection: 'row', gap: spacing.sm },
   typeChip: {
     flex: 1,
     flexDirection: 'row',
@@ -593,22 +722,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     backgroundColor: colors.surfaceContainerLowest,
   },
-  typeChipActive: {
-    backgroundColor: colors.secondary,
-    borderColor: colors.secondary,
-  },
-  typeChipText: {
-    ...typography.labelLg,
-    color: colors.onSurface,
-  },
-  typeChipTextActive: {
-    color: colors.onSecondary,
-  },
-  providerRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
+  typeChipActive: { backgroundColor: colors.secondary, borderColor: colors.secondary },
+  typeChipText: { ...typography.labelLg, color: colors.onSurface },
+  typeChipTextActive: { color: colors.onSecondary },
+  providerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   providerChip: {
     borderWidth: 1,
     borderColor: colors.surfaceContainerHighest,
@@ -617,23 +734,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     backgroundColor: colors.surfaceContainerLowest,
   },
-  providerChipActive: {
-    backgroundColor: colors.secondaryContainer,
-    borderColor: colors.secondaryContainer,
-  },
-  providerChipText: {
-    ...typography.labelLg,
-    color: colors.onSurface,
-  },
-  providerChipTextActive: {
-    color: colors.onSecondary,
-  },
-  checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    marginTop: spacing.md,
-  },
+  providerChipActive: { backgroundColor: colors.secondaryContainer, borderColor: colors.secondaryContainer },
+  providerChipText: { ...typography.labelLg, color: colors.onSurface },
+  providerChipTextActive: { color: colors.onSecondary },
+  checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.md },
   checkbox: {
     width: 24,
     height: 24,
@@ -643,21 +747,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkboxOn: {
-    backgroundColor: colors.secondaryContainer,
-    borderColor: colors.secondaryContainer,
-  },
-  checkboxLabel: {
-    ...typography.bodyMd,
-    color: colors.onSurface,
-    flex: 1,
-  },
-  formError: {
-    ...typography.bodyMd,
-    color: colors.error,
-    marginBottom: spacing.sm,
-  },
-  saveBtn: {
-    marginTop: spacing.xl,
-  },
+  checkboxOn: { backgroundColor: colors.secondaryContainer, borderColor: colors.secondaryContainer },
+  checkboxLabel: { ...typography.bodyMd, color: colors.onSurface, flex: 1 },
+  formError: { ...typography.bodyMd, color: colors.error, marginBottom: spacing.sm },
+  saveBtn: { marginTop: spacing.xl },
 });

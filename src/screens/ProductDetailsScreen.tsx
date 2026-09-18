@@ -9,9 +9,10 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader, HeaderNotificationButton, HeaderCartButton } from '../components/AppHeader';
 import { Badge } from '../components/Badge';
-import { Icon, type IconName } from '../components/Icon';
+import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useCart } from '../state/CartContext';
@@ -24,9 +25,7 @@ import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
 import type { Product, ProductSpecifications } from '../components/ProductCard';
 
-const SPEC_TABS = ['Specifications', 'Description', 'Reviews', 'Shipping & Returns'];
-
-const SPEC_ICONS: IconName[] = ['inventory', 'verified', 'eco', 'build'];
+const SPEC_TABS = ['Specs & Agronomy', 'Bulk & Wholesale', 'Reviews', 'Escrow & Returns'];
 
 function toSpecEntries(specs: ProductSpecifications | null | undefined): { label: string; value: string }[] {
   const technical = specs?.technical;
@@ -39,9 +38,7 @@ function toSpecEntries(specs: ProductSpecifications | null | undefined): { label
 }
 
 function toSpecCards(specs: ProductSpecifications | null | undefined) {
-  return toSpecEntries(specs)
-    .slice(0, 4)
-    .map((entry, i) => ({ icon: SPEC_ICONS[i % SPEC_ICONS.length], label: entry.label, value: entry.value }));
+  return toSpecEntries(specs).slice(0, 4);
 }
 
 function toBulletItems(items: unknown): string[] {
@@ -66,6 +63,14 @@ const WHOLESALE_BENEFITS = [
   'Dedicated Corporate Account Manager',
 ];
 
+const LOT_PILLS = [
+  { value: 1, title: 'Single' },
+  { value: 10, title: '10 Bulk' },
+  { value: 50, title: '50 Commercial' },
+];
+
+const MAX_QTY = 99;
+
 const FALLBACK_PRODUCT: Product = {
   id: 'enterprise-phone',
   category: 'Mobile Devices',
@@ -85,12 +90,14 @@ const FALLBACK_PRODUCT: Product = {
 
 export function ProductDetailsScreen() {
   const { goBack, params, navigate, switchTab } = useNavigation();
+  const insets = useSafeAreaInsets();
   const { addItem, itemCount } = useCart();
   const { token, isAuthenticated } = useAuth();
   const { isSaved, toggle } = useWishlist();
   const [activeTab, setActiveTab] = useState(0);
   const [activeImage, setActiveImage] = useState(0);
   const [added, setAdded] = useState(false);
+  const [qty, setQty] = useState(1);
   const [wishlistError, setWishlistError] = useState<string | null>(null);
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState('');
@@ -106,9 +113,15 @@ export function ProductDetailsScreen() {
   const thumbnails = gallery.slice(0, 3);
   const reviewCount = resolved.reviews ?? 0;
   const saved = isSaved(resolved.id);
+  const unitPrice = resolved.priceValue ?? 0;
+  const totalValue = unitPrice * qty;
+  const savings = (resolved.originalPriceValue ?? 0) > unitPrice ? (resolved.originalPriceValue ?? 0) - unitPrice : 0;
+  const isWholesale = Boolean(resolved.isWholesale || resolved.bulkOrder || resolved.corporateReady || resolved.minOrder);
+  const hasDelivery = (resolved.deliveryFee ?? 0) > 0 || (resolved.shippingFee ?? 0) > 0;
+  const unitLabel = resolved.unitLabel;
 
   const handleAddToCart = () => {
-    addItem(product);
+    addItem(product, qty);
     setAdded(true);
     setTimeout(() => setAdded(false), 1500);
   };
@@ -182,10 +195,29 @@ export function ProductDetailsScreen() {
       <AppHeader
         showBack
         onBack={goBack}
-        right={<><HeaderNotificationButton /><HeaderCartButton count={itemCount} onPress={() => switchTab('Cart')} /></>}
+        title="Product Details"
+        right={
+          <>
+            <Pressable style={styles.headerIconBtn} onPress={toggleWishlist} hitSlop={8} accessibilityRole="button" accessibilityLabel="Wishlist">
+              <Icon name={saved ? 'favorite' : 'favorite-border'} size={24} color={saved ? colors.statusFlash : colors.onPrimary} />
+            </Pressable>
+            <HeaderNotificationButton />
+            <HeaderCartButton count={itemCount} onPress={() => switchTab('Cart')} />
+          </>
+        }
       />
+
+      <View style={styles.breadcrumbBar}>
+        <Icon name="storefront" size={14} color={colors.outline} />
+        <Text style={styles.breadcrumbText}>Home</Text>
+        <Text style={styles.breadcrumbSep}>/</Text>
+        <Text style={[styles.breadcrumbText, styles.breadcrumbActive]} numberOfLines={1}>
+          {resolved.category || 'Marketplace'}
+        </Text>
+      </View>
+
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Image gallery */}
+        {/* Hero gallery */}
         <View style={styles.galleryWrap}>
           {thumbnails.length > 0 ? (
             <Image source={{ uri: thumbnails[activeImage] }} style={styles.heroImage} resizeMode="cover" />
@@ -194,10 +226,30 @@ export function ProductDetailsScreen() {
               <Icon name="store" size={48} color={colors.outlineVariant} />
             </View>
           )}
-          <View style={styles.badges}>
-            {resolved.badge ? <Badge label={resolved.badge.label} variant={resolved.badge.variant} style={styles.badge} /> : null}
-            {resolved.discount ? <Badge label={resolved.discount} variant="flash" style={styles.badge} /> : null}
+          <View style={styles.heroBadges}>
+            {isWholesale ? (
+              <View style={styles.verifyPill}>
+                <Icon name="verified" size={13} color={colors.secondaryFixedDim} />
+                <Text style={styles.verifyPillText}>VERIFIED WHOLESALE &amp; RETAIL</Text>
+              </View>
+            ) : null}
+            <View style={styles.escrowPill}>
+              <Icon name="shield" size={13} color={colors.onSecondaryContainer} />
+              <Text style={styles.escrowPillText}>ESCROW PROTECTED</Text>
+            </View>
           </View>
+          {resolved.discount ? (
+            <View style={styles.discountPill}>
+              <Text style={styles.discountPillText}>{resolved.discount}</Text>
+            </View>
+          ) : null}
+          {gallery.length > 1 ? (
+            <View style={styles.dots}>
+              {Array.from({ length: Math.min(gallery.length, 4) }).map((_, i) => (
+                <View key={i} style={[styles.dot, i === activeImage && styles.dotActive]} />
+              ))}
+            </View>
+          ) : null}
         </View>
         {thumbnails.length > 1 ? (
           <View style={styles.thumbRow}>
@@ -213,101 +265,159 @@ export function ProductDetailsScreen() {
           </View>
         ) : null}
 
-        {/* Product info */}
+        {/* Title & meta */}
         <View style={styles.infoSection}>
-          <View style={styles.breadcrumb}>
-            <Text style={styles.breadcrumbText}>Marketplace</Text>
-            <Text style={styles.breadcrumbSep}>/</Text>
-            <Text style={styles.breadcrumbText}>{resolved.category}</Text>
-          </View>
-
-          <View style={styles.titleRow}>
-            <Text style={[styles.title, styles.titleFlex]}>{resolved.title}</Text>
-            <Pressable style={[styles.favBtn, saved && styles.favBtnActive]} onPress={toggleWishlist} hitSlop={8}>
-              <Icon
-                name={saved ? 'favorite' : 'favorite-border'}
-                size={22}
-                color={saved ? colors.statusFlash : colors.outline}
-              />
-            </Pressable>
-          </View>
+          <Text style={styles.title}>{resolved.title}</Text>
           {wishlistError ? <Text style={styles.wishlistError}>{wishlistError}</Text> : null}
 
           <View style={styles.metaRow}>
-            <View style={styles.stars}>
-              {[0, 1, 2, 3, 4].map(i => {
-                const filled = (resolved.rating ?? 0) >= i + 1;
-                return (
-                  <Icon key={i} name={filled ? 'star' : 'star-border'} size={16} color={colors.secondary} />
-                );
-              })}
-            </View>
-            <Text style={styles.reviewCount}>({reviewCount} Reviews)</Text>
-            <View style={styles.metaDivider} />
+            <Icon name="star" size={16} color={colors.secondary} />
+            <Text style={styles.ratingValue}>{(resolved.rating ?? 0).toFixed(1)}</Text>
+            <Text style={styles.reviewCount}>({reviewCount} reviews)</Text>
+            <View style={styles.metaDot} />
             <View style={styles.stockPill}>
               <Text style={styles.stockText}>{resolved.stock ?? 'IN STOCK'}</Text>
             </View>
-          </View>
-
-          <View style={styles.priceCard}>
-            <View style={styles.priceRow}>
-              <Text style={styles.price}>{resolved.price}</Text>
-              {resolved.originalPrice ? (
-                <Text style={styles.originalPrice}>{resolved.originalPrice}</Text>
-              ) : null}
-              {resolved.discount ? <Badge label={resolved.discount} variant="flash" style={styles.offBadge} /> : null}
-            </View>
-            {resolved.minOrder ? (
-              <View style={styles.minOrderRow}>
-                <Icon name="inventory" size={14} color={colors.outlineVariant} />
-                <Text style={styles.minOrder}>{resolved.minOrder}</Text>
-              </View>
-            ) : null}
-            <View style={styles.divider} />
-            {resolved.corporateReady ? (
-              <View style={styles.corporateRow}>
-                <View style={styles.corporateText}>
-                  <Text style={styles.corporateTitle}>Corporate Ready</Text>
-                  <Text style={styles.corporateSubtitle}>Contact vendor for wholesale custom pricing</Text>
+            {hasDelivery ? (
+              <>
+                <View style={styles.metaDot} />
+                <View style={styles.deliveryChip}>
+                  <Icon name="local-shipping" size={13} color={colors.secondary} />
+                  <Text style={styles.deliveryChipText}>Delivery Available</Text>
                 </View>
-                <Icon name="verified" size={28} color={colors.secondaryFixed} />
-              </View>
+              </>
             ) : null}
           </View>
 
-          {/* Delivery & shipping info */}
-          {(resolved.deliveryFee !== undefined && resolved.deliveryFee > 0) || (resolved.shippingFee !== undefined && resolved.shippingFee > 0) ? (
-            <View style={styles.deliveryInfoCard}>
-              <View style={styles.deliveryInfoRow}>
-                <Icon name="local-shipping" size={18} color={colors.secondary} />
-                <Text style={styles.deliveryInfoLabel}>Shipping & Delivery</Text>
+          {/* Pricing tier card */}
+          <View style={styles.priceCard}>
+            <View style={styles.priceTopRow}>
+              <View style={styles.priceLeft}>
+                <Text style={styles.priceLabel}>RETAIL PRICE</Text>
+                <View style={styles.priceRow}>
+                  <Text style={styles.price}>{formatUGX(unitPrice)}</Text>
+                  {resolved.originalPriceValue ? (
+                    <Text style={styles.originalPrice}>{resolved.originalPrice}</Text>
+                  ) : null}
+                  {resolved.discount ? <Badge label={resolved.discount} variant="flash" style={styles.offBadge} /> : null}
+                </View>
+              </View>
+              {isWholesale ? (
+                <View style={styles.wholesaleBlock}>
+                  <Text style={styles.priceLabel}>
+                    {resolved.minOrder ? `BULK MOQ ${resolved.minOrderValue ?? ''}+` : 'WHOLESALE RATE'}
+                  </Text>
+                  <View style={styles.wholesalePill}>
+                    <Text style={styles.wholesalePillText}>
+                      {formatUGX(unitPrice)}
+                      {unitLabel ? ` / ${unitLabel}` : ''}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
+            </View>
+            {savings > 0 ? (
+              <View style={styles.savingsRow}>
+                <Icon name="savings" size={14} color={colors.secondary} />
+                <Text style={styles.savingsText}>Save {formatUGX(savings)} on retail price</Text>
+              </View>
+            ) : null}
+            {resolved.corporateReady ? (
+              <>
+                <View style={styles.divider} />
+                <View style={styles.corporateRow}>
+                  <View style={styles.corporateText}>
+                    <Text style={styles.corporateTitle}>Corporate Ready</Text>
+                    <Text style={styles.corporateSubtitle}>Contact vendor for wholesale custom pricing</Text>
+                  </View>
+                  <Icon name="verified" size={24} color={colors.secondary} />
+                </View>
+              </>
+            ) : null}
+          </View>
+
+          {/* Vendor storefront */}
+          <View style={styles.vendorCard}>
+            <View style={styles.vendorRow}>
+              <View style={styles.vendorLogo}>
+                <Text style={styles.vendorLogoText}>
+                  {(resolved.vendor?.name ?? 'Jemina Official')
+                    .split(/\s+/)
+                    .map(w => w[0])
+                    .slice(0, 2)
+                    .join('')
+                    .toUpperCase()}
+                </Text>
+              </View>
+              <View style={styles.vendorInfo}>
+                <View style={styles.vendorNameRow}>
+                  <Text style={styles.vendorName} numberOfLines={1}>
+                    {resolved.vendor?.name ?? 'Jemina Official'}
+                  </Text>
+                  <Icon name="verified" size={14} color={colors.secondary} />
+                </View>
+                <View style={styles.vendorMeta}>
+                  <Icon name="location-on" size={13} color={colors.onSurfaceVariant} />
+                  <Text style={styles.vendorMetaText} numberOfLines={1}>
+                    {resolved.vendor?.location ?? 'Gulu, Uganda'}
+                  </Text>
+                </View>
+              </View>
+              <Pressable
+                style={styles.visitStoreBtn}
+                onPress={() =>
+                  navigate('VendorProfile', {
+                    vendorId: resolved.vendor?.id ?? 1,
+                    vendorName: resolved.vendor?.name ?? 'Jemina Official',
+                  })
+                }
+              >
+                <Text style={styles.visitStoreText}>Visit Store</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.dispatchBox}>
+              <View style={styles.dispatchRow}>
+                <Icon name="schedule" size={16} color={colors.secondary} />
+                <Text style={styles.dispatchText}>Dispatches within 24 hours of order confirmation</Text>
               </View>
               {resolved.shippingFee !== undefined && resolved.shippingFee > 0 ? (
-                <View style={styles.deliveryInfoLine}>
-                  <Text style={styles.deliveryInfoText}>Vendor → JEMINA Hub:</Text>
-                  <Text style={styles.deliveryInfoValue}>{formatUGX(resolved.shippingFee)}</Text>
+                <View style={styles.dispatchRow}>
+                  <Icon name="local-shipping" size={16} color={colors.secondary} />
+                  <Text style={styles.dispatchText}>
+                    Vendor → JEMINA Hub: <Text style={styles.dispatchStrong}>{formatUGX(resolved.shippingFee)}</Text>
+                  </Text>
                 </View>
               ) : null}
               {resolved.deliveryFee !== undefined && resolved.deliveryFee > 0 ? (
-                <View style={styles.deliveryInfoLine}>
-                  <Text style={styles.deliveryInfoText}>Hub → Customer:</Text>
-                  <Text style={styles.deliveryInfoValue}>{formatUGX(resolved.deliveryFee)}</Text>
+                <View style={styles.dispatchRow}>
+                  <Icon name="local-shipping" size={16} color={colors.secondary} />
+                  <Text style={styles.dispatchText}>
+                    Hub → Customer: <Text style={styles.dispatchStrong}>{formatUGX(resolved.deliveryFee)}</Text>
+                  </Text>
                 </View>
               ) : null}
               {resolved.originCountry ? (
-                <View style={styles.deliveryInfoLine}>
-                  <Text style={styles.deliveryInfoText}>Origin:</Text>
-                  <Text style={styles.deliveryInfoValue}>{resolved.originCountry}</Text>
+                <View style={styles.dispatchRow}>
+                  <Icon name="warehouse" size={16} color={colors.secondary} />
+                  <Text style={styles.dispatchText}>
+                    Free Pickup at JEMINA Hub · Origin: {resolved.originCountry}
+                  </Text>
                 </View>
-              ) : null}
+              ) : (
+                <View style={styles.dispatchRow}>
+                  <Icon name="warehouse" size={16} color={colors.secondary} />
+                  <Text style={styles.dispatchText}>Free Pickup at JEMINA Hub</Text>
+                </View>
+              )}
               {resolved.quality ? (
-                <View style={styles.deliveryInfoLine}>
-                  <Text style={styles.deliveryInfoText}>Quality:</Text>
-                  <Text style={styles.deliveryInfoValue}>{resolved.quality}</Text>
+                <View style={styles.dispatchRow}>
+                  <Icon name="eco" size={16} color={colors.secondary} />
+                  <Text style={styles.dispatchText}>{resolved.quality}</Text>
                 </View>
               ) : null}
             </View>
-          ) : null}
+          </View>
 
           {/* Spec bento */}
           {(() => {
@@ -316,53 +426,22 @@ export function ProductDetailsScreen() {
               return null;
             }
             return (
-              <View style={styles.specGrid}>
-                {specCards.map(s => (
-                  <View key={s.label} style={styles.specCard}>
-                    <View style={styles.specIconWrap}>
-                      <Icon name={s.icon} size={20} color={colors.primary} />
-                    </View>
-                    <View>
+              <View style={styles.specSection}>
+                <View style={styles.specHeader}>
+                  <Icon name="tune" size={18} color={colors.secondary} />
+                  <Text style={styles.specHeaderText}>Agronomic Specifications</Text>
+                </View>
+                <View style={styles.specGrid}>
+                  {specCards.map(s => (
+                    <View key={s.label} style={styles.specCard}>
                       <Text style={styles.specLabel}>{s.label.toUpperCase()}</Text>
                       <Text style={styles.specValue}>{s.value}</Text>
                     </View>
-                  </View>
-                ))}
+                  ))}
+                </View>
               </View>
             );
           })()}
-
-          {/* Vendor snippet */}
-          <Pressable
-            style={styles.vendorRow}
-            onPress={() =>
-              navigate('VendorProfile', {
-                vendorId: resolved.vendor?.id ?? 1,
-                vendorName: resolved.vendor?.name ?? 'Jemina Official',
-              })
-            }
-          >
-            <View style={styles.vendorLogo}>
-              <Text style={styles.vendorLogoText}>
-                {(resolved.vendor?.name ?? 'Jemina Official')
-                  .split(/\s+/)
-                  .map(w => w[0])
-                  .slice(0, 2)
-                  .join('')
-                  .toUpperCase()}
-              </Text>
-            </View>
-            <View style={styles.vendorInfo}>
-              <Text style={styles.vendorName}>{resolved.vendor?.name ?? 'Jemina Official'}</Text>
-              <View style={styles.vendorMeta}>
-                <Icon name="location-on" size={14} color={colors.onSurfaceVariant} />
-                <Text style={styles.vendorMetaText}>{resolved.vendor?.location ?? 'Gulu, Uganda'}</Text>
-                <Text style={styles.vendorDot}>â€¢</Text>
-                <Text style={styles.vendorVerified}>Verified Vendor</Text>
-              </View>
-            </View>
-            <Text style={styles.visitStore}>VISIT STORE</Text>
-          </Pressable>
         </View>
 
         {/* Tabbed info */}
@@ -378,6 +457,7 @@ export function ProductDetailsScreen() {
 
           {activeTab === 0 && (
             <View style={styles.tabContent}>
+              {resolved.description ? <Text style={styles.description}>{resolved.description}</Text> : null}
               {(() => {
                 const specs = resolved.specifications;
                 const specEntries = toSpecEntries(specs);
@@ -385,8 +465,12 @@ export function ProductDetailsScreen() {
                 const safety = toBulletItems(specs?.safety);
                 const warranty = toBulletItems(specs?.warranty);
                 const audience = toAudienceItems(specs);
-                if (!specs || (specEntries.length === 0 && features.length === 0 && safety.length === 0 && warranty.length === 0 && audience.length === 0)) {
-                  return <Text style={styles.description}>{resolved.description ?? 'No specifications provided for this product.'}</Text>;
+                if (
+                  !resolved.description &&
+                  (!specs ||
+                    (specEntries.length === 0 && features.length === 0 && safety.length === 0 && warranty.length === 0 && audience.length === 0))
+                ) {
+                  return <Text style={styles.description}>No specifications provided for this product.</Text>;
                 }
                 return (
                   <>
@@ -424,7 +508,7 @@ export function ProductDetailsScreen() {
                     ) : null}
                     {warranty.length > 0 ? (
                       <>
-                        <Text style={styles.specSectionTitle}>Warranty & Returns</Text>
+                        <Text style={styles.specSectionTitle}>Warranty &amp; Returns</Text>
                         {warranty.map((w, i) => (
                           <View key={i} style={styles.specBulletRow}>
                             <Icon name="check-circle" size={16} color={colors.secondary} />
@@ -452,9 +536,23 @@ export function ProductDetailsScreen() {
 
           {activeTab === 1 && (
             <View style={styles.tabContent}>
-              <Text style={styles.description}>
-                {resolved.description ?? 'No description available for this product.'}
-              </Text>
+              {resolved.minOrder ? (
+                <View style={styles.minOrderCard}>
+                  <Icon name="inventory" size={18} color={colors.secondary} />
+                  <View style={styles.minOrderInfo}>
+                    <Text style={styles.minOrderTitle}>Minimum Order</Text>
+                    <Text style={styles.minOrderValue}>{resolved.minOrder}</Text>
+                  </View>
+                </View>
+              ) : null}
+              <Text style={styles.specSectionTitle}>Wholesale Benefits</Text>
+              {WHOLESALE_BENEFITS.map(b => (
+                <View key={b} style={styles.specBulletRow}>
+                  <Icon name="check-circle" size={16} color={colors.secondary} />
+                  <Text style={styles.specBulletText}>{b}</Text>
+                </View>
+              ))}
+              <Button label="Download Pricing Sheet" variant="primary" onPress={() => {}} style={styles.downloadBtn} />
             </View>
           )}
 
@@ -511,46 +609,81 @@ export function ProductDetailsScreen() {
 
           {activeTab === 3 && (
             <View style={styles.tabContent}>
+              <View style={styles.escrowBox}>
+                <View style={styles.escrowHeader}>
+                  <Icon name="verified-user" size={20} color={colors.secondary} />
+                  <Text style={styles.escrowTitle}>JEMINA Escrow Protection</Text>
+                </View>
+                <Text style={styles.escrowText}>
+                  Your payment is held securely in JEMINA Escrow until you inspect your order at pickup or on delivery.
+                  Funds are released to the vendor only after confirmation.
+                </Text>
+              </View>
+              <Text style={styles.specSectionTitle}>Returns</Text>
               <Text style={styles.description}>
-                Flexible shipping across Uganda with national coverage. Corporate and bulk orders receive priority
-                delivery scheduling. 30-day money-back guarantee on eligible items.
+                Eligible items can be returned within 30 days of delivery. Contact support to arrange a return or
+                exchange. Inspection pass is required at the JEMINA hub before funds are released.
               </Text>
             </View>
           )}
         </View>
 
-        {/* Wholesale benefits */}
-        <View style={styles.wholesaleSection}>
-          <View style={styles.wholesaleCard}>
-            <Text style={styles.wholesaleTitle}>Wholesale Benefits</Text>
-            {WHOLESALE_BENEFITS.map(b => (
-              <View key={b} style={styles.benefitRow}>
-                <Icon name="check-circle" size={16} color={colors.secondaryContainer} />
-                <Text style={styles.benefitText}>{b}</Text>
-              </View>
-            ))}
-            <Button label="Download Pricing Sheet" variant="primary" onPress={() => {}} style={styles.downloadBtn} />
+        {/* Quantity & lot selection */}
+        <View style={styles.qtySection}>
+          <Text style={styles.qtyLabel}>Select Quantity</Text>
+          <View style={styles.lotRow}>
+            {LOT_PILLS.map(p => {
+              const active = qty === p.value;
+              return (
+                <Pressable
+                  key={p.value}
+                  style={[styles.lotPill, active && styles.lotPillActive]}
+                  onPress={() => setQty(p.value)}
+                  accessibilityRole="button"
+                >
+                  <Text style={[styles.lotPillTitle, active && styles.lotPillTitleActive]}>{p.title}</Text>
+                  <Text style={[styles.lotPillDesc, active && styles.lotPillDescActive]}>
+                    {unitLabel ? `${p.value} ${p.value === 1 ? unitLabel : unitLabel + 's'}` : `${p.value} units`}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <View style={styles.stepperRow}>
+            <View style={styles.stepper}>
+              <Pressable style={styles.stepperBtn} onPress={() => setQty(q => Math.max(1, q - 1))} hitSlop={6} accessibilityRole="button" accessibilityLabel="Decrease quantity">
+                <Icon name="remove" size={20} color={colors.primary} />
+              </Pressable>
+              <Text style={styles.stepperValue}>{qty}</Text>
+              <Pressable style={styles.stepperBtn} onPress={() => setQty(q => Math.min(MAX_QTY, q + 1))} hitSlop={6} accessibilityRole="button" accessibilityLabel="Increase quantity">
+                <Icon name="add" size={20} color={colors.primary} />
+              </Pressable>
+            </View>
+            <Text style={styles.stepperNote}>Total: {formatUGX(totalValue)}</Text>
           </View>
         </View>
       </ScrollView>
 
       {/* Bottom action bar */}
-      <View style={styles.actionBar}>
-        <Pressable
-          style={[styles.inquireBtn, !resolved.corporateReady && styles.inquireBtnDisabled]}
-          disabled={!resolved.corporateReady}
-          onPress={() => navigate('ProductInquiry', { product: resolved })}
-        >
-          <Icon name="chat-bubble" size={18} color={resolved.corporateReady ? colors.primary : colors.outline} />
-          <Text style={styles.inquireText}>INQUIRE</Text>
-        </Pressable>
-        <Pressable style={[styles.addBtn, added && styles.addBtnAdded]} onPress={handleAddToCart}>
-          <Icon name={added ? 'check' : 'shopping-cart'} size={18} color={colors.onSecondary} />
-          <Text style={styles.addText}>{added ? 'ADDED!' : 'ADD TO CART'}</Text>
-        </Pressable>
-        <Pressable style={styles.shareBtn}>
-          <Icon name="share" size={18} color={colors.outline} />
-        </Pressable>
+      <View style={[styles.actionBar, { paddingBottom: insets.bottom + spacing.sm }]}>
+        <View style={styles.actionRow}>
+          <Pressable
+            style={[styles.inquireBtn, !resolved.corporateReady && styles.inquireBtnDisabled]}
+            disabled={!resolved.corporateReady}
+            onPress={() => navigate('ProductInquiry', { product: resolved })}
+          >
+            <Icon name="chat" size={18} color={resolved.corporateReady ? colors.primary : colors.outline} />
+            <Text style={[styles.inquireText, !resolved.corporateReady && styles.inquireTextDisabled]}>Bulk Inquiry</Text>
+          </Pressable>
+          <Pressable style={[styles.addBtn, added && styles.addBtnAdded]} onPress={handleAddToCart}>
+            <Icon name={added ? 'check' : 'shopping-cart'} size={18} color={added ? colors.white : colors.onSecondaryContainer} />
+            <Text style={styles.addText}>{added ? 'ADDED!' : `Add to Cart · ${formatUGX(totalValue)}`}</Text>
+          </Pressable>
+        </View>
+        <View style={styles.escrowTrust}>
+          <Icon name="verified-user" size={13} color={colors.secondary} />
+          <Text style={styles.escrowTrustText}>Payment held securely in JEMINA Escrow until inspection</Text>
+        </View>
       </View>
     </View>
   );
@@ -565,7 +698,32 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingBottom: 24,
+    paddingBottom: spacing.lg,
+  },
+  headerIconBtn: {
+    padding: 9,
+    borderRadius: 4,
+  },
+  breadcrumbBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.surfaceContainerLow,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  breadcrumbText: {
+    ...typography.labelSm,
+    color: colors.outline,
+  },
+  breadcrumbActive: {
+    color: colors.secondary,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+  breadcrumbSep: {
+    ...typography.labelSm,
+    color: colors.outline,
   },
   galleryWrap: {
     position: 'relative',
@@ -582,15 +740,73 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badges: {
+  heroBadges: {
     position: 'absolute',
     top: spacing.lg,
     left: spacing.lg,
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: spacing.sm,
+    alignItems: 'flex-start',
   },
-  badge: {
+  verifyPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.primaryContainer,
     borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  verifyPillText: {
+    ...typography.labelSm,
+    color: colors.onPrimary,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  escrowPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.secondaryContainer,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  escrowPillText: {
+    ...typography.labelSm,
+    color: colors.onSecondaryContainer,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  discountPill: {
+    position: 'absolute',
+    top: spacing.lg,
+    right: spacing.lg,
+    backgroundColor: colors.error,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+  },
+  discountPillText: {
+    ...typography.labelMd,
+    color: colors.onError,
+    fontWeight: '700',
+  },
+  dots: {
+    position: 'absolute',
+    bottom: spacing.md,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.outlineVariant,
+  },
+  dotActive: {
+    backgroundColor: colors.primary,
   },
   thumbRow: {
     flexDirection: 'row',
@@ -599,8 +815,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   thumb: {
-    width: 64,
-    height: 64,
+    width: 56,
+    height: 56,
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.borderLight,
@@ -610,7 +826,7 @@ const styles = StyleSheet.create({
   },
   thumbActive: {
     borderWidth: 2,
-    borderColor: colors.secondary,
+    borderColor: colors.primary,
     opacity: 1,
   },
   thumbImage: {
@@ -619,125 +835,41 @@ const styles = StyleSheet.create({
   },
   infoSection: {
     paddingHorizontal: spacing.md,
-    marginTop: spacing.sm,
-  },
-  breadcrumb: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  breadcrumbText: {
-    ...typography.labelSm,
-    color: colors.outline,
-  },
-  breadcrumbSep: {
-    ...typography.labelSm,
-    color: colors.outline,
-  },
-  breadcrumbActive: {
-    color: colors.secondary,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+    marginTop: spacing.md,
   },
   title: {
-    ...typography.headlineSm,
-    color: colors.onSurface,
-    fontWeight: '700',
-  },
-  titleFlex: {
-    flex: 1,
-  },
-  favBtn: {
-    padding: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.full,
-  },
-  favBtnActive: {
-    borderColor: colors.statusFlash,
-    backgroundColor: 'rgba(186,26,26,0.08)',
+    ...typography.headlineMd,
+    color: colors.primary,
+    fontWeight: '800',
+    letterSpacing: -0.4,
   },
   wishlistError: {
     ...typography.labelMd,
     color: colors.statusFlash,
     marginTop: spacing.sm,
   },
-  reviewBtn: {
-    marginTop: spacing.md,
-  },
-  reviewDoneBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginTop: spacing.md,
-  },
-  reviewDoneText: {
-    ...typography.bodyMd,
-    color: colors.statusSuccess,
-    flex: 1,
-    fontWeight: '600',
-  },
-  reviewFormTitle: {
-    ...typography.labelLg,
-    color: colors.onSurface,
-    fontWeight: '700',
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  reviewStars: {
-    flexDirection: 'row',
-    gap: spacing.xs,
-    marginBottom: spacing.md,
-  },
-  reviewInput: {
-    ...typography.bodyMd,
-    color: colors.onSurface,
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    padding: spacing.md,
-    minHeight: 80,
-    textAlignVertical: 'top',
-    marginBottom: spacing.sm,
-  },
-  reviewHint: {
-    ...typography.labelMd,
-    color: colors.onSurfaceVariant,
-    marginTop: spacing.sm,
-    textAlign: 'center',
-  },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    marginVertical: spacing.md,
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.md,
   },
-  stars: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  ratingValue: {
+    ...typography.labelMd,
+    color: colors.onSurface,
+    fontWeight: '700',
   },
   reviewCount: {
     ...typography.bodySm,
-    color: colors.onSurfaceVariant,
+    color: colors.outline,
   },
-  metaDivider: {
-    width: 1,
-    height: 16,
-    backgroundColor: colors.borderLight,
-    marginHorizontal: spacing.sm,
-  },
-  stockText: {
-    ...typography.labelMd,
-    color: colors.statusSuccess,
-    fontWeight: '700',
+  metaDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: colors.outlineVariant,
+    marginHorizontal: spacing.xs,
   },
   stockPill: {
     backgroundColor: 'rgba(40,167,69,0.12)',
@@ -745,46 +877,98 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
   },
+  stockText: {
+    ...typography.labelMd,
+    color: colors.statusSuccess,
+    fontWeight: '700',
+  },
+  deliveryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.surfaceContainer,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  deliveryChipText: {
+    ...typography.labelSm,
+    color: colors.onSurface,
+    fontWeight: '600',
+  },
   priceCard: {
-    backgroundColor: colors.inverseSurface,
+    backgroundColor: colors.surfaceContainerLow,
     borderWidth: 1,
-    borderColor: colors.secondaryContainer,
-    borderRadius: radius.xl,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
     padding: spacing.md,
-    marginBottom: spacing.md,
+    marginTop: spacing.md,
+  },
+  priceTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  priceLeft: {
+    flex: 1,
+  },
+  priceLabel: {
+    ...typography.labelSm,
+    color: colors.outline,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    marginBottom: 2,
   },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    marginBottom: spacing.sm,
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
   price: {
-    ...typography.headlineMd,
-    color: colors.secondaryFixed,
-    fontWeight: '700',
+    ...typography.headlineLg,
+    color: colors.secondary,
+    fontWeight: '800',
   },
   originalPrice: {
     ...typography.bodyMd,
-    color: colors.outlineVariant,
+    color: colors.outline,
     textDecorationLine: 'line-through',
   },
   offBadge: {
     borderRadius: radius.sm,
   },
-  minOrderRow: {
+  wholesaleBlock: {
+    alignItems: 'flex-end',
+  },
+  wholesalePill: {
+    backgroundColor: colors.secondaryFixed,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    marginTop: 2,
+  },
+  wholesalePillText: {
+    ...typography.labelLg,
+    color: colors.primary,
+    fontWeight: '800',
+  },
+  savingsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: 6,
+    marginTop: spacing.sm,
   },
-  minOrder: {
+  savingsText: {
     ...typography.labelMd,
-    color: colors.primaryFixedDim,
+    color: colors.secondary,
+    fontWeight: '700',
   },
   divider: {
     height: 1,
     backgroundColor: colors.outlineVariant,
-    opacity: 0.3,
+    opacity: 0.4,
     marginVertical: spacing.md,
   },
   corporateRow: {
@@ -797,108 +981,52 @@ const styles = StyleSheet.create({
   },
   corporateTitle: {
     ...typography.labelLg,
-    color: colors.white,
+    color: colors.primary,
     fontWeight: '700',
   },
   corporateSubtitle: {
-    ...typography.bodyMd,
-    color: colors.primaryFixedDim,
-  },
-  deliveryInfoCard: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-  },
-  deliveryInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  deliveryInfoLabel: {
-    ...typography.labelMd,
-    color: colors.onSurface,
-    fontWeight: '700',
-  },
-  deliveryInfoLine: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 3,
-  },
-  deliveryInfoText: {
     ...typography.bodySm,
     color: colors.outline,
   },
-  deliveryInfoValue: {
-    ...typography.bodySm,
-    color: colors.onSurface,
-    fontWeight: '600',
-  },
-  specGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-    marginBottom: spacing.md,
-  },
-  specCard: {
-    width: '47%',
-    backgroundColor: colors.white,
+  vendorCard: {
+    backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
     borderColor: colors.borderLight,
     borderRadius: radius.xl,
     padding: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  specIconWrap: {
-    backgroundColor: colors.surfaceContainer,
-    borderRadius: radius.lg,
-    padding: spacing.sm,
-  },
-  specLabel: {
-    ...typography.labelSm,
-    color: colors.outline,
-  },
-  specValue: {
-    ...typography.bodyMd,
-    color: colors.onSurface,
-    fontWeight: '700',
+    marginTop: spacing.md,
   },
   vendorRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.xl,
-    padding: spacing.md,
   },
   vendorLogo: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: radius.lg,
     backgroundColor: colors.primaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
   },
   vendorLogoText: {
-    color: colors.white,
-    fontWeight: '700',
-    fontSize: 14,
+    ...typography.labelLg,
+    color: colors.onPrimary,
+    fontWeight: '800',
   },
   vendorInfo: {
     flex: 1,
     marginLeft: spacing.md,
   },
+  vendorNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   vendorName: {
-    ...typography.bodyLg,
-    color: colors.onSurface,
+    ...typography.labelLg,
+    color: colors.primary,
     fontWeight: '700',
+    flexShrink: 1,
   },
   vendorMeta: {
     flexDirection: 'row',
@@ -909,23 +1037,87 @@ const styles = StyleSheet.create({
   vendorMetaText: {
     ...typography.labelMd,
     color: colors.onSurfaceVariant,
+    flexShrink: 1,
   },
-  vendorDot: {
-    ...typography.labelMd,
+  visitStoreBtn: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginLeft: spacing.sm,
+  },
+  visitStoreText: {
+    ...typography.labelSm,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  dispatchBox: {
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainer,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginTop: spacing.md,
+  },
+  dispatchRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    marginBottom: 6,
+  },
+  dispatchText: {
+    ...typography.bodySm,
     color: colors.onSurfaceVariant,
+    flex: 1,
   },
-  vendorVerified: {
-    ...typography.labelMd,
-    color: colors.statusSuccess,
+  dispatchStrong: {
+    color: colors.onSurface,
     fontWeight: '700',
   },
-  visitStore: {
-    ...typography.labelMd,
-    color: colors.secondary,
+  specSection: {
+    marginTop: spacing.lg,
+  },
+  specHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  specHeaderText: {
+    ...typography.headlineSm,
+    color: colors.primary,
     fontWeight: '700',
+  },
+  specGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+  },
+  specCard: {
+    width: '47%',
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainer,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  specLabel: {
+    ...typography.labelSm,
+    color: colors.outline,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  specValue: {
+    ...typography.labelMd,
+    color: colors.primary,
+    fontWeight: '800',
+    marginTop: 2,
   },
   tabSection: {
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
   },
   tabRow: {
     flexDirection: 'row',
@@ -993,10 +1185,10 @@ const styles = StyleSheet.create({
   },
   specSectionTitle: {
     ...typography.labelLg,
-    color: colors.onSurface,
+    color: colors.primary,
     fontWeight: '700',
     marginBottom: spacing.sm,
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
   },
   specBulletRow: {
     flexDirection: 'row',
@@ -1010,52 +1202,204 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 22,
   },
+  minOrderCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  minOrderInfo: {
+    flex: 1,
+  },
+  minOrderTitle: {
+    ...typography.labelSm,
+    color: colors.outline,
+    fontWeight: '700',
+  },
+  minOrderValue: {
+    ...typography.labelLg,
+    color: colors.primary,
+    fontWeight: '800',
+  },
+  downloadBtn: {
+    marginTop: spacing.md,
+  },
   ratingHeader: {
     alignItems: 'center',
     gap: spacing.sm,
   },
   ratingBig: {
     ...typography.headlineLg,
-    color: colors.onSurface,
+    color: colors.primary,
+    fontWeight: '800',
   },
-  wholesaleSection: {
-    paddingHorizontal: spacing.md,
-    marginTop: spacing.md,
-  },
-  wholesaleCard: {
-    backgroundColor: colors.primaryContainer,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-  },
-  wholesaleTitle: {
-    ...typography.labelLg,
-    color: colors.white,
-    fontWeight: '700',
-    marginBottom: spacing.md,
-  },
-  benefitRow: {
+  stars: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.md,
-    marginBottom: spacing.sm,
+    alignItems: 'center',
   },
-  benefitText: {
-    ...typography.bodyMd,
-    color: colors.onPrimaryContainer,
-    flex: 1,
-  },
-  downloadBtn: {
+  reviewBtn: {
     marginTop: spacing.md,
   },
-  actionBar: {
+  reviewDoneBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginTop: spacing.md,
+  },
+  reviewDoneText: {
+    ...typography.bodyMd,
+    color: colors.statusSuccess,
+    flex: 1,
+    fontWeight: '600',
+  },
+  reviewFormTitle: {
+    ...typography.labelLg,
+    color: colors.onSurface,
+    fontWeight: '700',
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  reviewStars: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  reviewInput: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    padding: spacing.md,
+    minHeight: 80,
+    textAlignVertical: 'top',
+    marginBottom: spacing.sm,
+  },
+  reviewHint: {
+    ...typography.labelMd,
+    color: colors.onSurfaceVariant,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
+  escrowBox: {
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  escrowHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  escrowTitle: {
+    ...typography.labelLg,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  escrowText: {
+    ...typography.bodyMd,
+    color: colors.onSurfaceVariant,
+    lineHeight: 22,
+  },
+  qtySection: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.lg,
+  },
+  qtyLabel: {
+    ...typography.labelLg,
+    color: colors.primary,
+    fontWeight: '800',
+    marginBottom: spacing.md,
+  },
+  lotRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  lotPill: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+    alignItems: 'center',
+  },
+  lotPillActive: {
+    backgroundColor: colors.secondaryFixed,
+    borderColor: colors.secondary,
+  },
+  lotPillTitle: {
+    ...typography.labelMd,
+    color: colors.onSurface,
+    fontWeight: '700',
+  },
+  lotPillTitleActive: {
+    color: colors.primary,
+  },
+  lotPillDesc: {
+    ...typography.labelSm,
+    color: colors.outline,
+  },
+  lotPillDescActive: {
+    color: colors.onSecondaryFixed,
+  },
+  stepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.md,
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainerLowest,
+    overflow: 'hidden',
+  },
+  stepperBtn: {
+    width: 44,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperValue: {
+    ...typography.labelLg,
+    color: colors.primary,
+    fontWeight: '800',
+    minWidth: 44,
+    textAlign: 'center',
+  },
+  stepperNote: {
+    ...typography.labelMd,
+    color: colors.onSurface,
+    fontWeight: '700',
+  },
+  actionBar: {
     backgroundColor: colors.surfaceContainerLowest,
     borderTopWidth: 1,
     borderTopColor: colors.borderLight,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    paddingTop: spacing.md,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   inquireBtn: {
     flex: 1,
@@ -1065,7 +1409,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     borderWidth: 2,
     borderColor: colors.primary,
-    borderRadius: radius.xl,
+    borderRadius: radius.lg,
     paddingVertical: spacing.md,
   },
   inquireBtnDisabled: {
@@ -1075,7 +1419,10 @@ const styles = StyleSheet.create({
   inquireText: {
     ...typography.labelMd,
     color: colors.primary,
-    fontWeight: '700',
+    fontWeight: '800',
+  },
+  inquireTextDisabled: {
+    color: colors.outline,
   },
   addBtn: {
     flex: 2,
@@ -1084,7 +1431,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.sm,
     backgroundColor: colors.secondaryContainer,
-    borderRadius: radius.xl,
+    borderRadius: radius.lg,
     paddingVertical: spacing.md,
     shadowColor: colors.secondary,
     shadowOffset: { width: 0, height: 4 },
@@ -1094,16 +1441,21 @@ const styles = StyleSheet.create({
   },
   addText: {
     ...typography.labelMd,
-    color: colors.onSecondary,
-    fontWeight: '700',
+    color: colors.onSecondaryContainer,
+    fontWeight: '800',
   },
   addBtnAdded: {
     backgroundColor: colors.statusSuccess,
   },
-  shareBtn: {
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.xl,
+  escrowTrust: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: spacing.sm,
+  },
+  escrowTrustText: {
+    ...typography.labelSm,
+    color: colors.outline,
   },
 });

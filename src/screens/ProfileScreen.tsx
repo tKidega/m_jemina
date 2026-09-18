@@ -27,7 +27,7 @@ interface MenuRow {
 const MENU_ITEMS: MenuRow[] = [
   { icon: 'receipt-long', label: 'My Orders & Purchase History', route: 'Orders' },
   { icon: 'request-quote', label: 'Wholesale Inquiries & RFQs', sub: 'B2B corporate quotes', route: 'MyInquiries' },
-  { icon: 'favorite', label: 'My Wishlist & Saved Products', route: 'Wishlist' },
+  { icon: 'favorite', label: 'Saved Wishlist & Coupons', sub: 'Saved products & promo codes', route: 'Wishlist' },
   { icon: 'local-shipping', label: 'Track Active Order', route: 'OrderTracking' },
   { icon: 'manage-accounts', label: 'Account Settings & Security', route: 'AccountSettings' },
   { icon: 'rate-review', label: 'Surveys & Feedback', route: 'Surveys' },

@@ -17,7 +17,14 @@ import { Button } from '../components/Button';
 import { EmptyState } from '../components/EmptyState';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { apiGetAddresses, apiSaveAddress, apiUpdateAddress, apiDeleteAddress, apiSetDefaultAddress, ApiAddress } from '../data/api';
+import {
+  apiGetAddresses,
+  apiSaveAddress,
+  apiUpdateAddress,
+  apiDeleteAddress,
+  apiSetDefaultAddress,
+  ApiAddress,
+} from '../data/api';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
@@ -42,50 +49,73 @@ const EMPTY_FORM: AddressForm = {
   is_default: false,
 };
 
-function AddressCard({ address, onEdit, onDelete, onSetDefault }: {
+/* ─── Address Card ───────────────────────────────────── */
+
+function AddressCard({
+  address,
+  onEdit,
+  onDelete,
+  onSetDefault,
+}: {
   address: ApiAddress;
   onEdit: () => void;
   onDelete: () => void;
   onSetDefault: () => void;
 }) {
+  const fullAddress = [
+    address.street_address,
+    address.city,
+    address.region,
+    address.zip_code,
+  ]
+    .filter(Boolean)
+    .join(', ');
+
   return (
-    <View style={styles.card}>
-      <View style={styles.cardTop}>
-        <View style={styles.cardTitleRow}>
-          <Icon name={address.type === 'billing' ? 'credit-card' : 'home'} size={20} color={colors.secondary} />
-          <Text style={styles.cardName}>{address.name || address.full_name || 'Address'}</Text>
-        </View>
-        <View style={styles.cardActions}>
-          <Pressable onPress={onEdit} style={styles.actionBtn} hitSlop={8}>
-            <Icon name="edit" size={18} color={colors.onSurfaceVariant} />
-          </Pressable>
-          <Pressable onPress={onDelete} style={styles.actionBtn} hitSlop={8}>
-            <Icon name="delete-outline" size={18} color={colors.error} />
-          </Pressable>
+    <View style={styles.addressCard}>
+      <View style={styles.addressTop}>
+        <Icon
+          name={address.type === 'billing' ? 'credit-card' : 'pin-drop'}
+          size={20}
+          color={colors.secondary}
+        />
+        <View style={styles.addressInfo}>
+          <View style={styles.addressNameRow}>
+            <Text style={styles.addressName} numberOfLines={1}>
+              {address.name || address.full_name || 'Address'}
+            </Text>
+            {address.is_default ? (
+              <View style={styles.defaultBadge}>
+                <Text style={styles.defaultBadgeText}>Default</Text>
+              </View>
+            ) : null}
+          </View>
+          <Text style={styles.addressText} numberOfLines={2}>
+            {fullAddress}
+          </Text>
+          {address.phone ? (
+            <Text style={styles.addressPhone}>{address.phone}</Text>
+          ) : null}
         </View>
       </View>
-      <Text style={styles.cardText} numberOfLines={2}>
-        {address.street_address}
-        {address.city ? `, ${address.city}` : ''}
-        {address.region ? `, ${address.region}` : ''}
-        {address.zip_code ? ` ${address.zip_code}` : ''}
-      </Text>
-      {address.phone ? <Text style={styles.cardPhone}>{address.phone}</Text> : null}
-      <View style={styles.cardBottom}>
-        {address.is_default ? (
-          <View style={styles.defaultChip}>
-            <Icon name="check-circle" size={14} color={colors.statusSuccess} />
-            <Text style={styles.defaultChipText}>Default</Text>
-          </View>
-        ) : (
+      <View style={styles.addressActions}>
+        <Pressable onPress={onEdit} hitSlop={8} style={styles.addressActionBtn}>
+          <Icon name="edit" size={18} color={colors.outline} />
+        </Pressable>
+        <Pressable onPress={onDelete} hitSlop={8} style={styles.addressActionBtn}>
+          <Icon name="delete-outline" size={18} color={colors.error} />
+        </Pressable>
+        {!address.is_default ? (
           <Pressable onPress={onSetDefault} hitSlop={8}>
-            <Text style={styles.setDefaultText}>Set as default</Text>
+            <Text style={styles.setDefaultText}>Set default</Text>
           </Pressable>
-        )}
+        ) : null}
       </View>
     </View>
   );
 }
+
+/* ─── Main Screen ────────────────────────────────────── */
 
 export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) {
   const { token, isAuthenticated } = useAuth();
@@ -106,11 +136,8 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
         setLoading(false);
         return;
       }
-      if (isRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
       try {
         const data = await apiGetAddresses(token);
         setAddresses(data);
@@ -154,9 +181,7 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
   };
 
   const closeModal = () => {
-    if (saving) {
-      return;
-    }
+    if (saving) return;
     setModalOpen(false);
     setEditing(null);
     setForm(EMPTY_FORM);
@@ -164,9 +189,7 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
   };
 
   const handleSave = async () => {
-    if (!token) {
-      return;
-    }
+    if (!token) return;
     if (!form.name.trim() || !form.street_address.trim()) {
       setFormError('Name and street address are required.');
       return;
@@ -200,9 +223,7 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
   };
 
   const handleDelete = async (address: ApiAddress) => {
-    if (!token) {
-      return;
-    }
+    if (!token) return;
     try {
       await apiDeleteAddress(token, address.id);
       load();
@@ -212,9 +233,7 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
   };
 
   const handleSetDefault = async (address: ApiAddress) => {
-    if (!token) {
-      return;
-    }
+    if (!token) return;
     try {
       await apiSetDefaultAddress(token, address.id);
       load();
@@ -223,11 +242,20 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
     }
   };
 
+  const defaultAddress = addresses.find(a => a.is_default);
+  const otherAddresses = addresses.filter(a => !a.is_default);
+
   if (!isAuthenticated || !token) {
     return (
       <View style={styles.root}>
         {!embedded ? <AppHeader title="Address Book" showBack onBack={goBack} /> : null}
-        <EmptyState icon="home" title="Sign in to manage addresses" subtitle="Add and manage your delivery addresses after signing in." actionLabel="Sign In" onAction={() => navigate('Login')} />
+        <EmptyState
+          icon="home"
+          title="Sign in to manage addresses"
+          subtitle="Add and manage your delivery addresses after signing in."
+          actionLabel="Sign In"
+          onAction={() => navigate('Login')}
+        />
       </View>
     );
   }
@@ -235,66 +263,225 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
   return (
     <View style={styles.root}>
       {!embedded ? <AppHeader title="Address Book" showBack onBack={goBack} /> : null}
-      <View style={styles.topBar}>
-        <Button label="+ Add Address" variant="secondary" onPress={openCreate} style={styles.addBtn} />
-      </View>
       {loading ? (
         <View style={styles.center}>
           <Text style={styles.loadingText}>Loading addresses...</Text>
         </View>
       ) : error ? (
-        <EmptyState icon="error-outline" title="Couldn't load addresses" subtitle={error} actionLabel="Try Again" onAction={() => load()} />
-      ) : addresses.length === 0 ? (
-        <EmptyState icon="home" title="No addresses yet" subtitle="Add a delivery address to make checkout faster." actionLabel="Add Address" onAction={openCreate} />
+        <EmptyState
+          icon="error-outline"
+          title="Couldn't load addresses"
+          subtitle={error}
+          actionLabel="Try Again"
+          onAction={() => load()}
+        />
       ) : (
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
+          }
         >
-          {addresses.map(address => (
-            <AddressCard
-              key={address.id}
-              address={address}
-              onEdit={() => openEdit(address)}
-              onDelete={() => handleDelete(address)}
-              onSetDefault={() => handleSetDefault(address)}
-            />
-          ))}
+          {/* Section: Delivery & Logistics Hub */}
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionHeaderLeft}>
+              <View style={styles.sectionIcon}>
+                <Icon name="local-shipping" size={18} color={colors.primary} />
+              </View>
+              <Text style={styles.sectionTitle}>Delivery & Logistics Hub</Text>
+            </View>
+            <Pressable onPress={openCreate}>
+              <Text style={styles.manageLink}>+ Add</Text>
+            </Pressable>
+          </View>
+
+          {/* Logistics Box */}
+          <View style={styles.logisticsBox}>
+            {/* Default Address */}
+            {defaultAddress ? (
+              <View style={styles.logisticsRow}>
+                <Icon name="pin-drop" size={20} color={colors.secondary} />
+                <View style={styles.logisticsInfo}>
+                  <View style={styles.logisticsLabelRow}>
+                    <Text style={styles.logisticsLabel} numberOfLines={1}>
+                      {defaultAddress.street_address}
+                      {defaultAddress.city ? `, ${defaultAddress.city}` : ''}
+                    </Text>
+                    <View style={styles.defaultBadge}>
+                      <Text style={styles.defaultBadgeText}>Default</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.logisticsSub}>
+                    {[
+                      defaultAddress.name || defaultAddress.full_name,
+                      defaultAddress.region,
+                      defaultAddress.zip_code,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || 'Delivery Address'}
+                  </Text>
+                  {defaultAddress.phone ? (
+                    <Text style={styles.logisticsPhone}>{defaultAddress.phone}</Text>
+                  ) : null}
+                </View>
+                <Pressable onPress={() => openEdit(defaultAddress)} hitSlop={8}>
+                  <Icon name="edit" size={18} color={colors.outline} />
+                </Pressable>
+              </View>
+            ) : (
+              <View style={styles.logisticsRow}>
+                <Icon name="pin-drop" size={20} color={colors.outline} />
+                <View style={styles.logisticsInfo}>
+                  <Text style={styles.logisticsLabel}>No default address set</Text>
+                  <Text style={styles.logisticsSub}>Add a delivery address to get started</Text>
+                </View>
+              </View>
+            )}
+
+            <View style={styles.logisticsDivider} />
+
+            {/* Hub */}
+            <View style={styles.logisticsRow}>
+              <Icon name="warehouse" size={20} color={colors.primary} />
+              <View style={styles.logisticsInfo}>
+                <Text style={styles.logisticsLabel}>Gulu Central Logistics Hub</Text>
+                <Text style={styles.logisticsSub}>
+                  Owonzi Complex · Free Self-Pickup & Bulk Container Staging
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Other Addresses */}
+          {otherAddresses.length > 0 && (
+            <>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionHeaderLeft}>
+                  <View style={styles.sectionIcon}>
+                    <Icon name="home" size={18} color={colors.primary} />
+                  </View>
+                  <Text style={styles.sectionTitle}>Saved Addresses</Text>
+                </View>
+                <Text style={styles.addressCount}>
+                  {otherAddresses.length} {otherAddresses.length === 1 ? 'address' : 'addresses'}
+                </Text>
+              </View>
+
+              {otherAddresses.map(address => (
+                <AddressCard
+                  key={address.id}
+                  address={address}
+                  onEdit={() => openEdit(address)}
+                  onDelete={() => handleDelete(address)}
+                  onSetDefault={() => handleSetDefault(address)}
+                />
+              ))}
+            </>
+          )}
+
+          {/* Add Address Button */}
+          <Pressable style={styles.addAddressBtn} onPress={openCreate}>
+            <Icon name="add" size={18} color={colors.primaryContainer} />
+            <Text style={styles.addAddressText}>Add Delivery Address</Text>
+          </Pressable>
         </ScrollView>
       )}
 
+      {/* Add/Edit Modal */}
       <Modal visible={modalOpen} animationType="slide" transparent onRequestClose={closeModal}>
-        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{editing ? 'Edit Address' : 'Add Address'}</Text>
+              <Text style={styles.modalTitle}>
+                {editing ? 'Edit Address' : 'Add Address'}
+              </Text>
               <Pressable onPress={closeModal} hitSlop={8}>
                 <Icon name="close" size={24} color={colors.onSurface} />
               </Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {formError ? <Text style={styles.formError}>{formError}</Text> : null}
+
               <Text style={styles.label}>Full Name</Text>
-              <TextInput style={styles.input} value={form.name} onChangeText={t => setForm(f => ({ ...f, name: t }))} placeholder="Recipient name" placeholderTextColor={colors.outline} autoCapitalize="words" />
+              <TextInput
+                style={styles.input}
+                value={form.name}
+                onChangeText={t => setForm(f => ({ ...f, name: t }))}
+                placeholder="Recipient name"
+                placeholderTextColor={colors.outline}
+                autoCapitalize="words"
+              />
+
               <Text style={styles.label}>Phone</Text>
-              <TextInput style={styles.input} value={form.phone} onChangeText={t => setForm(f => ({ ...f, phone: t }))} placeholder="+256..." placeholderTextColor={colors.outline} keyboardType="phone-pad" />
+              <TextInput
+                style={styles.input}
+                value={form.phone}
+                onChangeText={t => setForm(f => ({ ...f, phone: t }))}
+                placeholder="+256..."
+                placeholderTextColor={colors.outline}
+                keyboardType="phone-pad"
+              />
+
               <Text style={styles.label}>Street Address</Text>
-              <TextInput style={styles.input} value={form.street_address} onChangeText={t => setForm(f => ({ ...f, street_address: t }))} placeholder="Street address" placeholderTextColor={colors.outline} />
+              <TextInput
+                style={styles.input}
+                value={form.street_address}
+                onChangeText={t => setForm(f => ({ ...f, street_address: t }))}
+                placeholder="Street address"
+                placeholderTextColor={colors.outline}
+              />
+
               <Text style={styles.label}>City</Text>
-              <TextInput style={styles.input} value={form.city} onChangeText={t => setForm(f => ({ ...f, city: t }))} placeholder="City" placeholderTextColor={colors.outline} />
+              <TextInput
+                style={styles.input}
+                value={form.city}
+                onChangeText={t => setForm(f => ({ ...f, city: t }))}
+                placeholder="City"
+                placeholderTextColor={colors.outline}
+              />
+
               <Text style={styles.label}>Region / State</Text>
-              <TextInput style={styles.input} value={form.region} onChangeText={t => setForm(f => ({ ...f, region: t }))} placeholder="Region" placeholderTextColor={colors.outline} />
+              <TextInput
+                style={styles.input}
+                value={form.region}
+                onChangeText={t => setForm(f => ({ ...f, region: t }))}
+                placeholder="Region"
+                placeholderTextColor={colors.outline}
+              />
+
               <Text style={styles.label}>Postal Code</Text>
-              <TextInput style={styles.input} value={form.zip_code} onChangeText={t => setForm(f => ({ ...f, zip_code: t }))} placeholder="Postal code" placeholderTextColor={colors.outline} />
-              <Pressable style={styles.checkboxRow} onPress={() => setForm(f => ({ ...f, is_default: !f.is_default }))}>
+              <TextInput
+                style={styles.input}
+                value={form.zip_code}
+                onChangeText={t => setForm(f => ({ ...f, zip_code: t }))}
+                placeholder="Postal code"
+                placeholderTextColor={colors.outline}
+              />
+
+              <Pressable
+                style={styles.checkboxRow}
+                onPress={() => setForm(f => ({ ...f, is_default: !f.is_default }))}
+              >
                 <View style={[styles.checkbox, form.is_default && styles.checkboxOn]}>
-                  {form.is_default ? <Icon name="check" size={16} color={colors.onSecondary} /> : null}
+                  {form.is_default ? (
+                    <Icon name="check" size={16} color={colors.onSecondary} />
+                  ) : null}
                 </View>
                 <Text style={styles.checkboxLabel}>Set as default address</Text>
               </Pressable>
-              <Button label={saving ? 'Saving...' : 'Save Address'} variant="primary" fullWidth onPress={handleSave} style={styles.saveBtn} />
+
+              <Button
+                label={saving ? 'Saving...' : 'Save Address'}
+                variant="primary"
+                fullWidth
+                onPress={handleSave}
+                style={styles.saveBtn}
+              />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -303,108 +490,115 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
   );
 }
 
+/* ─── Styles ─────────────────────────────────────────── */
+
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scroll: {
-    flex: 1,
-  },
-  content: {
-    padding: spacing.md,
-    paddingBottom: spacing.xxl,
-    gap: spacing.sm,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xxl,
-  },
-  topBar: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.surfaceContainerHighest,
-  },
-  addBtn: {
-    alignSelf: 'flex-start',
-  },
-  loadingText: {
-    ...typography.bodyMd,
-    color: colors.outline,
-  },
-  card: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: colors.surfaceContainerHighest,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  cardTop: {
+  root: { flex: 1, backgroundColor: colors.background },
+  scroll: { flex: 1 },
+  content: { padding: spacing.md, paddingBottom: spacing.xxl, gap: spacing.md },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xxl },
+  loadingText: { ...typography.bodyMd, color: colors.outline },
+
+  /* Section Header */
+  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  cardTitleRow: {
-    flexDirection: 'row',
+  sectionHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceContainerLow,
     alignItems: 'center',
-    gap: spacing.sm,
+    justifyContent: 'center',
   },
-  cardName: {
-    ...typography.bodyMd,
-    color: colors.onSurface,
-    fontWeight: '700',
-    flex: 1,
+  sectionTitle: { ...typography.headlineSm, color: colors.onSurface, fontWeight: '700' },
+  manageLink: { ...typography.labelMd, color: colors.secondary, fontWeight: '600' },
+  addressCount: { ...typography.labelSm, color: colors.outline },
+
+  /* Logistics Box */
+  logisticsBox: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.lg,
+    padding: spacing.md,
   },
-  cardActions: {
+  logisticsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
+    alignItems: 'flex-start',
+    gap: 10,
   },
-  actionBtn: {
-    padding: 4,
-  },
-  cardText: {
-    ...typography.bodyMd,
-    color: colors.onSurface,
-    marginTop: spacing.sm,
-  },
-  cardPhone: {
-    ...typography.bodySm,
-    color: colors.outline,
-    marginTop: 2,
-  },
-  cardBottom: {
-    marginTop: spacing.sm,
-  },
-  defaultChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    alignSelf: 'flex-start',
-    backgroundColor: colors.secondaryFixed,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-  },
-  defaultChipText: {
-    ...typography.labelSm,
-    color: colors.onSecondaryFixed,
-    fontWeight: '700',
-  },
-  setDefaultText: {
+  logisticsInfo: { flex: 1 },
+  logisticsLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  logisticsLabel: {
     ...typography.labelLg,
-    color: colors.secondary,
-    fontWeight: '700',
-  },
-  modalOverlay: {
+    color: colors.onSurface,
+    fontWeight: '600',
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  defaultBadge: {
+    backgroundColor: '#333e48',
+    borderRadius: radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  defaultBadgeText: { ...typography.labelSm, color: colors.white, fontWeight: '700', fontSize: 9 },
+  logisticsSub: { ...typography.bodySm, color: colors.onSurfaceVariant, marginTop: 2 },
+  logisticsPhone: { ...typography.bodySm, color: colors.outline, marginTop: 2 },
+  logisticsDivider: {
+    height: 1,
+    backgroundColor: colors.borderLight,
+    marginVertical: spacing.sm,
+  },
+
+  /* Address Card */
+  addressCard: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  addressTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  addressInfo: { flex: 1 },
+  addressNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  addressName: {
+    ...typography.labelLg,
+    color: colors.onSurface,
+    fontWeight: '600',
+    flex: 1,
+  },
+  addressText: { ...typography.bodyMd, color: colors.onSurface, marginTop: 4 },
+  addressPhone: { ...typography.bodySm, color: colors.outline, marginTop: 2 },
+  addressActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: spacing.sm,
     justifyContent: 'flex-end',
   },
+  addressActionBtn: { padding: 4 },
+  setDefaultText: { ...typography.labelMd, color: colors.secondary, fontWeight: '600' },
+
+  /* Add Address Button */
+  addAddressBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1.5,
+    borderColor: colors.outline,
+    borderStyle: 'dashed',
+    borderRadius: radius.lg,
+    paddingVertical: 14,
+  },
+  addAddressText: { ...typography.labelLg, color: colors.primaryContainer, fontWeight: '600' },
+
+  /* Modal */
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: colors.background,
     borderTopLeftRadius: radius.xl,
@@ -419,17 +613,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: spacing.md,
   },
-  modalTitle: {
-    ...typography.headlineMd,
-    color: colors.onSurface,
-    fontWeight: '700',
-  },
-  label: {
-    ...typography.labelLg,
-    color: colors.onSurface,
-    marginBottom: spacing.xs,
-    marginTop: spacing.sm,
-  },
+  modalTitle: { ...typography.headlineMd, color: colors.onSurface, fontWeight: '700' },
+  label: { ...typography.labelLg, color: colors.onSurface, marginBottom: spacing.xs, marginTop: spacing.sm },
   input: {
     borderWidth: 1,
     borderColor: colors.surfaceContainerHighest,
@@ -441,12 +626,7 @@ const styles = StyleSheet.create({
     fontFamily: typography.bodyMd.fontFamily,
     fontSize: typography.bodyMd.fontSize,
   },
-  checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    marginTop: spacing.md,
-  },
+  checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.md },
   checkbox: {
     width: 24,
     height: 24,
@@ -456,21 +636,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkboxOn: {
-    backgroundColor: colors.secondaryContainer,
-    borderColor: colors.secondaryContainer,
-  },
-  checkboxLabel: {
-    ...typography.bodyMd,
-    color: colors.onSurface,
-    flex: 1,
-  },
-  formError: {
-    ...typography.bodyMd,
-    color: colors.error,
-    marginBottom: spacing.sm,
-  },
-  saveBtn: {
-    marginTop: spacing.xl,
-  },
+  checkboxOn: { backgroundColor: colors.secondaryContainer, borderColor: colors.secondaryContainer },
+  checkboxLabel: { ...typography.bodyMd, color: colors.onSurface, flex: 1 },
+  formError: { ...typography.bodyMd, color: colors.error, marginBottom: spacing.sm },
+  saveBtn: { marginTop: spacing.xl },
 });

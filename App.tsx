@@ -106,10 +106,10 @@ function Router() {
     return <FeaturedVendorsScreen />;
   }
   if (route === 'EditProfile' || route === 'AccountSettings') {
-    return <AccountSettingsScreen initialTab="profile" />;
+    return <AccountSettingsScreen initialTab="security" />;
   }
   if (route === 'AddressBook') {
-    return <AccountSettingsScreen initialTab="address" />;
+    return <AccountSettingsScreen initialTab="logistics" />;
   }
   if (route === 'PaymentMethods') {
     return <AccountSettingsScreen initialTab="payments" />;
