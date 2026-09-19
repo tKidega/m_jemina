@@ -76,9 +76,10 @@ function gatewayForSavedMethod(method: ApiPaymentMethod): string {
 export function CheckoutScreen() {
   const { items, vendorGroups, subtotal, totalDeliveryFees, clearCart } = useCart();
   const { token, user, authMode } = useAuth();
-  const { goBack, navigate } = useNavigation();
+  const { goBack, navigate, params } = useNavigation();
+  const hubPickup = params?.hubPickup === true;
 
-  const [fulfilment, setFulfilment] = useState<Fulfilment>('pickup');
+  const [fulfilment, setFulfilment] = useState<Fulfilment>(hubPickup ? 'pickup' : 'delivery');
   const [defaultAddress, setDefaultAddress] = useState<ApiAddress | null>(null);
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodKey>('cod');

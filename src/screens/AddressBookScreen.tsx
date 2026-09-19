@@ -15,6 +15,7 @@ import { AppHeader } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
 import { EmptyState } from '../components/EmptyState';
+import { SectionLoader } from '../components/Loader';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import {
@@ -264,9 +265,7 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
     <View style={styles.root}>
       {!embedded ? <AppHeader title="Address Book" showBack onBack={goBack} /> : null}
       {loading ? (
-        <View style={styles.center}>
-          <Text style={styles.loadingText}>Loading addresses...</Text>
-        </View>
+        <SectionLoader text="Loading addresses..." icon="pin-drop" />
       ) : error ? (
         <EmptyState
           icon="error-outline"

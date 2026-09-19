@@ -15,6 +15,7 @@ import { AppHeader } from '../components/AppHeader';
 import { Icon, IconName } from '../components/Icon';
 import { Button } from '../components/Button';
 import { EmptyState } from '../components/EmptyState';
+import { SectionLoader } from '../components/Loader';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import {
@@ -337,9 +338,7 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
     <View style={styles.root}>
       {!embedded ? <AppHeader title="Payment Methods" showBack onBack={goBack} /> : null}
       {loading ? (
-        <View style={styles.center}>
-          <Text style={styles.loadingText}>Loading payment methods...</Text>
-        </View>
+        <SectionLoader text="Loading payment methods..." icon="credit-card" />
       ) : error ? (
         <EmptyState
           icon="error-outline"

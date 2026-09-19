@@ -29,11 +29,11 @@ export function AppHeader({ title = 'JEMINA', showBack, onBack, onMenu, right, s
 			<View style={styles.left}>
 				{showBack ? (
 					<Pressable style={styles.iconBtn} onPress={onBack} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-						<Icon name="chevron-right" size={28} color={colors.onPrimary} style={styles.backIcon} />
+						<Icon name="chevron-right" size={24} color={colors.onPrimary} style={styles.backIcon} />
 					</Pressable>
 				) : (
 					<Pressable style={styles.iconBtn} onPress={handleMenu} hitSlop={8} accessibilityRole="button" accessibilityLabel="Open menu">
-						<Icon name="menu" size={26} color={colors.onPrimary} />
+						<Icon name="menu" size={22} color={colors.onPrimary} />
 					</Pressable>
 				)}
 				<Text style={[styles.title, titleStyle]}>{title}</Text>
@@ -48,7 +48,7 @@ export function HeaderNotificationButton({ onPress }: { onPress?: () => void }) 
 	const handlePress = onPress ?? clearUnread;
 	return (
 		<Pressable style={styles.iconBtn} onPress={handlePress} hitSlop={8} accessibilityRole="button" accessibilityLabel="Notifications">
-			<Icon name="notifications" size={26} color={colors.onPrimary} />
+			<Icon name="notifications" size={22} color={colors.onPrimary} />
 			{unreadCount > 0 && <View style={styles.notifBadge} />}
 		</Pressable>
 	);
@@ -61,7 +61,7 @@ export function HeaderCartButton({ count, onPress }: { count?: number; onPress?:
 	const handlePress = onPress ?? (() => switchTab('Cart'));
 	return (
 		<Pressable style={styles.iconBtn} onPress={handlePress} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Cart, ${badgeCount} items`}>
-			<Icon name="shopping-cart" size={26} color={colors.onPrimary} />
+			<Icon name="shopping-cart" size={22} color={colors.onPrimary} />
 			{badgeCount > 0 && (
 				<View style={styles.cartBadge}>
 					<Text style={styles.cartBadgeText}>{badgeCount}</Text>
@@ -85,7 +85,7 @@ export function HeaderActions() {
 export function HeaderSearchButton({ onPress }: { onPress?: () => void }) {
 	return (
 		<Pressable style={styles.iconBtn} onPress={onPress} hitSlop={8} accessibilityRole="button" accessibilityLabel="Search">
-			<Icon name="search" size={26} color={colors.onPrimary} />
+			<Icon name="search" size={22} color={colors.onPrimary} />
 		</Pressable>
 	);
 }
@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
 		gap: spacing.sm,
 	},
 	iconBtn: {
-		padding: 9,
+		padding: 7,
 		borderRadius: 4,
 		position: 'relative',
 	},
@@ -119,10 +119,10 @@ const styles = StyleSheet.create({
 		transform: [{ rotate: '180deg' }],
 	},
 	title: {
-		...typography.headlineMd,
+		...typography.headlineSm,
 		fontWeight: '700',
 		color: colors.onPrimary,
-		letterSpacing: -0.22,
+		letterSpacing: -0.18,
 	},
 	notifBadge: {
 		position: 'absolute',

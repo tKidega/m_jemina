@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Image,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -36,9 +37,10 @@ import { spacing, radius } from '../theme/spacing';
 
 /* ─── Tabs ───────────────────────────────────────────── */
 
-type SettingsTab = 'security' | 'payments' | 'logistics' | 'preferences';
+type SettingsTab = 'profile' | 'security' | 'payments' | 'logistics' | 'preferences';
 
 const TABS: { id: SettingsTab; label: string; icon?: IconName }[] = [
+  { id: 'profile', label: 'Profile', icon: 'person' },
   { id: 'security', label: 'Security & 2FA', icon: 'shield' },
   { id: 'payments', label: 'Payment Rails' },
   { id: 'logistics', label: 'Logistics & Hub' },
@@ -107,7 +109,7 @@ function Sep() {
 /* ─── Main Screen ────────────────────────────────────── */
 
 export function AccountSettingsScreen({
-  initialTab = 'security',
+  initialTab = 'profile',
 }: {
   initialTab?: SettingsTab;
 }) {
@@ -115,6 +117,9 @@ export function AccountSettingsScreen({
   const { user, token } = useAuth();
   const [tab, setTab] = useState<SettingsTab>(initialTab);
   const [profile, setProfile] = useState<ApiUser | null>(null);
+
+  // Profile image modal
+  const [showImageModal, setShowImageModal] = useState(false);
 
   // Security state
   const [twoFa, setTwoFa] = useState(false);
@@ -312,10 +317,11 @@ export function AccountSettingsScreen({
     .toUpperCase();
   const phone = user?.phone ?? '+256 772 491 802';
   const email = user?.email ?? '';
-  const roleLabel =
-    user?.role === 'vendor'
-      ? 'Vendor'
-      : 'B2B Wholesale Buyer';
+  const roleLabel = profile?.role
+    ? profile.role.charAt(0).toUpperCase() + profile.role.slice(1)
+    : user?.role
+      ? user.role.charAt(0).toUpperCase() + user.role.slice(1)
+      : 'Customer';
 
   return (
     <View style={styles.root}>
@@ -369,9 +375,9 @@ export function AccountSettingsScreen({
           </View>
           <Pressable
             style={styles.editBtn}
-            onPress={() => navigate('EditProfile')}
+            onPress={() => setShowImageModal(true)}
           >
-            <Icon name="edit" size={20} color={colors.secondary} />
+            <Icon name="photo-camera" size={20} color={colors.secondary} />
           </Pressable>
         </View>
         <Sep />
@@ -421,7 +427,16 @@ export function AccountSettingsScreen({
 
       {/* Content */}
       <View style={styles.body}>
-        {tab === 'security' ? (
+        {tab === 'profile' ? (
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />}
+          >
+            <ProfileTab profile={profile} user={user} />
+          </ScrollView>
+        ) : tab === 'security' ? (
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
@@ -456,6 +471,134 @@ export function AccountSettingsScreen({
           />
         )}
       </View>
+
+      {/* Profile Image Modal */}
+      <Modal visible={showImageModal} transparent animationType="slide" onRequestClose={() => setShowImageModal(false)}>
+        <View style={styles.imageModalOverlay}>
+          <View style={styles.imageModalSheet}>
+            <View style={styles.imageModalHeader}>
+              <Text style={styles.imageModalTitle}>Profile Photo</Text>
+              <Pressable onPress={() => setShowImageModal(false)} hitSlop={8}>
+                <Icon name="close" size={22} color={colors.outline} />
+              </Pressable>
+            </View>
+            <View style={styles.imageModalBody}>
+              {photoUrl ? (
+                <Image source={{ uri: photoUrl }} style={styles.imageModalPreview} />
+              ) : (
+                <View style={[styles.imageModalPreview, styles.imageModalPlaceholder]}>
+                  <Text style={styles.imageModalPlaceholderText}>{initials}</Text>
+                </View>
+              )}
+              <Text style={styles.imageModalHint}>Your current profile photo</Text>
+            </View>
+            <View style={styles.imageModalActions}>
+              <Pressable style={styles.imageModalActionBtn} onPress={() => { setShowImageModal(false); navigate('EditProfile'); }}>
+                <Icon name="photo-camera" size={20} color={colors.onPrimary} />
+                <Text style={styles.imageModalActionText}>Upload New Photo</Text>
+              </Pressable>
+              <Pressable style={[styles.imageModalActionBtn, styles.imageModalActionSecondary]} onPress={() => setShowImageModal(false)}>
+                <Text style={[styles.imageModalActionText, { color: colors.onSurfaceVariant }]}>Close</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+/* ─── Profile Tab ─────────────────────────────────────── */
+
+function ProfileTab({ profile, user }: { profile: ApiUser | null; user: any }) {
+  const p = profile ?? user;
+  if (!p) return null;
+
+  const fields = [
+    { label: 'Full Name', value: p.name ?? '—', icon: 'person' as IconName },
+    { label: 'Email', value: p.email ?? '—', icon: 'mail' as IconName },
+    { label: 'Phone', value: p.phone ?? '—', icon: 'smartphone' as IconName },
+    { label: 'Role', value: (p.role ?? 'customer').charAt(0).toUpperCase() + (p.role ?? 'customer').slice(1), icon: 'badge' as IconName },
+    { label: 'Date of Birth', value: p.date_of_birth ?? '—', icon: 'event' as IconName },
+    { label: 'Gender', value: p.gender ?? '—', icon: 'person-outline' as IconName },
+    { label: 'Language', value: p.language ?? 'English', icon: 'public' as IconName },
+    { label: 'Bio', value: p.bio ?? '—', icon: 'info' as IconName },
+    { label: 'Street Address', value: p.street_address ?? '—', icon: 'pin-drop' as IconName },
+    { label: 'City', value: p.city ?? '—', icon: 'location-city' as IconName },
+    { label: 'Region', value: p.region ?? '—', icon: 'map' as IconName },
+    { label: 'Postal Code', value: p.postal_code ?? '—', icon: 'markunread-mailbox' as IconName },
+    { label: 'Country', value: p.country ?? 'Uganda', icon: 'public' as IconName },
+    { label: 'Timezone', value: p.timezone ?? 'Africa/Kampala', icon: 'schedule' as IconName },
+    { label: 'Member Since', value: p.created_at ? new Date(p.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : '—', icon: 'calendar-today' as IconName },
+  ];
+
+  return (
+    <View style={styles.profileTabContent}>
+      <SectionCard title="Personal Information" icon="person">
+        {fields.map((field, idx) => (
+          <React.Fragment key={field.label}>
+            <View style={styles.profileFieldRow}>
+              <Icon name={field.icon} size={18} color={colors.outline} />
+              <View style={styles.profileFieldInfo}>
+                <Text style={styles.profileFieldLabel}>{field.label}</Text>
+                <Text style={styles.profileFieldValue}>{field.value}</Text>
+              </View>
+            </View>
+            {idx < fields.length - 1 && <Sep />}
+          </React.Fragment>
+        ))}
+      </SectionCard>
+
+      {/* Social Links */}
+      {(p.facebook || p.twitter || p.instagram || p.linkedin) && (
+        <SectionCard title="Social Links" icon="share">
+          {p.facebook && (
+            <>
+              <View style={styles.profileFieldRow}>
+                <Icon name="public" size={18} color={colors.outline} />
+                <View style={styles.profileFieldInfo}>
+                  <Text style={styles.profileFieldLabel}>Facebook</Text>
+                  <Text style={styles.profileFieldValue}>{p.facebook}</Text>
+                </View>
+              </View>
+              <Sep />
+            </>
+          )}
+          {p.twitter && (
+            <>
+              <View style={styles.profileFieldRow}>
+                <Icon name="public" size={18} color={colors.outline} />
+                <View style={styles.profileFieldInfo}>
+                  <Text style={styles.profileFieldLabel}>Twitter</Text>
+                  <Text style={styles.profileFieldValue}>{p.twitter}</Text>
+                </View>
+              </View>
+              <Sep />
+            </>
+          )}
+          {p.instagram && (
+            <>
+              <View style={styles.profileFieldRow}>
+                <Icon name="public" size={18} color={colors.outline} />
+                <View style={styles.profileFieldInfo}>
+                  <Text style={styles.profileFieldLabel}>Instagram</Text>
+                  <Text style={styles.profileFieldValue}>{p.instagram}</Text>
+                </View>
+              </View>
+              <Sep />
+            </>
+          )}
+          {p.linkedin && (
+            <View style={styles.profileFieldRow}>
+              <Icon name="public" size={18} color={colors.outline} />
+              <View style={styles.profileFieldInfo}>
+                <Text style={styles.profileFieldLabel}>LinkedIn</Text>
+                <Text style={styles.profileFieldValue}>{p.linkedin}</Text>
+              </View>
+            </View>
+          )}
+        </SectionCard>
+      )}
     </View>
   );
 }
@@ -1330,5 +1473,101 @@ const styles = StyleSheet.create({
   deactivateText: {
     ...typography.labelMd,
     color: colors.error,
+  },
+
+  /* Image Modal */
+  imageModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  imageModalSheet: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    maxHeight: '70%',
+  },
+  imageModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.surfaceContainerHigh,
+  },
+  imageModalTitle: {
+    ...typography.headlineSm,
+    color: colors.onSurface,
+    fontWeight: '700',
+  },
+  imageModalBody: {
+    alignItems: 'center',
+    padding: spacing.xl,
+    gap: spacing.sm,
+  },
+  imageModalPreview: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: colors.surfaceContainerLow,
+  },
+  imageModalPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primaryContainer,
+  },
+  imageModalPlaceholderText: {
+    ...typography.headlineLg,
+    color: colors.onPrimary,
+    fontWeight: '700',
+  },
+  imageModalHint: {
+    ...typography.bodySm,
+    color: colors.outline,
+  },
+  imageModalActions: {
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  imageModalActionBtn: {
+    height: 48,
+    backgroundColor: colors.secondary,
+    borderRadius: radius.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  imageModalActionText: {
+    ...typography.labelLg,
+    color: colors.onPrimary,
+    fontWeight: '700',
+  },
+  imageModalActionSecondary: {
+    backgroundColor: colors.surfaceContainerLow,
+  },
+
+  /* Profile Tab */
+  profileTabContent: {
+    gap: spacing.md,
+  },
+  profileFieldRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  profileFieldInfo: {
+    flex: 1,
+  },
+  profileFieldLabel: {
+    ...typography.labelSm,
+    color: colors.outline,
+    marginBottom: 2,
+  },
+  profileFieldValue: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    fontWeight: '500',
   },
 });

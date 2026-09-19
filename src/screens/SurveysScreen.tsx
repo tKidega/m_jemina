@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Pressable,
   RefreshControl,
@@ -14,6 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppHeader } from '../components/AppHeader';
 import { Icon, IconName } from '../components/Icon';
 import { Button } from '../components/Button';
+import { SpinLoader } from '../components/Loader';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import {
@@ -359,24 +359,24 @@ export function SurveysScreen() {
               </View>
             </View>
             <Text style={styles.heroDesc}>
-              Share your experience and complete vendor verification to earn JEMINA B2B trade credits
-              and unlock higher escrow credit tiers for Gulu, Lira &amp; Kitgum operations.
+              Share your experience and feedback to earn Jemina credits
+              and unlock rewards across the marketplace.
             </Text>
           </View>
 
           {/* Stats row */}
           <View style={styles.statsRow}>
             <View style={styles.statBox}>
-              <Text style={styles.statValue}>{availableCount}</Text>
-              <Text style={styles.statLabel}>Available Surveys</Text>
+              <Text style={styles.statLabel}>Total</Text>
+              <Text style={styles.statValue}>{availableCount + completedCount}</Text>
             </View>
             <View style={styles.statBox}>
-              <Text style={styles.statValue}>{completedCount}</Text>
               <Text style={styles.statLabel}>Completed</Text>
+              <Text style={styles.statValue}>{completedCount}</Text>
             </View>
             <View style={styles.statBox}>
+              <Text style={styles.statLabel}>Rewards (UGX)</Text>
               <Text style={styles.statValue}>{formatUGX(claimedRewards)}</Text>
-              <Text style={styles.statLabel}>Rewards Claimed</Text>
             </View>
           </View>
 
@@ -621,7 +621,7 @@ function SurveyCard({
 
           {loading ? (
             <View style={styles.qLoading}>
-              <ActivityIndicator size="small" color={colors.secondary} />
+              <SpinLoader size={20} />
               <Text style={styles.qLoadingText}>Loading questions...</Text>
             </View>
           ) : allDone ? (
@@ -827,7 +827,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: spacing.lg,
+    padding: spacing.md,
     paddingBottom: spacing.xxl,
   },
   center: {

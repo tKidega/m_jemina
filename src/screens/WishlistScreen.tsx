@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Image,
   Modal,
@@ -18,6 +17,7 @@ import { AppHeader, HeaderNotificationButton, HeaderCartButton } from '../compon
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
 import { EmptyState } from '../components/EmptyState';
+import { SectionLoader } from '../components/Loader';
 import { useAuth } from '../state/AuthContext';
 import { useCart } from '../state/CartContext';
 import { useWishlist } from '../state/WishlistContext';
@@ -310,7 +310,7 @@ export function WishlistScreen() {
   if (!isAuthenticated) {
     return (
       <View style={styles.root}>
-        <AppHeader title="Saved Wishlist & Coupons" showBack onBack={goBack} />
+        <AppHeader title="Wishlist & Coupons" showBack onBack={goBack} />
         <EmptyState
           icon="favorite-border"
           title="Sign in to see your wishlist"
@@ -325,7 +325,7 @@ export function WishlistScreen() {
   return (
     <View style={styles.root}>
       <AppHeader
-        title="Saved Wishlist & Coupons"
+        title="Wishlist & Coupons"
         showBack
         onBack={goBack}
         right={
@@ -338,8 +338,7 @@ export function WishlistScreen() {
 
       {loading ? (
         <View style={styles.loading}>
-          <ActivityIndicator size="large" color={colors.secondary} />
-          <Text style={styles.loadingText}>Loading your saved items...</Text>
+          <SectionLoader text="Loading your saved items..." icon="favorite" />
         </View>
       ) : (
         <>
@@ -401,10 +400,6 @@ export function WishlistScreen() {
                   <Text style={styles.sectionSub}>Regional trade &amp; harvest vouchers</Text>
                 </View>
               </View>
-              <Pressable style={styles.enterCodeBtn} onPress={() => setShowCodeModal(true)}>
-                <Icon name="add" size={16} color={colors.white} />
-                <Text style={styles.enterCodeText}>Enter Code</Text>
-              </Pressable>
             </View>
 
             {COUPONS.map(coupon => {
@@ -412,17 +407,13 @@ export function WishlistScreen() {
               return (
                 <View key={coupon.code} style={[styles.couponCard, applied && styles.couponCardApplied]}>
                   <View style={styles.couponHeader}>
-                    <View style={styles.couponBadge}>
-                      <Text style={styles.couponBadgeText}>{coupon.badge}</Text>
+                    <View style={[styles.couponBadge, applied && styles.couponBadgeActive]}>
+                      <Text style={[styles.couponBadgeText, applied && styles.couponBadgeTextActive]}>
+                        {applied ? 'APPLIED' : 'AVAILABLE'}
+                      </Text>
                     </View>
-                    {applied ? (
-                      <View style={styles.appliedChip}>
-                        <Icon name="check-circle" size={14} color={colors.statusSuccess} />
-                        <Text style={styles.appliedChipText}>Applied</Text>
-                      </View>
-                    ) : null}
+                    <Text style={styles.couponTitle}>{coupon.title}</Text>
                   </View>
-                  <Text style={styles.couponTitle}>{coupon.title}</Text>
                   <Text style={styles.couponName}>{coupon.name}</Text>
                   <Text style={styles.couponDesc}>{coupon.desc}</Text>
                   <View style={styles.couponCodeRow}>
@@ -432,7 +423,7 @@ export function WishlistScreen() {
                     </View>
                     <Pressable
                       style={[styles.copyBtn, applied && styles.copyBtnDone]}
-                      onPress={() => (applied ? copyCoupon(coupon.code) : copyCoupon(coupon.code))}
+                      onPress={() => copyCoupon(coupon.code)}
                     >
                       <Icon
                         name={applied ? 'check-circle' : 'content-copy'}
@@ -440,7 +431,7 @@ export function WishlistScreen() {
                         color={applied ? colors.statusSuccess : colors.white}
                       />
                       <Text style={[styles.copyBtnText, applied && styles.copyBtnTextDone]}>
-                        {applied ? 'Copy & Re-Apply' : 'Copy & Apply'}
+                        {applied ? 'Copied' : 'Copy & Apply'}
                       </Text>
                     </Pressable>
                   </View>
@@ -911,6 +902,12 @@ const styles = StyleSheet.create({
     color: colors.onPrimaryContainer,
     fontWeight: '800',
     fontSize: 9,
+  },
+  couponBadgeActive: {
+    backgroundColor: colors.statusSuccess,
+  },
+  couponBadgeTextActive: {
+    color: colors.white,
   },
   appliedChip: {
     flexDirection: 'row',

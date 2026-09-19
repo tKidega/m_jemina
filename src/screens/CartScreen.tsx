@@ -231,7 +231,7 @@ export function CartScreen() {
 
           {/* Sticky checkout trigger */}
           <View style={styles.stickyBar}>
-            <Pressable style={styles.checkoutBtn} onPress={() => navigate('Checkout')}>
+            <Pressable style={styles.checkoutBtn} onPress={() => navigate('Checkout', { hubPickup })}>
               <Text style={styles.checkoutBtnText}>Proceed to Checkout ({formatUGX(cartTotal)})</Text>
               <Icon name="arrow-forward" size={20} color={colors.onSecondary} />
             </Pressable>

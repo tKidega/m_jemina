@@ -1,15 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
+import { SectionLoader } from '../components/Loader';
 import { useAuth } from '../state/AuthContext';
 import { formatUGX } from '../components/ProductCard';
 import { apiGetMyInquiries, ApiInquiryResult } from '../data/api';
@@ -142,16 +147,14 @@ export function MyInquiriesScreen() {
     return (
       <View style={styles.container}>
         <AppHeader title="My Inquiries" showBack onBack={() => switchTab('Profile')} />
-        <View style={styles.center}>
-          <Text style={styles.muted}>Loading your inquiries...</Text>
-        </View>
+        <SectionLoader text="Loading your inquiries..." icon="request-quote" />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <AppHeader title="My Inquiries" onBack={() => switchTab('Profile')} />
+      <AppHeader title="My Inquiries" showBack onBack={() => switchTab('Profile')} />
 
       {/* Status Strip */}
       <View style={styles.statusStrip}>
@@ -315,11 +318,27 @@ export function MyInquiriesScreen() {
 }
 
 function InquiryCard({ inquiry, navigate }: { inquiry: ApiInquiryResult; navigate: (screen: any, params?: Record<string, unknown>) => void }) {
+  const [showChat, setShowChat] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const [replyText, setReplyText] = useState('');
+  const [replySent, setReplySent] = useState(false);
+
   const cfg = STATUS_CONFIG[inquiry.status] ?? STATUS_CONFIG.submitted;
   const isNegotiation = inquiry.status === 'negotiation' || inquiry.status === 'accepted';
   const isDraft = inquiry.status === 'draft' || inquiry.is_draft;
   const hasReplies = (inquiry.replies_count ?? 0) > 0;
   const replyCount = inquiry.replies_count ?? 0;
+
+  const handleSendReply = () => {
+    if (!replyText.trim()) return;
+    setReplySent(true);
+    setReplyText('');
+    setTimeout(() => setReplySent(false), 2000);
+  };
+
+  const handleCloseInquiry = () => {
+    setShowChat(false);
+  };
 
   return (
     <View
@@ -336,7 +355,7 @@ function InquiryCard({ inquiry, navigate }: { inquiry: ApiInquiryResult; navigat
         </View>
       )}
 
-      {/* Card Header: Status Badge + Reference + Date */}
+      {/* Card Header: Status Badge + Reference */}
       <View style={styles.cardHeader}>
         <View style={styles.cardHeaderLeft}>
           <View style={[styles.statusBadge, { backgroundColor: cfg.bg }]}>
@@ -345,7 +364,6 @@ function InquiryCard({ inquiry, navigate }: { inquiry: ApiInquiryResult; navigat
           </View>
           <Text style={styles.refNumber}>#{inquiry.formatted_reference || inquiry.inquiry_reference}</Text>
         </View>
-        <Text style={styles.dateText}>{formatSubmittedTime(inquiry.submitted_at)}</Text>
       </View>
 
       {/* Product Name */}
@@ -453,14 +471,14 @@ function InquiryCard({ inquiry, navigate }: { inquiry: ApiInquiryResult; navigat
           <>
             <Pressable
               style={({ pressed }) => [styles.secondaryActionBtn, pressed && styles.pressed]}
-              onPress={() => navigate('ProductInquiry', { inquiry })}
+              onPress={() => setShowChat(true)}
             >
               <Icon name="chat" size={16} color={colors.primaryContainer} />
               <Text style={styles.secondaryActionText}>Chat / Reply</Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [styles.primaryActionBtn, pressed && styles.pressed]}
-              onPress={() => navigate('ProductInquiry', { inquiry })}
+              onPress={() => setShowDetails(true)}
             >
               {isNegotiation ? <Icon name="lock" size={16} color={colors.onSecondary} /> : null}
               <Text style={styles.primaryActionText}>
@@ -471,6 +489,192 @@ function InquiryCard({ inquiry, navigate }: { inquiry: ApiInquiryResult; navigat
           </>
         )}
       </View>
+
+      {/* Chat / Reply Modal */}
+      {showChat && (
+        <Modal visible={showChat} animationType="slide" transparent onRequestClose={() => setShowChat(false)}>
+          <KeyboardAvoidingView style={styles.chatOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={styles.chatSheet}>
+              <View style={styles.chatHeader}>
+                <View style={styles.chatHeaderLeft}>
+                  <Icon name="chat" size={20} color={colors.primary} />
+                  <View>
+                    <Text style={styles.chatTitle}>Inquiry Chat</Text>
+                    <Text style={styles.chatSubtitle}>#{inquiry.formatted_reference || inquiry.inquiry_reference}</Text>
+                  </View>
+                </View>
+                <Pressable onPress={() => setShowChat(false)} hitSlop={8} style={styles.chatCloseBtn}>
+                  <Icon name="close" size={20} color={colors.outline} />
+                </Pressable>
+              </View>
+
+              <ScrollView style={styles.chatBody} contentContainerStyle={styles.chatBodyContent}>
+                {/* Original inquiry message */}
+                <View style={styles.chatMsgRow}>
+                  <View style={styles.chatMsgUser}>
+                    <Text style={styles.chatMsgUserLabel}>You</Text>
+                    <Text style={styles.chatMsgTime}>{formatSubmittedTime(inquiry.submitted_at)}</Text>
+                  </View>
+                  <View style={styles.chatMsgBubbleUser}>
+                    <Text style={styles.chatMsgText}>{inquiry.inquiry_message || `Bulk inquiry for ${inquiry.product_name} — ${inquiry.quantity_required} units`}</Text>
+                  </View>
+                </View>
+
+                {/* Latest reply */}
+                {inquiry.latest_reply && (
+                  <View style={styles.chatMsgRow}>
+                    <View style={styles.chatMsgVendor}>
+                      <Text style={styles.chatMsgVendorLabel}>{inquiry.latest_reply.vendor_name}</Text>
+                      {inquiry.latest_reply.is_recommended && (
+                        <Text style={styles.chatRecommendedBadge}>Recommended</Text>
+                      )}
+                    </View>
+                    <View style={styles.chatMsgBubbleVendor}>
+                      <Text style={styles.chatMsgText}>{inquiry.latest_reply.message}</Text>
+                      {inquiry.latest_reply.offered_price != null && (
+                        <View style={styles.chatPriceTag}>
+                          <Text style={styles.chatPriceTagText}>Offered: {formatUGX(inquiry.latest_reply.offered_price)}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.chatMsgTimeVendor}>{formatDate(inquiry.latest_reply.timestamp)}</Text>
+                  </View>
+                )}
+
+                {replySent && (
+                  <View style={styles.chatSentConfirm}>
+                    <Icon name="check-circle" size={16} color={colors.statusSuccess} />
+                    <Text style={styles.chatSentText}>Reply sent</Text>
+                  </View>
+                )}
+              </ScrollView>
+
+              <View style={styles.chatInputRow}>
+                <TextInput
+                  style={styles.chatInput}
+                  value={replyText}
+                  onChangeText={setReplyText}
+                  placeholder="Type your reply..."
+                  placeholderTextColor={colors.outline}
+                  multiline
+                />
+                <Pressable
+                  style={[styles.chatSendBtn, !replyText.trim() && styles.chatSendBtnDisabled]}
+                  onPress={handleSendReply}
+                  disabled={!replyText.trim()}
+                >
+                  <Icon name="send" size={18} color={replyText.trim() ? colors.onPrimary : colors.outline} />
+                </Pressable>
+              </View>
+
+              <Pressable style={styles.chatCompleteBtn} onPress={handleCloseInquiry}>
+                <Icon name="check-circle" size={16} color={colors.statusSuccess} />
+                <Text style={styles.chatCompleteBtnText}>Mark as Complete & Close</Text>
+              </Pressable>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+      )}
+
+      {/* Inquiry Details Modal */}
+      {showDetails && (
+        <Modal visible={showDetails} animationType="slide" transparent onRequestClose={() => setShowDetails(false)}>
+          <Pressable style={styles.detailsOverlay} onPress={() => setShowDetails(false)}>
+            <Pressable style={styles.detailsSheet} onPress={() => {}}>
+              <View style={styles.detailsHeader}>
+                <View style={styles.detailsHeaderLeft}>
+                  <Icon name="info" size={20} color={colors.primary} />
+                  <Text style={styles.detailsTitle}>Inquiry Details</Text>
+                </View>
+                <Pressable onPress={() => setShowDetails(false)} hitSlop={8} style={styles.detailsCloseBtn}>
+                  <Icon name="close" size={20} color={colors.outline} />
+                </Pressable>
+              </View>
+
+              <ScrollView style={styles.detailsBody} contentContainerStyle={styles.detailsBodyContent}>
+                {/* Status */}
+                <View style={[styles.detailsStatusRow, { backgroundColor: cfg.bg }]}>
+                  <Icon name={cfg.icon as any} size={18} color={cfg.color} />
+                  <Text style={[styles.detailsStatusText, { color: cfg.color }]}>{cfg.label}</Text>
+                </View>
+
+                {/* Reference + Date */}
+                <View style={styles.detailsInfoRow}>
+                  <Text style={styles.detailsInfoLabel}>Reference</Text>
+                  <Text style={styles.detailsInfoValue}>#{inquiry.formatted_reference || inquiry.inquiry_reference}</Text>
+                </View>
+                <View style={styles.detailsInfoRow}>
+                  <Text style={styles.detailsInfoLabel}>Submitted</Text>
+                  <Text style={styles.detailsInfoValue}>{formatSubmittedTime(inquiry.submitted_at)}</Text>
+                </View>
+
+                {/* Product */}
+                <View style={styles.detailsInfoRow}>
+                  <Text style={styles.detailsInfoLabel}>Product</Text>
+                  <Text style={styles.detailsInfoValue}>{inquiry.product_name}</Text>
+                </View>
+                <View style={styles.detailsInfoRow}>
+                  <Text style={styles.detailsInfoLabel}>Quantity Required</Text>
+                  <Text style={styles.detailsInfoValue}>{inquiry.quantity_required} units</Text>
+                </View>
+
+                {inquiry.budget_target != null && (
+                  <View style={styles.detailsInfoRow}>
+                    <Text style={styles.detailsInfoLabel}>Budget Target</Text>
+                    <Text style={styles.detailsInfoValue}>{formatUGX(inquiry.budget_target)}</Text>
+                  </View>
+                )}
+
+                {inquiry.destination && (
+                  <View style={styles.detailsInfoRow}>
+                    <Text style={styles.detailsInfoLabel}>Destination</Text>
+                    <Text style={styles.detailsInfoValue}>{inquiry.destination}</Text>
+                  </View>
+                )}
+
+                {inquiry.vendor_name && (
+                  <View style={styles.detailsInfoRow}>
+                    <Text style={styles.detailsInfoLabel}>Vendor</Text>
+                    <Text style={styles.detailsInfoValue}>{inquiry.vendor_name}</Text>
+                  </View>
+                )}
+
+                {inquiry.inquiry_subject && (
+                  <View style={styles.detailsInfoRow}>
+                    <Text style={styles.detailsInfoLabel}>Subject</Text>
+                    <Text style={styles.detailsInfoValue}>{inquiry.inquiry_subject.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</Text>
+                  </View>
+                )}
+
+                {inquiry.inquiry_message && (
+                  <View style={styles.detailsMessageBox}>
+                    <Text style={styles.detailsMessageLabel}>Message</Text>
+                    <Text style={styles.detailsMessageText}>{inquiry.inquiry_message}</Text>
+                  </View>
+                )}
+
+                {inquiry.expires_at && (
+                  <View style={styles.detailsInfoRow}>
+                    <Text style={styles.detailsInfoLabel}>Expires</Text>
+                    <Text style={styles.detailsInfoValue}>{formatSubmittedTime(inquiry.expires_at)}</Text>
+                  </View>
+                )}
+
+                {hasReplies && (
+                  <View style={styles.detailsInfoRow}>
+                    <Text style={styles.detailsInfoLabel}>Replies</Text>
+                    <Text style={styles.detailsInfoValue}>{replyCount} supplier {replyCount === 1 ? 'reply' : 'replies'}</Text>
+                  </View>
+                )}
+              </ScrollView>
+
+              <Pressable style={styles.detailsCloseBtnBottom} onPress={() => setShowDetails(false)}>
+                <Text style={styles.detailsCloseBtnBottomText}>Close</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -997,6 +1201,297 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.7,
     transform: [{ scale: 0.98 }],
+  },
+
+  /* Chat / Reply Modal */
+  chatOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  chatSheet: {
+    maxHeight: '85%',
+    backgroundColor: colors.surfaceContainerLowest,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+  },
+  chatHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.surfaceContainerHigh,
+  },
+  chatHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm + 2,
+  },
+  chatTitle: {
+    ...typography.headlineSm,
+    color: colors.onSurface,
+    fontWeight: '700',
+  },
+  chatSubtitle: {
+    ...typography.labelSm,
+    color: colors.outline,
+  },
+  chatCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surfaceContainerLow,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatBody: {
+    flex: 1,
+  },
+  chatBodyContent: {
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  chatMsgRow: {
+    gap: spacing.xs,
+  },
+  chatMsgUser: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: 4,
+  },
+  chatMsgUserLabel: {
+    ...typography.labelMd,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  chatMsgTime: {
+    ...typography.labelSm,
+    color: colors.outline,
+    fontSize: 10,
+  },
+  chatMsgBubbleUser: {
+    backgroundColor: colors.primaryContainer,
+    borderRadius: radius.lg,
+    borderBottomRightRadius: 4,
+    padding: spacing.sm + 2,
+    maxWidth: '85%',
+    alignSelf: 'flex-end',
+  },
+  chatMsgVendor: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: 4,
+  },
+  chatMsgVendorLabel: {
+    ...typography.labelMd,
+    color: colors.secondary,
+    fontWeight: '700',
+  },
+  chatRecommendedBadge: {
+    ...typography.labelSm,
+    color: colors.onSecondary,
+    backgroundColor: colors.secondary,
+    borderRadius: radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    fontSize: 9,
+  },
+  chatMsgBubbleVendor: {
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.lg,
+    borderBottomLeftRadius: 4,
+    padding: spacing.sm + 2,
+    maxWidth: '85%',
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    gap: spacing.sm,
+  },
+  chatMsgText: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    lineHeight: 20,
+  },
+  chatPriceTag: {
+    backgroundColor: colors.secondaryContainer,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    alignSelf: 'flex-start',
+  },
+  chatPriceTagText: {
+    ...typography.labelMd,
+    color: colors.onSecondaryContainer,
+    fontWeight: '700',
+  },
+  chatMsgTimeVendor: {
+    ...typography.labelSm,
+    color: colors.outline,
+    fontSize: 10,
+  },
+  chatSentConfirm: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    alignSelf: 'center',
+    paddingVertical: spacing.sm,
+  },
+  chatSentText: {
+    ...typography.labelMd,
+    color: colors.statusSuccess,
+    fontWeight: '600',
+  },
+  chatInputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.surfaceContainerHigh,
+  },
+  chatInput: {
+    flex: 1,
+    minHeight: 40,
+    maxHeight: 100,
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    ...typography.bodyMd,
+    color: colors.onSurface,
+  },
+  chatSendBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatSendBtnDisabled: {
+    backgroundColor: colors.surfaceContainerHigh,
+  },
+  chatCompleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm + 2,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.surfaceContainerHigh,
+  },
+  chatCompleteBtnText: {
+    ...typography.labelMd,
+    color: colors.statusSuccess,
+    fontWeight: '600',
+  },
+
+  /* Inquiry Details Modal */
+  detailsOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  detailsSheet: {
+    maxHeight: '80%',
+    backgroundColor: colors.surfaceContainerLowest,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+  },
+  detailsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.surfaceContainerHigh,
+  },
+  detailsHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm + 2,
+  },
+  detailsTitle: {
+    ...typography.headlineSm,
+    color: colors.onSurface,
+    fontWeight: '700',
+  },
+  detailsCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surfaceContainerLow,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailsBody: {
+    flex: 1,
+  },
+  detailsBodyContent: {
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  detailsStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.sm + 2,
+    borderRadius: radius.lg,
+  },
+  detailsStatusText: {
+    ...typography.labelMd,
+    fontWeight: '700',
+  },
+  detailsInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.surfaceContainerHigh,
+  },
+  detailsInfoLabel: {
+    ...typography.bodySm,
+    color: colors.outline,
+  },
+  detailsInfoValue: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    fontWeight: '600',
+    textAlign: 'right',
+    flex: 1,
+    marginLeft: spacing.md,
+  },
+  detailsMessageBox: {
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.lg,
+    padding: spacing.sm + 2,
+    gap: spacing.xs,
+  },
+  detailsMessageLabel: {
+    ...typography.labelSm,
+    color: colors.outline,
+    fontWeight: '700',
+  },
+  detailsMessageText: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    lineHeight: 20,
+  },
+  detailsCloseBtnBottom: {
+    margin: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    alignItems: 'center',
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.lg,
+  },
+  detailsCloseBtnBottomText: {
+    ...typography.labelMd,
+    color: colors.onSurfaceVariant,
+    fontWeight: '600',
   },
 
   // Empty filter

@@ -627,6 +627,11 @@ export interface ApiOrderItem {
   total: number;
   product_image?: string | null;
   tracking?: ApiTrackingInfo;
+  vendor_id?: number | null;
+  vendor_name?: string | null;
+  shop_name?: string | null;
+  shipping_fee?: number | null;
+  delivery_fee?: number | null;
 }
 
 export interface ApiOrder {

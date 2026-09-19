@@ -10,6 +10,7 @@ import {
 import { AppHeader } from '../components/AppHeader';
 import { EmptyState } from '../components/EmptyState';
 import { Icon } from '../components/Icon';
+import { SectionLoader } from '../components/Loader';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { apiGetMessages, apiMarkMessageRead, ApiMessage } from '../data/api';
@@ -143,9 +144,7 @@ export function MessagesScreen() {
         </View>
       ) : null}
       {loading ? (
-        <View style={styles.center}>
-          <Text style={styles.loadingText}>Loading messages...</Text>
-        </View>
+        <SectionLoader text="Loading messages..." icon="mail" />
       ) : error ? (
         <EmptyState
           icon="error-outline"

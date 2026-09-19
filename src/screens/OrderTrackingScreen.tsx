@@ -15,6 +15,7 @@ import { AppHeader } from '../components/AppHeader';
 import { Button } from '../components/Button';
 import { EmptyState } from '../components/EmptyState';
 import { Icon } from '../components/Icon';
+import { SectionLoader } from '../components/Loader';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { apiGetOrder, apiGetOrders, ApiOrder, ApiTrackingInfo } from '../data/api';
@@ -398,9 +399,7 @@ export function OrderTrackingScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.center}>
-          <Text style={styles.loadingMain}>Loading your orders...</Text>
-        </View>
+        <SectionLoader text="Loading your orders..." icon="local-shipping" />
       ) : error ? (
         <EmptyState
           icon="error-outline"

@@ -3,6 +3,7 @@ import { Alert, Clipboard, Image, Modal, Pressable, RefreshControl, ScrollView, 
 import { AppHeader } from '../components/AppHeader';
 import { EmptyState } from '../components/EmptyState';
 import { Icon } from '../components/Icon';
+import { SectionLoader } from '../components/Loader';
 import { useAuth } from '../state/AuthContext';
 import { useCart } from '../state/CartContext';
 import { useNavigation } from '../navigation/NavigationContext';
@@ -240,6 +241,24 @@ function InvoiceSection({ order }: { order: ApiOrder }) {
   const subtotal = Math.max((order.total_amount ?? 0) - shipping - tax, 0);
   const paid = order.payment_status?.toLowerCase() === 'paid';
 
+  // Group items by vendor
+  const vendorGroups = useMemo(() => {
+    if (!order.items) return [];
+    const groups: Record<string, { vendorName: string; items: typeof order.items; subtotal: number; deliveryFee: number }> = {};
+    order.items.forEach(item => {
+      const vendorKey = item.vendor_name ?? item.shop_name ?? `vendor-${item.vendor_id ?? 'unknown'}`;
+      if (!groups[vendorKey]) {
+        groups[vendorKey] = { vendorName: vendorKey, items: [], subtotal: 0, deliveryFee: item.delivery_fee ?? 0 };
+      }
+      groups[vendorKey].items.push(item);
+      groups[vendorKey].subtotal += item.total;
+    });
+    return Object.values(groups);
+  }, [order.items]);
+
+  // Calculate total delivery fees
+  const totalDelivery = vendorGroups.reduce((sum, g) => sum + g.deliveryFee, 0);
+
   return (
     <View style={styles.invoice}>
       {/* Order header */}
@@ -280,18 +299,41 @@ function InvoiceSection({ order }: { order: ApiOrder }) {
         ) : null}
       </View>
 
-      {/* Items list */}
-      {order.items && order.items.length > 0 ? (
+      {/* Items grouped by vendor */}
+      {vendorGroups.length > 0 ? (
         <View style={styles.invoiceSection}>
           <Text style={styles.invoiceSectionTitle}>Items Ordered</Text>
-          {order.items.map((item, idx) => (
-            <View key={idx} style={[styles.invoiceItemRow, idx > 0 && styles.invoiceItemDivider]}>
-              <View style={styles.invoiceItemInfo}>
-                <Text style={styles.invoiceItemName} numberOfLines={2}>{item.product_name}</Text>
-                {item.sku ? <Text style={styles.invoiceItemQty}>SKU: {item.sku}</Text> : null}
-                <Text style={styles.invoiceItemQty}>Qty: {item.quantity} × {formatUGX(item.unit_price)}</Text>
+          {vendorGroups.map((group, gIdx) => (
+            <View key={gIdx} style={styles.vendorGroup}>
+              {/* Vendor header */}
+              <View style={styles.vendorHeader}>
+                <Icon name="storefront" size={14} color={colors.onPrimary} />
+                <Text style={styles.vendorHeaderText}>Fulfilled by {group.vendorName}</Text>
               </View>
-              <Text style={styles.invoiceItemTotal}>{formatUGX(item.total)}</Text>
+              {/* Table header */}
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderText, { flex: 2 }]}>Item</Text>
+                <Text style={[styles.tableHeaderText, { flex: 0.6, textAlign: 'center' }]}>Qty</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Unit Price</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Total</Text>
+              </View>
+              {/* Table rows */}
+              {group.items.map((item, idx) => (
+                <View key={idx} style={[styles.tableRow, idx % 2 === 0 && styles.tableRowAlt]}>
+                  <View style={[styles.tableCell, { flex: 2 }]}>
+                    <Text style={styles.tableCellText} numberOfLines={2}>{item.product_name}</Text>
+                    {item.sku ? <Text style={styles.tableCellSku}>SKU: {item.sku}</Text> : null}
+                  </View>
+                  <Text style={[styles.tableCellText, { flex: 0.6, textAlign: 'center' }]}>{item.quantity}</Text>
+                  <Text style={[styles.tableCellText, { flex: 1, textAlign: 'right' }]}>{formatUGX(item.unit_price)}</Text>
+                  <Text style={[styles.tableCellTextBold, { flex: 1, textAlign: 'right' }]}>{formatUGX(item.total)}</Text>
+                </View>
+              ))}
+              {/* Vendor subtotal */}
+              <View style={styles.vendorSubtotal}>
+                <Text style={styles.vendorSubtotalLabel}>Vendor Subtotal</Text>
+                <Text style={styles.vendorSubtotalValue}>{formatUGX(group.subtotal)}</Text>
+              </View>
             </View>
           ))}
         </View>
@@ -305,9 +347,15 @@ function InvoiceSection({ order }: { order: ApiOrder }) {
           <Text style={styles.invoicePriceValue}>{formatUGX(subtotal)}</Text>
         </View>
         <View style={styles.invoicePriceRow}>
-          <Text style={styles.invoicePriceLabel}>Shipping / Delivery</Text>
-          <Text style={styles.invoicePriceValue}>{formatUGX(shipping)}</Text>
+          <Text style={styles.invoicePriceLabel}>Shipping</Text>
+          <Text style={styles.invoicePriceValue}>{shipping > 0 ? formatUGX(shipping) : 'Free'}</Text>
         </View>
+        {totalDelivery > 0 ? (
+          <View style={styles.invoicePriceRow}>
+            <Text style={styles.invoicePriceLabel}>Delivery</Text>
+            <Text style={styles.invoicePriceValue}>{formatUGX(totalDelivery)}</Text>
+          </View>
+        ) : null}
         {tax > 0 ? (
           <View style={styles.invoicePriceRow}>
             <Text style={styles.invoicePriceLabel}>Taxes & Charges</Text>
@@ -491,9 +539,7 @@ export function OrdersScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.center}>
-          <Text style={styles.loadingMain}>Loading your orders...</Text>
-        </View>
+        <SectionLoader text="Loading your orders..." icon="receipt-long" />
       ) : error ? (
         <EmptyState
           icon="error-outline"
@@ -936,6 +982,90 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   invoiceItemTotal: {
+    ...typography.labelMd,
+    color: colors.secondary,
+    fontWeight: '700',
+  },
+  /* Vendor Group Table */
+  vendorGroup: {
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+  },
+  vendorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.primaryContainer,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.sm,
+  },
+  vendorHeaderText: {
+    ...typography.labelMd,
+    color: colors.onPrimary,
+    fontWeight: '700',
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: colors.surfaceContainerLow,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.surfaceContainerHigh,
+  },
+  tableHeaderText: {
+    ...typography.labelSm,
+    color: colors.outline,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    fontSize: 9,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.sm,
+  },
+  tableRowAlt: {
+    backgroundColor: `${colors.surfaceContainerLow}4d`,
+  },
+  tableCell: {
+    minWidth: 0,
+  },
+  tableCellText: {
+    ...typography.bodySm,
+    color: colors.onSurface,
+    fontSize: 11,
+  },
+  tableCellSku: {
+    ...typography.labelSm,
+    color: colors.outline,
+    fontSize: 9,
+    marginTop: 1,
+  },
+  tableCellTextBold: {
+    ...typography.bodySm,
+    color: colors.secondary,
+    fontWeight: '700',
+    fontSize: 11,
+  },
+  vendorSubtotal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surfaceContainerLow,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.surfaceContainerHigh,
+  },
+  vendorSubtotalLabel: {
+    ...typography.labelMd,
+    color: colors.onSurfaceVariant,
+    fontWeight: '600',
+  },
+  vendorSubtotalValue: {
     ...typography.labelMd,
     color: colors.secondary,
     fontWeight: '700',

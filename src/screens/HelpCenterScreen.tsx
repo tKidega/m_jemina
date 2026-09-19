@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -18,6 +17,7 @@ import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
 import { EmptyState } from '../components/EmptyState';
 import { ChatView } from '../components/ChatView';
+import { SectionLoader } from '../components/Loader';
 import { useAuth } from '../state/AuthContext';
 import { useCart } from '../state/CartContext';
 import { useNavigation } from '../navigation/NavigationContext';
@@ -377,10 +377,7 @@ export function HelpCenterScreen() {
             </View>
 
             {loading ? (
-              <View style={styles.center}>
-                <ActivityIndicator size="large" color={colors.secondary} />
-                <Text style={styles.loadingText}>Loading tickets...</Text>
-              </View>
+              <SectionLoader text="Loading tickets..." icon="support-agent" />
             ) : error ? (
               <View style={styles.center}>
                 <Icon name="error-outline" size={40} color={colors.outline} />
@@ -463,7 +460,7 @@ export function HelpCenterScreen() {
                 style={({ pressed }) => [styles.emergencyWhatsappBtn, pressed && styles.pressed]}
                 onPress={() => Linking.openURL('https://wa.me/256700000000')}
               >
-                <Icon name="chat_apps_script" size={18} color={colors.onPrimary} />
+                <Icon name="chat" size={18} color={colors.onPrimary} />
                 <Text style={styles.emergencyWhatsappText}>WhatsApp Northern Live Desk</Text>
               </Pressable>
             </View>
@@ -662,15 +659,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rootScrollContent: {
-    padding: spacing.md,
+    paddingHorizontal: spacing.sm + 2,
     paddingBottom: spacing.xxl,
   },
   tabSection: {
-    marginTop: spacing.sm,
     gap: spacing.sm,
   },
   chatContainer: {
-    height: 420,
+    height: 360,
     borderRadius: radius.lg,
     overflow: 'hidden',
     borderWidth: 1,
@@ -698,8 +694,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: `${colors.outlineVariant}66`,
     borderRadius: radius.lg,
-    margin: spacing.md,
-    padding: spacing.md,
+    marginHorizontal: spacing.sm + 2,
+    marginTop: spacing.sm,
+    padding: spacing.sm + 2,
     gap: spacing.sm,
   },
   heroTop: {

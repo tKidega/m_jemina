@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Image,
   Pressable,
@@ -10,6 +9,7 @@ import {
 } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
+import { SectionLoader } from '../components/Loader';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useCart } from '../state/CartContext';
 import { apiSearchProducts, apiProductToProduct, ApiProduct } from '../data/api';
@@ -105,10 +105,7 @@ export function SearchResultsScreen() {
     <View style={styles.root}>
       <AppHeader title={query ? `Results for "${query}"` : 'Search'} showBack onBack={goBack} />
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.secondary} />
-          <Text style={styles.centerText}>Searching products...</Text>
-        </View>
+        <SectionLoader text="Searching products..." icon="search" />
       ) : error ? (
         <View style={styles.center}>
           <Icon name="error-outline" size={40} color={colors.error} />

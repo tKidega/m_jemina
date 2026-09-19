@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { EmptyState } from '../components/EmptyState';
+import { SectionLoader } from '../components/Loader';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { apiGetMyReviews, ApiMyReview } from '../data/api';
@@ -92,7 +93,7 @@ export function MyReviewsScreen() {
       <AppHeader title="My Reviews" showBack onBack={goBack} />
       {loading ? (
         <View style={styles.loading}>
-          <ActivityIndicator size="large" color={colors.secondary} />
+          <SectionLoader text="Loading your reviews..." icon="rate-review" />
         </View>
       ) : reviews.length === 0 ? (
         <EmptyState

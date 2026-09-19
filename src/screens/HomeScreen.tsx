@@ -917,10 +917,10 @@ function PromoFlashCard({
 }) {
   return (
     <Pressable style={[styles.hlCard, { width }]} onPress={onPress}>
+      <View style={styles.hlBadgeTop}>
+        <Badge label={(promo.type ?? 'PROMO').toUpperCase()} variant="flash" />
+      </View>
       <View style={styles.hlBody}>
-        <View style={styles.hlBadge}>
-          <Badge label={(promo.type ?? 'PROMO').toUpperCase()} variant="flash" />
-        </View>
         <Text style={styles.hlCategory} numberOfLines={1}>{promo.vendor?.name ?? 'JEMINA'}</Text>
         <Text style={styles.hlTitle} numberOfLines={2}>{promo.title}</Text>
         {promo.description ? (
@@ -1350,6 +1350,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: spacing.sm,
     left: spacing.sm,
+    zIndex: 1,
+  },
+  hlBadgeTop: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
     zIndex: 1,
   },
   hlBody: {

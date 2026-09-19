@@ -503,7 +503,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: spacing.lg,
+    paddingHorizontal: spacing.sm + 2,
     paddingBottom: spacing.xxl,
   },
   center: {

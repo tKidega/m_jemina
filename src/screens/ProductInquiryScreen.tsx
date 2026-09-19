@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -14,6 +13,7 @@ import {
 import { AppHeader } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
+import { SectionLoader } from '../components/Loader';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { apiSubmitInquiry, ApiInquiryResult, fetchProducts, apiProductToProduct } from '../data/api';
@@ -82,8 +82,7 @@ export function ProductInquiryScreen() {
         <AppHeader title="Select a Product" showBack onBack={goBack} />
         {productsLoading ? (
           <View style={styles.centerBox}>
-            <ActivityIndicator size="large" color={colors.secondary} />
-            <Text style={[styles.centerText, { marginTop: spacing.md }]}>Loading products...</Text>
+            <SectionLoader text="Loading products..." icon="inventory" />
           </View>
         ) : products.length === 0 ? (
           <View style={styles.centerBox}>

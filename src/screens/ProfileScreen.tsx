@@ -9,7 +9,7 @@ import { useAuth } from '../state/AuthContext';
 import { useCart } from '../state/CartContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import type { RouteName } from '../navigation/NavigationContext';
-import { apiGetCreditBalance, apiGetAddresses, apiGetProfile, absoluteUrl } from '../data/api';
+import { apiGetCreditBalance, apiGetAddresses, apiGetProfile, apiGetOrders, apiGetWishlist, absoluteUrl } from '../data/api';
 import type { ApiUser, ApiAddress } from '../data/api';
 import { formatUGX } from '../components/ProductCard';
 import { colors } from '../theme/colors';
@@ -25,13 +25,13 @@ interface MenuRow {
 }
 
 const MENU_ITEMS: MenuRow[] = [
-  { icon: 'receipt-long', label: 'My Orders & Purchase History', route: 'Orders' },
+  { icon: 'receipt-long', label: 'Orders & Purchase History', route: 'Orders' },
   { icon: 'request-quote', label: 'Wholesale Inquiries & RFQs', sub: 'B2B corporate quotes', route: 'MyInquiries' },
-  { icon: 'favorite', label: 'Saved Wishlist & Coupons', sub: 'Saved products & promo codes', route: 'Wishlist' },
+  { icon: 'favorite', label: 'Wishlist & Coupons', sub: 'Saved products & promo codes', route: 'Wishlist' },
   { icon: 'local-shipping', label: 'Track Active Order', route: 'OrderTracking' },
   { icon: 'manage-accounts', label: 'Account Settings & Security', route: 'AccountSettings' },
   { icon: 'rate-review', label: 'Surveys & Feedback', route: 'Surveys' },
-  { icon: 'support-agent', label: 'Support & Help Desk', sub: 'WhatsApp / Call', route: 'HelpCenter' },
+  { icon: 'support-agent', label: 'Help & Support', sub: 'WhatsApp / Call', route: 'HelpCenter' },
 ];
 
 export function ProfileScreen() {
@@ -44,6 +44,8 @@ export function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [subEmail, setSubEmail] = useState(user?.email ?? '');
   const [subscribed, setSubscribed] = useState(false);
+  const [ordersCount, setOrdersCount] = useState(0);
+  const [wishlistCount, setWishlistCount] = useState(0);
 
   const newsletterKeyFor = (id: string) => `@jemina/newsletter/v1:${id}`;
 
@@ -110,6 +112,18 @@ export function ProfileScreen() {
     } catch {
       setProfile(null);
     }
+    try {
+      const orders = await apiGetOrders(token);
+      setOrdersCount(orders.length);
+    } catch {
+      setOrdersCount(0);
+    }
+    try {
+      const wl = await apiGetWishlist(token);
+      setWishlistCount(wl.length);
+    } catch {
+      setWishlistCount(0);
+    }
   }, [isAuthenticated, token]);
 
   useEffect(() => {
@@ -135,15 +149,15 @@ export function ProfileScreen() {
   const photoUrl = profile?.photo ? absoluteUrl(profile.photo) ?? profile.photo : undefined;
 
   const dashStats = [
-    { label: 'Orders', value: '0' },
-    { label: 'Wishlist', value: '0' },
+    { label: 'Orders', value: String(ordersCount) },
+    { label: 'Wishlist', value: String(wishlistCount) },
     { label: 'In Cart', value: String(itemCount) },
   ];
 
   if (!isAuthenticated || !user) {
     return (
       <View style={styles.root}>
-        <AppHeader title="My Account" right={<HeaderActions />} />
+        <AppHeader title={`${initials}'s Account`} right={<HeaderActions />} />
         <View style={styles.signedOut}>
           <View style={styles.avatar}>
             <Icon name="person" size={56} color={colors.outlineVariant} />
@@ -168,7 +182,7 @@ export function ProfileScreen() {
 
   return (
     <View style={styles.root}>
-      <AppHeader title="My Account" right={<HeaderActions />} />
+      <AppHeader title={`${initials}'s Account`} right={<HeaderActions />} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -188,7 +202,7 @@ export function ProfileScreen() {
           )}
           <View style={styles.heroInfo}>
             <View style={styles.roleChip}>
-              <Text style={styles.roleText}>B2B Wholesale Buyer</Text>
+              <Text style={styles.roleText}>{user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Customer'}</Text>
             </View>
             <Text style={styles.name}>{displayName}</Text>
             <View style={styles.verifiedRow}>
@@ -223,7 +237,7 @@ export function ProfileScreen() {
               </Pressable>
             </View>
             <Pressable style={styles.creditHistoryLink} onPress={() => navigate('CreditHistory')} hitSlop={8}>
-              <Text style={styles.creditHistoryText}>Credit History</Text>
+              <Text style={styles.creditHistoryText}>{initials}'s Wallet</Text>
               <Icon name="chevron-right" size={16} color={colors.secondaryFixed} />
             </Pressable>
           </View>

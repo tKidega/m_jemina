@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
 import { EmptyState } from '../components/EmptyState';
 import { Icon } from '../components/Icon';
+import { SectionLoader } from '../components/Loader';
 import { absoluteUrl, apiGetVendors, ApiVendorSummary } from '../data/api';
 import { useNavigation } from '../navigation/NavigationContext';
 import { colors } from '../theme/colors';
@@ -116,7 +117,7 @@ export function FeaturedVendorsScreen() {
       <AppHeader title="Featured Vendors" showBack onBack={goBack} />
       {loading ? (
         <View style={styles.loadingWrap}>
-          <ActivityIndicator color={colors.secondary} />
+          <SectionLoader text="Loading vendors..." icon="storefront" />
         </View>
       ) : (
         <FlatList

@@ -1,6 +1,5 @@
 ﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -12,6 +11,8 @@ import { AppHeader, HeaderNotificationButton, HeaderCartButton } from '../compon
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
 import { EmptyState } from '../components/EmptyState';
+import { SectionLoader } from '../components/Loader';
+import { BuyCreditsModal } from '../components/BuyCreditsModal';
 import { useAuth } from '../state/AuthContext';
 import { useCart } from '../state/CartContext';
 import { useNavigation } from '../navigation/NavigationContext';
@@ -70,6 +71,8 @@ export function CreditHistoryScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [txFilter, setTxFilter] = useState<TxFilter>('all');
+  const [selectedTier, setSelectedTier] = useState(500000);
+  const [showBuyModal, setShowBuyModal] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) { setLoading(false); return; }
@@ -140,7 +143,7 @@ export function CreditHistoryScreen() {
 
       {loading ? (
         <View style={styles.loading}>
-          <ActivityIndicator size="large" color={colors.secondary} />
+          <SectionLoader text="Loading your credits..." icon="account-balance-wallet" />
         </View>
       ) : (
         <ScrollView
@@ -221,7 +224,10 @@ export function CreditHistoryScreen() {
 
             {/* Tier Cards */}
             <View style={styles.tierList}>
-              <View style={styles.tierCard}>
+              <Pressable
+                style={[styles.tierCard, selectedTier === 100000 && styles.tierCardActive]}
+                onPress={() => setSelectedTier(100000)}
+              >
                 <View style={styles.tierLeft}>
                   <View style={styles.tierIcon}>
                     <Icon name="person" size={18} color={colors.onSurface} />
@@ -234,10 +240,13 @@ export function CreditHistoryScreen() {
                     <Text style={styles.tierBonus}>+{formatUGX(2000)} Bonus Credits</Text>
                   </View>
                 </View>
-                <Icon name="radio-button-unchecked" size={20} color={colors.outline} />
-              </View>
+                <Icon name={selectedTier === 100000 ? 'check-circle' : 'radio-button-unchecked'} size={20} color={selectedTier === 100000 ? colors.secondary : colors.outline} />
+              </Pressable>
 
-              <View style={[styles.tierCard, styles.tierCardPopular]}>
+              <Pressable
+                style={[styles.tierCard, styles.tierCardPopular, selectedTier === 500000 && styles.tierCardActive]}
+                onPress={() => setSelectedTier(500000)}
+              >
                 <View style={styles.tierPopularBadge}>
                   <Text style={styles.tierPopularText}>Most Popular</Text>
                 </View>
@@ -255,29 +264,32 @@ export function CreditHistoryScreen() {
                     <Text style={[styles.tierBonus, { fontWeight: '700' }]}>+{formatUGX(15000)} Bonus (3% Rebate)</Text>
                   </View>
                 </View>
-                <Icon name="check-circle" size={22} color={colors.secondary} />
-              </View>
+                <Icon name={selectedTier === 500000 ? 'check-circle' : 'radio-button-unchecked'} size={22} color={selectedTier === 500000 ? colors.secondary : colors.outline} />
+              </Pressable>
 
-              <View style={styles.tierCard}>
+              <Pressable
+                style={[styles.tierCard, selectedTier === 1000000 && styles.tierCardActive]}
+                onPress={() => setSelectedTier(1000000)}
+              >
                 <View style={styles.tierLeft}>
                   <View style={styles.tierIcon}>
                     <Icon name="groups" size={18} color={colors.onSurface} />
                   </View>
                   <View>
                     <View style={styles.tierNameRow}>
-                      <Text style={styles.tierAmount}>{formatUGX(2000000)}</Text>
+                      <Text style={styles.tierAmount}>{formatUGX(1000000)}</Text>
                       <View style={[styles.tierBadge, { backgroundColor: colors.primaryContainer }]}>
                         <Text style={[styles.tierBadgeText, { color: colors.onPrimary }]}>Wholesale</Text>
                       </View>
                     </View>
-                    <Text style={styles.tierBonus}>+{formatUGX(80000)} Bonus (4% Rebate)</Text>
+                    <Text style={styles.tierBonus}>+{formatUGX(40000)} Bonus (4% Rebate)</Text>
                   </View>
                 </View>
-                <Icon name="radio-button-unchecked" size={20} color={colors.outline} />
-              </View>
+                <Icon name={selectedTier === 1000000 ? 'check-circle' : 'radio-button-unchecked'} size={20} color={selectedTier === 1000000 ? colors.secondary : colors.outline} />
+              </Pressable>
             </View>
 
-            <Button label="Go to Buy Credits" variant="primary" icon="arrow-forward" fullWidth onPress={() => navigate('BuyCredits')} style={styles.buyBtn} />
+            <Button label="Buy Credits" variant="primary" icon="add_card" fullWidth onPress={() => setShowBuyModal(true)} style={styles.buyBtn} />
           </View>
 
           {/* 3. Wallet Privileges */}
@@ -391,6 +403,13 @@ export function CreditHistoryScreen() {
           </View>
         </ScrollView>
       )}
+
+      <BuyCreditsModal
+        visible={showBuyModal}
+        onClose={() => setShowBuyModal(false)}
+        onPurchased={load}
+        initialAmount={selectedTier}
+      />
     </View>
   );
 }
@@ -510,6 +529,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.secondary,
     backgroundColor: `${colors.secondaryFixed}33`,
+  },
+  tierCardActive: {
+    borderColor: colors.secondary,
+    backgroundColor: `${colors.secondary}0d`,
   },
   tierPopularBadge: {
     position: 'absolute',
