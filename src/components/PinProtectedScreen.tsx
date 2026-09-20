@@ -5,14 +5,17 @@ import { Button } from './Button';
 import { Toast } from './Toast';
 import { useAuth } from '../state/AuthContext';
 import { apiGetPinStatus, apiVerifyPinDetailed } from '../data/api';
+import { useNavigation } from '../navigation/NavigationContext';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
 
 const MAX_LEN = 4;
 
-// Module-level session unlock cache — once verified, stays unlocked this app session.
-const unlocked: Record<string, boolean> = {};
+// Module-level unlock cache — a successful PIN unlocks a given screen for a short
+// window only (UNLOCK_TTL_MS), after which the PIN is required again.
+const UNLOCK_TTL_MS = 10000;
+const unlocked: Record<string, number> = {};
 
 interface PinGateScreenProps {
   gateKey: string; // e.g. 'cart' | 'account'
@@ -22,6 +25,7 @@ interface PinGateScreenProps {
 
 export function PinProtectedScreen({ gateKey, label, children }: PinGateScreenProps) {
   const { token, isAuthenticated } = useAuth();
+  const { switchTab } = useNavigation();
   const [checking, setChecking] = useState(isAuthenticated && !!token);
   const [required, setRequired] = useState(false);
   const [entered, setEntered] = useState('');
@@ -34,21 +38,26 @@ export function PinProtectedScreen({ gateKey, label, children }: PinGateScreenPr
     setTimeout(() => setToast(null), 2200);
   };
 
+  const isUnlocked = (key: string): boolean => {
+    const until = unlocked[key];
+    return !!until && Date.now() < until;
+  };
+
   const check = useCallback(async () => {
     if (!token || !isAuthenticated) {
       setChecking(false);
       return;
     }
-    if (unlocked[gateKey]) {
+    if (isUnlocked(gateKey)) {
       setRequired(false);
       setChecking(false);
       return;
     }
     try {
       const s = await apiGetPinStatus(token).catch(() => null);
-      const gateOn = !!s?.pin_gate_enabled && !!s?.pin_set && !s?.pin_lockout;
+      const gateOn = !!s?.pin_gate_enabled && !!s?.pin_set;
       setRequired(gateOn);
-      if (!gateOn) unlocked[gateKey] = true;
+      if (!gateOn) unlocked[gateKey] = Date.now() + UNLOCK_TTL_MS;
     } catch {
       setRequired(false);
     } finally {
@@ -76,7 +85,7 @@ export function PinProtectedScreen({ gateKey, label, children }: PinGateScreenPr
     try {
       const r = await apiVerifyPinDetailed(token!, entered);
       if (r.verified) {
-        unlocked[gateKey] = true;
+        unlocked[gateKey] = Date.now() + UNLOCK_TTL_MS;
         setRequired(false);
         setEntered('');
         showToast('PIN verified');
@@ -141,6 +150,10 @@ export function PinProtectedScreen({ gateKey, label, children }: PinGateScreenPr
 
             <Button label={submitting ? 'Verifying...' : 'Unlock'} variant="primary" icon="lock" fullWidth
               onPress={verify} disabled={submitting || entered.length !== MAX_LEN} />
+
+            <Pressable style={s.cancelBtn} onPress={() => switchTab('Home')}>
+              <Text style={s.cancelTxt}>Cancel & Return to Home</Text>
+            </Pressable>
           </View>
         </View>
         <Toast message={toast ? toast.msg : ''} type={toast ? toast.type : 'success'} visible={!!toast} onDone={() => setToast(null)} />
@@ -164,4 +177,6 @@ const s = StyleSheet.create({
   keypad: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.md },
   keyBtn: { width: '30%', height: 44, borderRadius: radius.md, backgroundColor: colors.surfaceContainerLow, alignItems: 'center', justifyContent: 'center' },
   keyTxt: { ...typography.headlineSm, color: colors.primary, fontWeight: '700' },
+  cancelBtn: { alignItems: 'center', paddingVertical: spacing.sm, marginTop: spacing.xs },
+  cancelTxt: { ...typography.labelMd, color: colors.outline, fontWeight: '600' },
 });

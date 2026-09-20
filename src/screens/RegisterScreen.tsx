@@ -11,7 +11,7 @@ import { spacing, radius } from '../theme/spacing';
 
 export function RegisterScreen() {
   const { register } = useAuth();
-  const { goBack, navigate } = useNavigation();
+  const { goBack, navigate, finishAuthFlow } = useNavigation();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -41,7 +41,7 @@ export function RegisterScreen() {
     setLoading(true);
     try {
       await register(name, email, password);
-      goBack();
+      finishAuthFlow();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Registration failed. Please try again.');
     } finally {

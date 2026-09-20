@@ -21,7 +21,7 @@ function maskEmail(email: string): string {
 
 export function TwoFactorScreen() {
   const { completeTwoFactorLogin } = useAuth();
-  const { params, goBack } = useNavigation();
+  const { params, goBack, finishAuthFlow } = useNavigation();
   const email = String(params?.email ?? '');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +60,7 @@ export function TwoFactorScreen() {
     setLoading(true);
     try {
       await completeTwoFactorLogin(email, code);
-      goBack();
+      finishAuthFlow();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Verification failed. Please try again.');
     } finally {

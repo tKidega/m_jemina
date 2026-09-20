@@ -52,6 +52,7 @@ interface NavigationContextValue {
   navigate: (route: RouteName, params?: Record<string, unknown>) => void;
   switchTab: (tab: TabName) => void;
   goBack: () => void;
+  finishAuthFlow: () => void;
   sidebarOpen: boolean;
   openSidebar: () => void;
   closeSidebar: () => void;
@@ -98,6 +99,29 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     setSidebarOpen(false);
   }, [applyState]);
 
+  /**
+   * Pop the whole auth flow (Login / Register / TwoFactor) so a successful
+   * sign-in lands on the screen the user came from — not back on the login form.
+   */
+  const finishAuthFlow = useCallback(() => {
+    const authRoutes = new Set<RouteName>(['Login', 'Register', 'TwoFactor']);
+    while (backStackRef.current.length > 0) {
+      const top = backStackRef.current[backStackRef.current.length - 1];
+      if (authRoutes.has(top.route)) {
+        backStackRef.current.pop();
+      } else {
+        break;
+      }
+    }
+    const landing = backStackRef.current.pop();
+    if (landing && !authRoutes.has(landing.route)) {
+      applyState(landing);
+    } else {
+      applyState({ tab: 'Home', route: 'Home' });
+    }
+    setSidebarOpen(false);
+  }, [applyState]);
+
   const openSidebar = useCallback(() => setSidebarOpen(true), []);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
@@ -118,8 +142,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const canGoBack = backStackRef.current.length > 0;
 
   const value = useMemo(
-    () => ({ ...state, canGoBack, navigate, switchTab, goBack, sidebarOpen, openSidebar, closeSidebar, navigateFromSidebar }),
-    [state, canGoBack, navigate, switchTab, goBack, sidebarOpen, openSidebar, closeSidebar, navigateFromSidebar],
+    () => ({ ...state, canGoBack, navigate, switchTab, goBack, finishAuthFlow, sidebarOpen, openSidebar, closeSidebar, navigateFromSidebar }),
+    [state, canGoBack, navigate, switchTab, goBack, finishAuthFlow, sidebarOpen, openSidebar, closeSidebar, navigateFromSidebar],
   );
 
   return <NavigationContext.Provider value={value}>{children}</NavigationContext.Provider>;

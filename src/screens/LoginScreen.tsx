@@ -27,7 +27,7 @@ type IdMode = 'email' | 'phone';
 
 export function LoginScreen() {
   const { login, loginWithGoogle } = useAuth();
-  const { goBack, navigate } = useNavigation();
+  const { goBack, navigate, finishAuthFlow } = useNavigation();
   const [idMode, setIdMode] = useState<IdMode>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -52,7 +52,7 @@ export function LoginScreen() {
     try {
       await login(email.trim(), password);
       AsyncStorage.setItem(REMEMBERED_EMAIL_KEY, email.trim()).catch(() => {});
-      goBack();
+      finishAuthFlow();
     } catch (e) {
       if (e instanceof TwoFactorRequiredError) {
         navigate('TwoFactor', { email: e.email, resendAfter: e.resendAfter });
@@ -74,7 +74,7 @@ export function LoginScreen() {
       const idToken = userInfo.data?.idToken;
       if (!idToken) throw new Error('Google sign-in did not return an authentication token.');
       await loginWithGoogle(idToken);
-      goBack();
+      finishAuthFlow();
     } catch (e) {
       if (e instanceof TwoFactorRequiredError) {
         navigate('TwoFactor', { email: e.email, resendAfter: e.resendAfter });
