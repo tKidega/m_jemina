@@ -58,10 +58,13 @@ export function RegisterScreen() {
       >
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.hero}>
-            <View style={styles.logoBadge}>
-              <Icon name="person-add" size={52} color={colors.secondary} />
+            <View style={styles.shieldRow}>
+              <Icon name="verified-user" size={14} color={colors.statusSuccess} />
+              <Text style={styles.bouBadge}>ESCROW SECURE</Text>
             </View>
-            <Text style={styles.title}>Create your account</Text>
+            <Text style={styles.brandTitle}>JEMINA</Text>
+            <Text style={styles.brandSub}>MARKETPLACE</Text>
+            <Text style={styles.title}>Create an Account</Text>
             <Text style={styles.subtitle}>Join JEMINA to shop, track orders and more.</Text>
           </View>
 
@@ -166,28 +169,28 @@ const styles = StyleSheet.create({
   },
   hero: {
     alignItems: 'center',
-    marginTop: spacing.xl,
-    marginBottom: spacing.xl,
-  },
-  logoBadge: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: colors.surfaceContainerHigh,
-    alignItems: 'center',
     justifyContent: 'center',
+    marginTop: spacing.xl,
     marginBottom: spacing.lg,
   },
+  shieldRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#ecfdf5', borderRadius: radius.full, paddingHorizontal: spacing.sm + 2, paddingVertical: 4, marginBottom: spacing.sm },
+  bouBadge: { ...typography.labelSm, color: '#065f46', fontWeight: '700', letterSpacing: 0.6 },
+  brandTitle: { ...typography.displayLgMobile, color: colors.primary, fontWeight: '800', letterSpacing: 1, textAlign: 'center' },
+  brandSub: { ...typography.labelMd, color: colors.secondary, fontWeight: '700', letterSpacing: 4, marginTop: 2, textAlign: 'center' },
   title: {
-    ...typography.displayLgMobile,
-    color: colors.primary,
+    ...typography.headlineLg,
+    color: colors.onSurface,
     textAlign: 'center',
+    alignSelf: 'center',
+    marginTop: spacing.lg,
   },
   subtitle: {
     ...typography.bodyMd,
     color: colors.onSurfaceVariant,
     textAlign: 'center',
+    alignSelf: 'center',
     marginTop: spacing.sm,
+    maxWidth: 320,
   },
   errorBox: {
     flexDirection: 'row',

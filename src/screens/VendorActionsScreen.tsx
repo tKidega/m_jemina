@@ -14,6 +14,7 @@ import {
 import { AppHeader } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
+import { PinManageModal } from '../components/PinManageModal';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import {
@@ -21,6 +22,8 @@ import {
   apiGetVendorAgreement,
   apiAcceptVendorAgreement,
   apiCreateVendorStore,
+  apiGetPinStatus,
+  apiSetPin,
   ApiVendorActionsStatus,
   ApiVendorAgreement,
   ApiAgreementSection,
@@ -34,8 +37,10 @@ interface StoreForm {
   shop_owner: string;
   shop_email: string;
   shop_phone: string;
+  rail: string;
   vendor_type: string;
   pay_method: string;
+  hub: string;
   terms: boolean;
 }
 
@@ -44,10 +49,27 @@ const EMPTY_FORM: StoreForm = {
   shop_owner: '',
   shop_email: '',
   shop_phone: '',
+  rail: 'MTN MoMo',
   vendor_type: 'local',
   pay_method: 'Momo',
+  hub: 'Gulu Central Depot (Layibi Aggregation Yard)',
   terms: false,
 };
+
+const HUBS = [
+  'Gulu Central Depot (Layibi Aggregation Yard)',
+  'Lira Main Depot (Railway Quarters Hub)',
+  'Arua Border Hub (West Nile Aggregation)',
+  'Kitgum Grain Terminal',
+  'Soroti Silo Distribution Center',
+  'Kampala Central Depots',
+];
+
+const VENDOR_TYPES = [
+  { value: 'local', label: 'Local', note: 'Buy & sell within your region' },
+  { value: 'national', label: 'National', note: 'Regional distribution nationwide' },
+  { value: 'international', label: 'International', note: 'Cross-border bulk trading' },
+];
 
 const VENDOR_SUPPORT_EMAIL = 'support@jemi-na.com';
 const VENDOR_SUPPORT_PHONE = '+256 765 369 348';
@@ -85,6 +107,7 @@ function applyContactCorrections(sections: ApiAgreementSection[]): ApiAgreementS
 export function VendorActionsScreen() {
   const { token, isAuthenticated } = useAuth();
   const { goBack } = useNavigation();
+  const [step, setStep] = useState<1 | 2>(1);
   const [status, setStatus] = useState<ApiVendorActionsStatus | null>(null);
   const [agreement, setAgreement] = useState<ApiVendorAgreement | null>(null);
   const [loading, setLoading] = useState(true);
@@ -97,6 +120,11 @@ export function VendorActionsScreen() {
   const [form, setForm] = useState<StoreForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [pinSet, setPinSet] = useState(false);
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [showPin, setShowPin] = useState(false);
+  const [showPinManage, setShowPinManage] = useState(false);
 
   const load = useCallback(
     async (isRefresh = false) => {
@@ -110,9 +138,13 @@ export function VendorActionsScreen() {
         setLoading(true);
       }
       try {
-        const data = await apiGetVendorActionsStatus(token);
+        const [data, pin] = await Promise.all([
+          apiGetVendorActionsStatus(token),
+          apiGetPinStatus(token).catch(() => null),
+        ]);
         setStatus(data);
         setAccepted(data.journey.agreement_accepted);
+        setPinSet(!!pin?.pin_set);
         setError(null);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load vendor actions.');
@@ -159,7 +191,7 @@ export function VendorActionsScreen() {
       await apiAcceptVendorAgreement(token);
       setAccepted(true);
       setShowAgreement(false);
-      Alert.alert('Agreement accepted', 'You can now register your e-Store.');
+      Alert.alert('Agreement accepted', 'You can now register your vendor account.');
     } catch (e) {
       Alert.alert('Could not accept agreement', e instanceof Error ? e.message : 'Please try again.');
     } finally {
@@ -167,21 +199,40 @@ export function VendorActionsScreen() {
     }
   };
 
-  const submitStore = async () => {
-    if (!token) {
-      return;
-    }
-    if (!form.shop_name.trim() || !form.shop_owner.trim() || !form.shop_email.trim() || !form.shop_phone.trim()) {
-      setFormError('Business name, owner name, email and phone are required.');
+  const submitStep1 = () => {
+    if (!form.shop_owner.trim() || !form.shop_name.trim() || !form.shop_email.trim() || !form.shop_phone.trim()) {
+      setFormError('Full legal name, business name, business email and mobile money number are required.');
       return;
     }
     if (!form.terms) {
-      setFormError('You must accept the terms and conditions to proceed.');
+      setFormError('You must agree to the JEMINA Escrow Mandates & BOU Regulatory terms.');
+      return;
+    }
+    setFormError(null);
+    setStep(2);
+  };
+
+  const submitStep2 = async () => {
+    if (!token) {
+      return;
+    }
+    if (!pinSet && (newPin.length !== 4 || confirmPin.length !== 4)) {
+      setFormError('Create and confirm your 4-digit JEMINA Trade PIN.');
+      return;
+    }
+    if (!pinSet && newPin !== confirmPin) {
+      setFormError('PINs do not match.');
       return;
     }
     setSaving(true);
     setFormError(null);
     try {
+      // 1) Create the JEMINA Trade PIN (only if the user doesn't already have one).
+      if (!pinSet) {
+        await apiSetPin(token, newPin);
+        setPinSet(true);
+      }
+      // 2) Register the vendor store.
       await apiCreateVendorStore(token, {
         shop_name: form.shop_name.trim(),
         shop_owner: form.shop_owner.trim(),
@@ -193,8 +244,10 @@ export function VendorActionsScreen() {
       });
       setRegistered(true);
       setForm(EMPTY_FORM);
+      setNewPin('');
+      setConfirmPin('');
     } catch (e) {
-      setFormError(e instanceof Error ? e.message : 'Failed to register your e-Store.');
+      setFormError(e instanceof Error ? e.message : 'Failed to register your vendor account.');
     } finally {
       setSaving(false);
     }
@@ -203,11 +256,11 @@ export function VendorActionsScreen() {
   if (!isAuthenticated || !token) {
     return (
       <View style={styles.root}>
-        <AppHeader title="Vendor Actions" showBack onBack={goBack} />
+        <AppHeader title="Trader Signup" showBack onBack={goBack} />
         <View style={styles.center}>
           <Icon name="storefront" size={56} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>Sign in to access vendor actions</Text>
-          <Text style={styles.centerSub}>Review packages and requirements, then register your e-Store.</Text>
+          <Text style={styles.centerTitle}>Sign in to register as a trader</Text>
+          <Text style={styles.centerSub}>Create a verified vendor account on the JEMINA marketplace.</Text>
         </View>
       </View>
     );
@@ -216,9 +269,9 @@ export function VendorActionsScreen() {
   if (loading) {
     return (
       <View style={styles.root}>
-        <AppHeader title="Vendor Actions" showBack onBack={goBack} />
+        <AppHeader title="Trader Signup" showBack onBack={goBack} />
         <View style={styles.center}>
-          <Text style={styles.loadingText}>Loading vendor actions...</Text>
+          <Text style={styles.loadingText}>Loading trader signup...</Text>
         </View>
       </View>
     );
@@ -227,10 +280,10 @@ export function VendorActionsScreen() {
   if (error) {
     return (
       <View style={styles.root}>
-        <AppHeader title="Vendor Actions" showBack onBack={goBack} />
+        <AppHeader title="Trader Signup" showBack onBack={goBack} />
         <View style={styles.center}>
           <Icon name="error-outline" size={48} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>Couldn't load vendor actions</Text>
+          <Text style={styles.centerTitle}>Couldn't load trader signup</Text>
           <Text style={styles.centerSub}>{error}</Text>
           <Button label="Try Again" variant="primary" fullWidth onPress={() => load()} style={styles.centerBtn} />
         </View>
@@ -243,10 +296,10 @@ export function VendorActionsScreen() {
   if (!journey) {
     return (
       <View style={styles.root}>
-        <AppHeader title="Vendor Actions" showBack onBack={goBack} />
+        <AppHeader title="Trader Signup" showBack onBack={goBack} />
         <View style={styles.center}>
           <Icon name="error-outline" size={48} color={colors.outlineVariant} />
-          <Text style={styles.centerTitle}>Couldn't load vendor actions</Text>
+          <Text style={styles.centerTitle}>Couldn't load trader signup</Text>
           <Text style={styles.centerSub}>Please try again.</Text>
           <Button label="Try Again" variant="primary" fullWidth onPress={() => load()} style={styles.centerBtn} />
         </View>
@@ -257,10 +310,10 @@ export function VendorActionsScreen() {
   if (journey.has_vendor || registered) {
     return (
       <View style={styles.root}>
-        <AppHeader title="Vendor Actions" showBack onBack={goBack} />
+        <AppHeader title="Trader Signup" showBack onBack={goBack} />
         <View style={styles.center}>
           <Icon name="check-circle" size={56} color={colors.statusSuccess} />
-          <Text style={styles.centerTitle}>You have a registered e-Store</Text>
+          <Text style={styles.centerTitle}>Vendor account created</Text>
           <Text style={styles.centerSub}>
             {status?.vendor?.shop_name
               ? `Your store "${status.vendor.shop_name}" is active on JEMINA.`
@@ -273,7 +326,7 @@ export function VendorActionsScreen() {
 
   return (
     <View style={styles.root}>
-      <AppHeader title="Vendor Actions" showBack onBack={goBack} />
+      <AppHeader title="Trader Signup" showBack onBack={goBack} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -284,146 +337,298 @@ export function VendorActionsScreen() {
           <View style={styles.warningCard}>
             <Icon name="error-outline" size={20} color={colors.statusFlash} />
             <Text style={styles.warningText}>
-              Your account is not active yet. Please contact support to activate your account before creating an
-              e-Store.
+              Your account is not active yet. Please contact support to activate your account before creating your
+              vendor account.
             </Text>
           </View>
         ) : null}
 
+        {/* Brand hero */}
+        <View style={styles.hero}>
+          <View style={styles.shieldRow}>
+            <Icon name="verified-user" size={14} color={colors.statusSuccess} />
+            <Text style={styles.bouBadge}>ESCROW SECURE</Text>
+          </View>
+          <Text style={styles.brandTitle}>JEMINA</Text>
+          <Text style={styles.brandSub}>TRADER SIGNUP</Text>
+          {step === 1 ? (
+            <>
+              <Text style={styles.stepBadge}>Step 1 of 2: Profile & Phone</Text>
+              <Text style={styles.title}>Create Trader Account</Text>
+              <Text style={styles.subtitle}>
+                Join Northern Uganda's verified agricultural marketplace and trade escrow network.
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.stepBadge}>Step 2 of 2: Business & Escrow Verification</Text>
+              <Text style={styles.title}>Trader Verification & Setup</Text>
+              <Text style={styles.subtitle}>
+                Complete your business profile and mobile money wallet setup for verified regional escrow trading.
+              </Text>
+            </>
+          )}
+          {/* Progress */}
+          <View style={styles.progressRow}>
+            {[1, 2].map(s => (
+              <View key={s} style={[styles.progressDot, step >= s && styles.progressDotOn]} />
+            ))}
+          </View>
+        </View>
+
         {!accepted ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>1. Vendor Agreement</Text>
-            <Text style={styles.cardText}>
-              Review and accept the JEMINA Vendor Agreement to proceed with e-Store registration.
+          <View style={styles.agreementGate}>
+            <Icon name="gavel" size={22} color={colors.secondary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.agreementGateTitle}>Vendor Agreement Required</Text>
+              <Text style={styles.agreementGateText}>Review and accept the JEMINA Vendor Agreement to continue.</Text>
+            </View>
+          </View>
+        ) : null}
+
+        {step === 1 ? (
+          <View style={styles.form}>
+            {/* Trader category */}
+            <Text style={styles.sectionLabel}>
+              Select Trader Category <Text style={styles.required}>REQUIRED</Text>
             </Text>
-            <Button label="View Vendor Agreement" variant="primary" fullWidth onPress={openAgreement} style={styles.cardBtn} />
+            {VENDOR_TYPES.map(t => (
+              <Pressable
+                key={t.value}
+                style={[styles.selectCard, form.vendor_type === t.value && styles.selectCardOn]}
+                onPress={() => setForm(f => ({ ...f, vendor_type: t.value }))}
+              >
+                <Icon
+                  name={form.vendor_type === t.value ? 'check-circle' : 'radio-button-unchecked'}
+                  size={20}
+                  color={form.vendor_type === t.value ? colors.secondary : colors.outline}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.selectLabel}>{t.label}</Text>
+                  <Text style={styles.selectNote}>{t.note}</Text>
+                </View>
+              </Pressable>
+            ))}
+
+            <Text style={styles.label}>Full Legal Name or Registered Business</Text>
+            <View style={styles.inputWrap}>
+              <Icon name="person" size={20} color={colors.outline} />
+              <TextInput
+                style={styles.input}
+                value={form.shop_owner}
+                onChangeText={t => setForm(f => ({ ...f, shop_owner: t }))}
+                placeholder="Must match your National ID (NIN) or URSB registration"
+                placeholderTextColor={colors.outline}
+                autoCapitalize="words"
+              />
+            </View>
+
+            <Text style={styles.label}>Business Name</Text>
+            <View style={styles.inputWrap}>
+              <Icon name="storefront" size={20} color={colors.outline} />
+              <TextInput
+                style={styles.input}
+                value={form.shop_name}
+                onChangeText={t => setForm(f => ({ ...f, shop_name: t }))}
+                placeholder="e.g. Gulu Grain Traders Ltd"
+                placeholderTextColor={colors.outline}
+                autoCapitalize="words"
+              />
+            </View>
+
+            <Text style={styles.label}>Business Email</Text>
+            <View style={styles.inputWrap}>
+              <Icon name="email" size={20} color={colors.outline} />
+              <TextInput
+                style={styles.input}
+                value={form.shop_email}
+                onChangeText={t => setForm(f => ({ ...f, shop_email: t }))}
+                placeholder="you@business.com"
+                placeholderTextColor={colors.outline}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+
+            <Text style={styles.label}>Registered Mobile Money Number (Uganda)</Text>
+            <View style={styles.inputWrap}>
+              <Icon name="smartphone" size={20} color={colors.outline} />
+              <TextInput
+                style={styles.input}
+                value={form.shop_phone}
+                onChangeText={t => setForm(f => ({ ...f, shop_phone: t }))}
+                placeholder="+256 7•• ••• •••"
+                placeholderTextColor={colors.outline}
+                keyboardType="phone-pad"
+              />
+            </View>
+            <View style={styles.railRow}>
+              {['MTN MoMo', 'Airtel Money'].map(rail => (
+                <Pressable
+                  key={rail}
+                  style={[styles.railChip, form.rail === rail && styles.railChipOn]}
+                  onPress={() => setForm(f => ({ ...f, rail, pay_method: 'Momo' }))}
+                >
+                  <Text style={[styles.railChipText, form.rail === rail && styles.railChipTextOn]}>{rail}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.label}>Primary Regional Trade Depot / Hub</Text>
+            <View style={styles.hubSelect}>
+              <Icon name="location-on" size={18} color={colors.secondary} />
+              <Text style={styles.hubText}>{form.hub}</Text>
+              <Icon name="expand-more" size={18} color={colors.outline} />
+            </View>
+            <View style={styles.hubList}>
+              {HUBS.filter(h => h !== form.hub).map(h => (
+                <Pressable key={h} style={styles.hubRow} onPress={() => setForm(f => ({ ...f, hub: h }))}>
+                  <Text style={styles.hubOption}>{h}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Pressable style={styles.checkboxRow} onPress={() => setForm(f => ({ ...f, terms: !f.terms }))}>
+              <View style={[styles.checkbox, form.terms && styles.checkboxOn]}>
+                {form.terms ? <Icon name="check" size={16} color={colors.onSecondary} /> : null}
+              </View>
+              <Text style={styles.checkboxLabel}>
+                I agree to the JEMINA Escrow Mandates & Bank of Uganda (BOU) Regulatory Sandbox Custodial Terms.
+              </Text>
+            </Pressable>
+
+            {!accepted ? (
+              <Button label="View Vendor Agreement First" variant="outline" fullWidth onPress={openAgreement} style={styles.cardBtn} />
+            ) : null}
+            {formError ? <Text style={styles.formError}>{formError}</Text> : null}
+            <Button label="Continue & Verify" variant="primary" icon="arrow-forward" fullWidth onPress={submitStep1} style={styles.cardBtn} />
           </View>
         ) : (
-          <View style={[styles.card, styles.cardDone]}>
-            <View style={styles.cardDoneHeader}>
-              <Icon name="check-circle" size={20} color={colors.statusSuccess} />
-              <Text style={styles.cardTitle}>1. Vendor Agreement</Text>
+          <View style={styles.form}>
+            {/* Confirmation summary */}
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Business</Text>
+                <Text style={styles.summaryValue}>{form.shop_name}</Text>
+              </View>
+              <View style={styles.summaryDivider} />
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Depot / Hub</Text>
+                <Text style={styles.summaryValue}>{form.hub}</Text>
+              </View>
+              <View style={styles.summaryDivider} />
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Mobile Money</Text>
+                <Text style={styles.summaryValue}>{form.rail} · {form.shop_phone || '+256 •••'}</Text>
+              </View>
+              <View style={styles.summaryDivider} />
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Assigned Escrow Officer</Text>
+                <Text style={styles.summaryValue}>JEMINA Desk Gulu #04</Text>
+              </View>
             </View>
-            <Text style={styles.cardText}>Agreement accepted. You can now register your e-Store.</Text>
+
+            <Text style={styles.label}>Registered Mobile Money Number (SIM-Locked)</Text>
+            <View style={styles.inputWrap}>
+              <Icon name="smartphone" size={20} color={colors.outline} />
+              <TextInput
+                style={styles.input}
+                value={form.shop_phone}
+                onChangeText={t => setForm(f => ({ ...f, shop_phone: t }))}
+                placeholder="+256 7•• ••• •••"
+                placeholderTextColor={colors.outline}
+                keyboardType="phone-pad"
+              />
+            </View>
+
+            {/* JEMINA Trade PIN — unified with the wallet / escrow PIN */}
+            {pinSet ? (
+              <View style={styles.pinActiveCard}>
+                <Icon name="verified" size={20} color={colors.statusSuccess} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.pinActiveTitle}>JEMINA Trade PIN Active</Text>
+                  <Text style={styles.pinActiveText}>
+                    Your 4-digit trade PIN is already set and shared with escrow & auto-reload. You can manage or change
+                    it anytime.
+                  </Text>
+                </View>
+                <Pressable onPress={() => setShowPinManage(true)} hitSlop={8} style={styles.managePinBtn}>
+                  <Icon name="settings" size={18} color={colors.secondary} />
+                </Pressable>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.sectionLabel}>Create 4-Digit Escrow PIN</Text>
+                <Text style={styles.pinHint}>Authorizes bulk buy payouts & batch releases. Same PIN secures your JEMINA wallet & auto-reload.</Text>
+                <View style={styles.inputWrap}>
+                  <Icon name="lock" size={20} color={colors.outline} />
+                  <TextInput
+                    style={styles.input}
+                    value={newPin}
+                    onChangeText={t => setNewPin(t.replace(/[^0-9]/g, '').slice(0, 4))}
+                    placeholder="New Escrow PIN"
+                    placeholderTextColor={colors.outline}
+                    keyboardType="number-pad"
+                    secureTextEntry={!showPin}
+                    maxLength={4}
+                  />
+                  <Pressable onPress={() => setShowPin(v => !v)} hitSlop={8}>
+                    <Icon name={showPin ? 'visibility-off' : 'visibility'} size={20} color={colors.outline} />
+                  </Pressable>
+                </View>
+                <View style={styles.inputWrap}>
+                  <Icon name="lock" size={20} color={colors.outline} />
+                  <TextInput
+                    style={styles.input}
+                    value={confirmPin}
+                    onChangeText={t => setConfirmPin(t.replace(/[^0-9]/g, '').slice(0, 4))}
+                    placeholder="Confirm PIN"
+                    placeholderTextColor={colors.outline}
+                    keyboardType="number-pad"
+                    secureTextEntry={!showPin}
+                    maxLength={4}
+                  />
+                </View>
+              </>
+            )}
+
+            <Pressable style={styles.checkboxRow} onPress={() => setShowPinManage(true)}>
+              <Text style={styles.manageHint}>
+                Already have a JEMINA Trade PIN? <Text style={styles.manageHintLink}>Set / manage it here</Text>
+              </Text>
+            </Pressable>
+
+            <Pressable style={styles.checkboxRow} onPress={() => setForm(f => ({ ...f, terms: !f.terms }))}>
+              <View style={[styles.checkbox, form.terms && styles.checkboxOn]}>
+                {form.terms ? <Icon name="check" size={16} color={colors.onSecondary} /> : null}
+              </View>
+              <Text style={styles.checkboxLabel}>
+                I agree to the JEMINA Escrow Mandates & BOU Regulatory Sandbox Custodial Terms. Authorize automated URA
+                EFRIS electronic tax receipts for bulk settlements.
+              </Text>
+            </Pressable>
+
+            {formError ? <Text style={styles.formError}>{formError}</Text> : null}
+
+            <View style={styles.btnRow}>
+              <Pressable style={styles.backBtn} onPress={() => setStep(1)}>
+                <Icon name="arrow-back" size={18} color={colors.onSurface} />
+                <Text style={styles.backBtnText}>Back</Text>
+              </Pressable>
+              <View style={{ flex: 1 }}>
+                <Button
+                  label={saving ? 'Registering...' : 'Complete Registration & Verify via OTP'}
+                  variant="primary"
+                  icon="arrow-forward"
+                  fullWidth
+                  onPress={submitStep2}
+                  style={styles.cardBtn}
+                />
+              </View>
+            </View>
           </View>
         )}
-
-        <View style={[styles.card, styles.subscriptionCard]}>
-          <View style={styles.subscriptionHeader}>
-            <Icon name="verified" size={20} color={colors.secondary} />
-            <Text style={styles.cardTitle}>Starter Plan</Text>
-            <View style={styles.planBadge}>
-              <Text style={styles.planBadgeText}>FREE</Text>
-            </View>
-          </View>
-          <Text style={styles.cardText}>
-            You're registering with the Starter plan — included at no cost. Get started with basic store features and upgrade anytime as your business grows.
-          </Text>
-          <View style={styles.planFeatures}>
-            <View style={styles.planFeatureRow}>
-              <Icon name="check-circle" size={16} color={colors.statusSuccess} />
-              <Text style={styles.planFeatureText}>Basic e-Store setup</Text>
-            </View>
-            <View style={styles.planFeatureRow}>
-              <Icon name="check-circle" size={16} color={colors.statusSuccess} />
-              <Text style={styles.planFeatureText}>List up to 50 products</Text>
-            </View>
-            <View style={styles.planFeatureRow}>
-              <Icon name="check-circle" size={16} color={colors.statusSuccess} />
-              <Text style={styles.planFeatureText}>Standard support</Text>
-            </View>
-          </View>
-          <Text style={styles.planUpgradeHint}>
-            Upgrade to Pro or Enterprise for more products, priority placement, and advanced analytics.
-          </Text>
-        </View>
-
-        <View style={[styles.card, !accepted && styles.cardMuted]}>
-          <Text style={styles.cardTitle}>2. Register Your e-Store</Text>
-          <Text style={styles.cardText}>No credit card required. Setup in 2 minutes.</Text>
-          {formError ? <Text style={styles.formError}>{formError}</Text> : null}
-          <Text style={styles.label}>Business Name</Text>
-          <TextInput
-            style={[styles.input, !accepted && styles.inputMuted]}
-            value={form.shop_name}
-            onChangeText={t => setForm(f => ({ ...f, shop_name: t }))}
-            placeholder="e.g. Kampala Crafts"
-            placeholderTextColor={colors.outline}
-            editable={accepted}
-          />
-          <Text style={styles.label}>Owner Name</Text>
-          <TextInput
-            style={[styles.input, !accepted && styles.inputMuted]}
-            value={form.shop_owner}
-            onChangeText={t => setForm(f => ({ ...f, shop_owner: t }))}
-            placeholder="Full name"
-            placeholderTextColor={colors.outline}
-            editable={accepted}
-            autoCapitalize="words"
-          />
-          <Text style={styles.label}>Business Email</Text>
-          <TextInput
-            style={[styles.input, !accepted && styles.inputMuted]}
-            value={form.shop_email}
-            onChangeText={t => setForm(f => ({ ...f, shop_email: t }))}
-            placeholder="you@business.com"
-            placeholderTextColor={colors.outline}
-            editable={accepted}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-          <Text style={styles.label}>Phone</Text>
-          <TextInput
-            style={[styles.input, !accepted && styles.inputMuted]}
-            value={form.shop_phone}
-            onChangeText={t => setForm(f => ({ ...f, shop_phone: t }))}
-            placeholder="+256..."
-            placeholderTextColor={colors.outline}
-            editable={accepted}
-            keyboardType="phone-pad"
-          />
-          <Text style={styles.label}>Vendor Type</Text>
-          <View style={styles.typeRow}>
-            {['local', 'national', 'international'].map(type => (
-              <Pressable
-                key={type}
-                style={[styles.typeChip, accepted && form.vendor_type === type && styles.typeChipOn]}
-                onPress={() => accepted && setForm(f => ({ ...f, vendor_type: type }))}
-              >
-                <Text style={[styles.typeChipText, accepted && form.vendor_type === type && styles.typeChipTextOn]}>
-                  {type === 'local' ? 'Local' : type === 'national' ? 'National' : 'International'}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-          <Text style={styles.label}>Payment Method</Text>
-          <View style={styles.payRow}>
-            {['Momo', 'Visa', '$BTC'].map(method => (
-              <Pressable
-                key={method}
-                style={[styles.payChip, accepted && form.pay_method === method && styles.payChipOn]}
-                onPress={() => accepted && setForm(f => ({ ...f, pay_method: method }))}
-              >
-                <Text style={[styles.payChipText, accepted && form.pay_method === method && styles.payChipTextOn]}>
-                  {method}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-          <Pressable style={styles.checkboxRow} onPress={() => accepted && setForm(f => ({ ...f, terms: !f.terms }))}>
-            <View style={[styles.checkbox, accepted && form.terms && styles.checkboxOn]}>
-              {accepted && form.terms ? <Icon name="check" size={16} color={colors.onSecondary} /> : null}
-            </View>
-            <Text style={styles.checkboxLabel}>I accept the terms and conditions</Text>
-          </Pressable>
-          <Button
-            label={saving ? 'Registering...' : 'Register e-Store'}
-            variant="primary"
-            fullWidth
-            onPress={submitStore}
-            style={styles.cardBtn}
-          />
-        </View>
       </ScrollView>
 
       {showAgreement && agreement ? (
@@ -490,6 +695,8 @@ export function VendorActionsScreen() {
           </View>
         </KeyboardAvoidingView>
       ) : null}
+
+      <PinManageModal visible={showPinManage} onClose={() => { setShowPinManage(false); load(true); }} />
     </View>
   );
 }
@@ -532,123 +739,174 @@ const styles = StyleSheet.create({
     ...typography.bodyMd,
     color: colors.onSurfaceVariant,
   },
-  card: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
+  hero: {
+    alignItems: 'center',
+    marginTop: spacing.lg,
+    marginBottom: spacing.lg,
   },
-  cardDone: {
-    borderColor: colors.statusSuccess,
-  },
-  cardMuted: {
-    opacity: 0.6,
-  },
-  cardDoneHeader: {
+  shieldRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#ecfdf5',
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 4,
+    marginBottom: spacing.sm,
   },
-  cardTitle: {
-    ...typography.headlineMd,
-    color: colors.primary,
+  bouBadge: {
+    ...typography.labelSm,
+    color: '#065f46',
     fontWeight: '700',
+    letterSpacing: 0.6,
   },
-  cardText: {
-    ...typography.bodyMd,
+  brandTitle: {
+    ...typography.displayLgMobile,
+    color: colors.primary,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textAlign: 'center',
+  },
+  brandSub: {
+    ...typography.labelMd,
+    color: colors.secondary,
+    fontWeight: '700',
+    letterSpacing: 4,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  stepBadge: {
+    ...typography.labelSm,
     color: colors.onSurfaceVariant,
-    marginTop: spacing.xs,
-  },
-  cardBtn: {
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
     marginTop: spacing.md,
   },
-  subscriptionCard: {
-    borderColor: colors.secondary,
-    borderWidth: 1.5,
-  },
-  subscriptionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  planBadge: {
-    backgroundColor: colors.secondary,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    marginLeft: 'auto',
-  },
-  planBadgeText: {
-    ...typography.labelSm,
-    color: colors.onSecondary,
-    fontWeight: '700',
-  },
-  planFeatures: {
-    gap: spacing.xs,
-    marginTop: spacing.sm,
-  },
-  planFeatureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  planFeatureText: {
-    ...typography.bodyMd,
+  title: {
+    ...typography.headlineLg,
     color: colors.onSurface,
-  },
-  planUpgradeHint: {
-    ...typography.bodySm,
-    color: colors.onSurfaceVariant,
+    textAlign: 'center',
+    alignSelf: 'center',
     marginTop: spacing.sm,
-    fontStyle: 'italic',
   },
-  warningCard: {
+  subtitle: {
+    ...typography.bodyMd,
+    color: colors.onSurfaceVariant,
+    textAlign: 'center',
+    alignSelf: 'center',
+    marginTop: spacing.sm,
+    maxWidth: 320,
+    lineHeight: 19,
+  },
+  progressRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  progressDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.outlineVariant,
+  },
+  progressDotOn: {
+    backgroundColor: colors.secondary,
+  },
+  agreementGate: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
     backgroundColor: colors.surfaceContainerLow,
     borderRadius: radius.lg,
     padding: spacing.md,
     marginBottom: spacing.md,
   },
-  warningText: {
-    ...typography.bodyMd,
+  agreementGateTitle: {
+    ...typography.labelMd,
     color: colors.onSurface,
-    flex: 1,
+    fontWeight: '700',
+  },
+  agreementGateText: {
+    ...typography.bodySm,
+    color: colors.onSurfaceVariant,
+    marginTop: 2,
+  },
+  form: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+  },
+  sectionLabel: {
+    ...typography.labelMd,
+    color: colors.onSurface,
+    fontWeight: '700',
+    marginBottom: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  required: {
+    color: colors.statusFlash,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  selectCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm + 2,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.lg,
+    padding: spacing.sm + 2,
+    marginBottom: spacing.sm,
+  },
+  selectCardOn: {
+    borderColor: colors.secondary,
+    backgroundColor: colors.surfaceContainerLow,
+  },
+  selectLabel: {
+    ...typography.labelMd,
+    color: colors.onSurface,
+    fontWeight: '700',
+  },
+  selectNote: {
+    ...typography.bodySm,
+    color: colors.onSurfaceVariant,
+    marginTop: 1,
+    lineHeight: 15,
   },
   label: {
     ...typography.labelMd,
     color: colors.onSurface,
+    fontWeight: '700',
     marginBottom: spacing.xs,
     marginTop: spacing.sm,
   },
-  input: {
+  inputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     borderWidth: 1,
     borderColor: colors.borderLight,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    backgroundColor: colors.surfaceContainerLowest,
+    marginBottom: spacing.sm,
+  },
+  input: {
+    flex: 1,
+    ...typography.bodyMd,
     color: colors.onSurface,
-    backgroundColor: colors.surfaceContainerLowest,
-    fontFamily: typography.bodyMd.fontFamily,
-    fontSize: typography.bodyMd.fontSize,
+    paddingVertical: spacing.md,
   },
-  inputMuted: {
-    color: colors.outlineVariant,
-  },
-  payRow: {
+  railRow: {
     flexDirection: 'row',
     gap: spacing.sm,
-    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
   },
-  typeRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginTop: spacing.xs,
-  },
-  typeChip: {
+  railChip: {
     flex: 1,
     alignItems: 'center',
     paddingVertical: spacing.sm,
@@ -657,44 +915,49 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     backgroundColor: colors.surfaceContainerLowest,
   },
-  typeChipOn: {
+  railChipOn: {
     borderColor: colors.secondary,
     backgroundColor: colors.secondaryContainer,
   },
-  typeChipText: {
+  railChipText: {
     ...typography.labelMd,
     color: colors.onSurfaceVariant,
     fontWeight: '600',
   },
-  typeChipTextOn: {
+  railChipTextOn: {
     color: colors.onSecondary,
     fontWeight: '700',
   },
-  payChip: {
-    flex: 1,
+  hubSelect: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.sm,
+    gap: spacing.sm,
     borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surfaceContainerLowest,
-  },
-  payChipOn: {
     borderColor: colors.secondary,
-    backgroundColor: colors.secondaryContainer,
+    borderRadius: radius.lg,
+    padding: spacing.sm + 2,
+    backgroundColor: colors.surfaceContainerLow,
   },
-  payChipText: {
-    ...typography.labelMd,
-    color: colors.onSurfaceVariant,
-    fontWeight: '600',
+  hubText: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    flex: 1,
   },
-  payChipTextOn: {
-    color: colors.onSecondary,
-    fontWeight: '700',
+  hubList: {
+    marginTop: spacing.xs,
+    gap: 2,
+  },
+  hubRow: {
+    paddingVertical: spacing.xs + 2,
+    paddingHorizontal: spacing.sm + 2,
+  },
+  hubOption: {
+    ...typography.bodyMd,
+    color: colors.secondary,
   },
   checkboxRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: spacing.md,
     marginTop: spacing.md,
   },
@@ -715,12 +978,119 @@ const styles = StyleSheet.create({
     ...typography.bodyMd,
     color: colors.onSurface,
     flex: 1,
+    lineHeight: 19,
+  },
+  cardBtn: {
+    marginTop: spacing.md,
   },
   formError: {
     ...typography.bodyMd,
     color: colors.error,
     marginBottom: spacing.sm,
     marginTop: spacing.sm,
+  },
+  summaryCard: {
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    paddingVertical: 4,
+  },
+  summaryLabel: {
+    ...typography.labelMd,
+    color: colors.onSurfaceVariant,
+  },
+  summaryValue: {
+    ...typography.labelMd,
+    color: colors.onSurface,
+    fontWeight: '700',
+    flex: 1,
+    textAlign: 'right',
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: colors.borderLight,
+    marginVertical: 2,
+  },
+  pinActiveCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm + 2,
+    backgroundColor: '#ecfdf5',
+    borderWidth: 1,
+    borderColor: colors.statusSuccess,
+    borderRadius: radius.lg,
+    padding: spacing.sm + 2,
+    marginBottom: spacing.sm,
+  },
+  pinActiveTitle: {
+    ...typography.labelMd,
+    color: '#065f46',
+    fontWeight: '700',
+  },
+  pinActiveText: {
+    ...typography.bodySm,
+    color: colors.onSurfaceVariant,
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  managePinBtn: {
+    padding: spacing.xs,
+  },
+  pinHint: {
+    ...typography.bodySm,
+    color: colors.onSurfaceVariant,
+    marginBottom: spacing.sm,
+    lineHeight: 16,
+  },
+  manageHint: {
+    ...typography.bodyMd,
+    color: colors.onSurfaceVariant,
+  },
+  manageHintLink: {
+    color: colors.secondary,
+    fontWeight: '700',
+  },
+  btnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    alignSelf: 'flex-start',
+  },
+  backBtnText: {
+    ...typography.labelMd,
+    color: colors.onSurface,
+    fontWeight: '600',
+  },
+  warningCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  warningText: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    flex: 1,
   },
   agreementOverlay: {
     position: 'absolute',
