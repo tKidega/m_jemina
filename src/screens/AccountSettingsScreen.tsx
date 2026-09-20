@@ -221,21 +221,34 @@ export function AccountSettingsScreen({
         'secure-text',
       );
     } else {
-      // Enable 2FA
+      // Enable 2FA — email OTP confirmation
       setTwoFaLoading(true);
       try {
         const setup = await apiEnableTwoFactor(token);
-        Alert.alert(
+        Alert.prompt(
           'Enable 2FA',
-          `Scan this QR code in your authenticator app:\n\n${setup.qr_url}\n\nOr enter the secret manually: ${setup.secret}`,
+          setup.email
+            ? `Enter the 6-digit code emailed to ${setup.email} to turn on two-factor authentication.`
+            : 'Enter the 6-digit code emailed to you to confirm two-factor setup.',
           [
             { text: 'Cancel', style: 'cancel' },
             {
-              text: 'I\'ve scanned it',
+              text: 'Resend Code',
+              onPress: async () => {
+                try {
+                  await apiEnableTwoFactor(token);
+                  Alert.alert('Code sent', 'A new verification code has been emailed to you.');
+                } catch (e) {
+                  Alert.alert('Error', e instanceof Error ? e.message : 'Could not resend the code.');
+                }
+              },
+            },
+            {
+              text: 'I got the code',
               onPress: () => {
                 Alert.prompt(
-                  'Verify Code',
-                  'Enter the 6-digit code from your authenticator app.',
+                  'Verify 2FA Code',
+                  'Enter the 6-digit code you received by email.',
                   async (code) => {
                     if (!code || code.length !== 6) {
                       Alert.alert('Error', 'Please enter a valid 6-digit code.');

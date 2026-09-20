@@ -493,8 +493,12 @@ export interface ApiTwoFactorStatus {
 }
 
 export interface ApiTwoFactorSetup {
-  secret: string;
-  qr_url: string;
+  method: string;
+  email?: string;
+  delivered?: boolean;
+  resend_after?: number;
+  secret?: string;
+  qr_url?: string;
 }
 
 export interface ApiSession {
@@ -514,7 +518,7 @@ export async function apiGetTwoFactorStatus(token: string): Promise<ApiTwoFactor
 }
 
 export async function apiEnableTwoFactor(token: string): Promise<ApiTwoFactorSetup> {
-  const json = await request<{ secret: string; qr_url: string }>(
+  const json = await request<ApiTwoFactorSetup>(
     '/security/2fa/enable',
     { method: 'POST', token },
   );

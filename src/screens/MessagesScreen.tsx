@@ -190,8 +190,13 @@ export function MessagesScreen() {
         ))}
       </View>
 
-      {/* Filters */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+{/* Filters */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterRow}
+        style={styles.filterScroll}
+      >
         {FILTERS.map(f => {
           const selected = filter === f.key;
           return (
@@ -255,11 +260,12 @@ const styles = StyleSheet.create({
   content: { padding: spacing.md, paddingBottom: spacing.xxl },
   newBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, backgroundColor: colors.secondary, paddingVertical: spacing.sm },
   newBannerText: { ...typography.labelMd, color: colors.onPrimary, fontWeight: '700' },
-  metaBar: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.md, paddingTop: spacing.sm + 2 },
+metaBar: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.md, paddingTop: spacing.sm + 2 },
   metaItem: { alignItems: 'center' },
-  metaCount: { ...typography.headlineLg, color: colors.primary, fontWeight: '800' },
+  metaCount: { ...typography.headlineSm, color: colors.primary, fontWeight: '800' },
   metaLabel: { ...typography.labelSm, color: colors.outline, textTransform: 'uppercase', letterSpacing: 0.6 },
-  filterRow: { padding: spacing.md, gap: spacing.sm },
+  filterScroll: { flexGrow: 0, maxHeight: 44 },
+  filterRow: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs, gap: spacing.sm, alignItems: 'center' },
   filterChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.full, borderWidth: 1, borderColor: colors.borderLight, backgroundColor: colors.surfaceContainerLowest },
   filterChipOn: { backgroundColor: colors.primaryContainer, borderColor: colors.primaryContainer },
   filterTxt: { ...typography.labelMd, color: colors.onSurfaceVariant, fontWeight: '600' },
