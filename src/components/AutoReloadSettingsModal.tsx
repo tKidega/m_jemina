@@ -91,7 +91,7 @@ const checkPinStatus = async () => {
       setPinSet(status.pin_set);
       if (status.pin_lockout) {
         setStep('lockout');
-        startLockCountdown(status.pin_lockout_remaining_seconds || 3600);
+        startLockCountdown(status.pin_lockout_remaining_seconds || 1200);
       }
     } catch { /* ignore */ }
   };
@@ -195,8 +195,8 @@ const checkPinStatus = async () => {
           setPin('');
           if (result.pin_lockout) {
             setStep('lockout');
-            startLockCountdown(result.pin_lockout_remaining_seconds || 3600);
-            showToast('Security lockout active. Auto-debit paused for 1 hour.', 'error');
+            startLockCountdown(result.pin_lockout_remaining_seconds || 1200);
+            showToast('Security lockout active. Auto-debit paused for 20 minutes.', 'error');
           } else {
                         setPinError(`The 4-digit PIN entered does not match your JEMINA Trade Security PIN. ${result.attempts_remaining} attempt${result.attempts_remaining === 1 ? '' : 's'} remaining before temporary escrow lockout.`);
             showToast(result.message || 'Incorrect PIN entered.', 'error');
@@ -395,7 +395,7 @@ const checkPinStatus = async () => {
                     style={s.otpInput}
                     value={otp}
                     onChangeText={t => setOtp(t.replace(/[^0-9]/g, '').slice(0, 6))}
-                    placeholder="••••••"
+                    placeholder="â€¢â€¢â€¢â€¢â€¢â€¢"
                     placeholderTextColor={colors.outline}
                     keyboardType="number-pad"
                     maxLength={6}
@@ -452,7 +452,7 @@ const checkPinStatus = async () => {
                 <View style={s.lockTimerCard}>
                   <Icon name="schedule" size={20} color={colors.secondary} />
                   <View style={{ flex: 1, alignItems: 'center' }}>
-                    <Text style={s.lockTimerLbl}>RECOVERY TIMEOUT — Auto-unlock active</Text>
+                    <Text style={s.lockTimerLbl}>RECOVERY TIMEOUT â€” Auto-unlock active</Text>
                     <Text style={s.lockTimerVal}>{String(Math.floor(lockoutSec / 60)).padStart(2, '0')}:{String(lockoutSec % 60).padStart(2, '0')}</Text>
                   </View>
                 </View>
@@ -467,7 +467,7 @@ const checkPinStatus = async () => {
                   <Icon name="sim-card" size={18} color={colors.primary} />
                   <Text style={s.simTxt}>
                     <Text style={{ fontWeight: '700' }}>Reset Trade PIN via Registered MTN MoMo SIM</Text>{'\n'}
-                    Verify with an OTP sent to your registered number to unlock instantly — no need to wait.
+                    Verify with an OTP sent to your registered number to unlock instantly â€” no need to wait.
                   </Text>
                 </View>
                 <View style={s.compCard}><Icon name="verified-user" size={18} color={colors.statusSuccess} />
@@ -492,13 +492,13 @@ const checkPinStatus = async () => {
                 <Text style={s.resetTitle}>Enter 6-Digit SMS Code</Text>
                 <Text style={s.pinDesc}>
                   We sent a temporary verification code via SMS to your registered MTN MoMo phone number: {'\n'}
-                  <Text style={{ fontWeight: '700', color: colors.onSurface }}>+256 772 ••• 891</Text>
+                  <Text style={{ fontWeight: '700', color: colors.onSurface }}>+256 772 â€¢â€¢â€¢ 891</Text>
                 </Text>
                 <TextInput
                   style={s.otpInput}
                   value={resetOtp}
                   onChangeText={t => setResetOtp(t.replace(/[^0-9]/g, '').slice(0, 6))}
-                  placeholder="••••••"
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢"
                   placeholderTextColor={colors.outline}
                   keyboardType="number-pad"
                   maxLength={6}

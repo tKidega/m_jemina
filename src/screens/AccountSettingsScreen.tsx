@@ -16,6 +16,8 @@ import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { PaymentMethodsScreen } from './PaymentMethodsScreen';
 import { AddressBookScreen } from './AddressBookScreen';
+import { ChangePasswordModal } from '../components/ChangePasswordModal';
+import { PinManageModal } from '../components/PinManageModal';
 import {
   apiGetProfile,
   apiGetTwoFactorStatus,
@@ -119,6 +121,8 @@ export function AccountSettingsScreen({
 
   // Profile image modal
   const [showImageModal, setShowImageModal] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showPinManage, setShowPinManage] = useState(false);
 
   // Security state
   const [twoFa, setTwoFa] = useState(false);
@@ -435,6 +439,8 @@ export function AccountSettingsScreen({
               sessions={sessions}
               deviceName={deviceName}
               onRevokeOthers={handleRevokeOthers}
+              onChangePassword={() => setShowChangePassword(true)}
+              onManagePin={() => setShowPinManage(true)}
             />
           </ScrollView>
         ) : tab === 'payments' ? (
@@ -483,6 +489,16 @@ export function AccountSettingsScreen({
           </View>
         </View>
       </Modal>
+
+      <ChangePasswordModal
+        visible={showChangePassword}
+        onClose={() => setShowChangePassword(false)}
+        onChanged={loadSecurityData}
+      />
+      <PinManageModal
+        visible={showPinManage}
+        onClose={() => setShowPinManage(false)}
+      />
     </View>
   );
 }
@@ -596,6 +612,8 @@ function SecurityTab({
   sessions,
   deviceName,
   onRevokeOthers,
+  onChangePassword,
+  onManagePin,
 }: {
   twoFa: boolean;
   twoFaLoading: boolean;
@@ -608,8 +626,9 @@ function SecurityTab({
   sessions: ApiSession[];
   deviceName: string;
   onRevokeOthers: () => void;
+  onChangePassword: () => void;
+  onManagePin: () => void;
 }) {
-  const { navigate } = useNavigation();
   return (
     <View style={styles.tabContent}>
       <SectionCard
@@ -647,13 +666,29 @@ function SecurityTab({
         <View style={styles.passwordRow}>
           <View>
             <Text style={styles.toggleLabel}>Account Password</Text>
-            <Text style={styles.toggleSub}>Last changed 45 days ago</Text>
+            <Text style={styles.toggleSub}>Verify your current password to set a new one</Text>
           </View>
           <Pressable
             style={styles.updateBtn}
-            onPress={() => navigate('ChangePassword' as never)}
+            onPress={onChangePassword}
           >
             <Text style={styles.updateBtnText}>Update</Text>
+          </Pressable>
+        </View>
+
+        <Sep />
+
+        {/* JEMINA Trade PIN */}
+        <View style={styles.passwordRow}>
+          <View>
+            <Text style={styles.toggleLabel}>JEMINA Trade PIN</Text>
+            <Text style={styles.toggleSub}>Escrow & auto-reload authorizations</Text>
+          </View>
+          <Pressable
+            style={styles.updateBtn}
+            onPress={onManagePin}
+          >
+            <Text style={styles.updateBtnText}>Manage</Text>
           </Pressable>
         </View>
 
