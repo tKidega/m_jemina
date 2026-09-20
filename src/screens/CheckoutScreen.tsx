@@ -18,7 +18,7 @@ import { Button } from '../components/Button';
 import { useCart } from '../state/CartContext';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { apiCreateOrder, apiGetCreditBalance, apiGetAddresses, apiApplyVoucher, apiGetPaymentMethods } from '../data/api';
+import { apiCreateOrder, apiGetCreditBalance, apiGetAddresses, apiApplyVoucher, apiGetPaymentMethods, apiGetPickupPoints } from '../data/api';
 import type { ApiPaymentMethod, ApiAddress, ApiShippingAddress } from '../data/api';
 import { formatUGX } from '../components/ProductCard';
 import { colors } from '../theme/colors';
@@ -44,7 +44,7 @@ interface PickupPoint {
   state: string;
 }
 
-const PICKUP_POINTS: PickupPoint[] = [
+const PICKUP_POINTS_FALLBACK: PickupPoint[] = [
   {
     id: 'jemina-point',
     name: 'Jemina Point',
@@ -93,6 +93,31 @@ export function CheckoutScreen() {
   const [voucherLoading, setVoucherLoading] = useState(false);
   const [voucherDiscount, setVoucherDiscount] = useState<number | null>(null);
   const [voucherMessage, setVoucherMessage] = useState<string | null>(null);
+
+  const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>(PICKUP_POINTS_FALLBACK);
+
+  const loadPickupPoints = useCallback(async () => {
+    try {
+      const points = await apiGetPickupPoints();
+      if (points.length > 0) {
+        setPickupPoints(
+          points.map(p => ({
+            id: p.id,
+            name: p.name,
+            location: p.location,
+            city: p.city,
+            state: p.state,
+          })),
+        );
+      }
+    } catch {
+      // keep fallback
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPickupPoints();
+  }, [loadPickupPoints]);
 
   const totalShippingFees = vendorGroups.reduce((sum, g) => sum + g.shippingFee, 0);
 
@@ -193,7 +218,7 @@ export function CheckoutScreen() {
     return { subtotal, shipping, delivery, platformFee, discount, total: Math.max(total, 0) };
   }, [subtotal, totalDeliveryFees, totalShippingFees, platformFee, voucherDiscount, fulfilment]);
 
-  const selectedPickupPoint = PICKUP_POINTS[0];
+  const selectedPickupPoint = pickupPoints[0];
 
   const handleApplyVoucher = async () => {
     if (!voucherCode.trim() || !token) return;

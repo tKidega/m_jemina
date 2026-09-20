@@ -169,7 +169,17 @@ export type IconName =
   | 'add_card'
   | 'qr_code_scanner'
   | 'percent'
+  | 'autorenew'
+  | 'backspace'
+  | 'trending-down'
+  | 'sms'
+  | 'add-circle'
+  | 'shield'
   | 'percent'
+  | 'sim-card'
+  | 'pause-circle'
+  | 'lock-clock'
+  | 'lock-reset'
 
 interface IconProps {
   name: IconName;

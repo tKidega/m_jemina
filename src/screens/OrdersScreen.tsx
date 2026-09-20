@@ -246,9 +246,10 @@ function InvoiceSection({ order }: { order: ApiOrder }) {
     if (!order.items) return [];
     const groups: Record<string, { vendorName: string; items: typeof order.items; subtotal: number; deliveryFee: number }> = {};
     order.items.forEach(item => {
-      const vendorKey = item.vendor_name ?? item.shop_name ?? `vendor-${item.vendor_id ?? 'unknown'}`;
+      const vendorKey = item.vendor_name || item.shop_name || (item.vendor_id ? `vendor-${item.vendor_id}` : 'jemina-official');
+      const vendorLabel = item.vendor_name || item.shop_name || 'Jemina Official';
       if (!groups[vendorKey]) {
-        groups[vendorKey] = { vendorName: vendorKey, items: [], subtotal: 0, deliveryFee: item.delivery_fee ?? 0 };
+        groups[vendorKey] = { vendorName: vendorLabel, items: [], subtotal: 0, deliveryFee: item.delivery_fee ?? 0 };
       }
       groups[vendorKey].items.push(item);
       groups[vendorKey].subtotal += item.total;
@@ -991,7 +992,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.surfaceContainerHigh,
-    borderRadius: radius.lg,
     overflow: 'hidden',
   },
   vendorHeader: {
@@ -1001,6 +1001,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryContainer,
     paddingHorizontal: spacing.sm + 2,
     paddingVertical: spacing.sm,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
   },
   vendorHeaderText: {
     ...typography.labelMd,

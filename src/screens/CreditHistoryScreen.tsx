@@ -13,10 +13,11 @@ import { Button } from '../components/Button';
 import { EmptyState } from '../components/EmptyState';
 import { SectionLoader } from '../components/Loader';
 import { BuyCreditsModal } from '../components/BuyCreditsModal';
+import { AutoReloadSettingsModal } from '../components/AutoReloadSettingsModal';
 import { useAuth } from '../state/AuthContext';
 import { useCart } from '../state/CartContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { apiGetCreditHistory, ApiCreditTransaction } from '../data/api';
+import { apiGetCreditHistory, apiGetPinStatus, ApiCreditTransaction } from '../data/api';
 import { formatUGX } from '../components/ProductCard';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -50,6 +51,8 @@ function txConfig(type: string) {
       return { icon: 'replay' as const, bg: '#e3f2fd', fg: '#1565c0', label: 'Escrow Refund', badge: 'Refunded', badgeBg: '#e3f2fd', badgeFg: '#1565c0' };
     case 'signup_bonus':
       return { icon: 'savings' as const, bg: '#f3e5f5', fg: '#7b1fa2', label: 'Signup Bonus', badge: 'Credited', badgeBg: '#f3e5f5', badgeFg: '#7b1fa2' };
+    case 'security':
+      return { icon: 'shield' as const, bg: '#e0f2f1', fg: '#00695c', label: 'Security', badge: 'Escrow Unlocked', badgeBg: '#e0f2f1', badgeFg: '#00695c' };
     default:
       return { icon: 'receipt-long' as const, bg: colors.surfaceContainer, fg: colors.onSurfaceVariant, label: type.charAt(0).toUpperCase() + type.slice(1), badge: '', badgeBg: colors.surfaceContainer, badgeFg: colors.onSurfaceVariant };
   }
@@ -73,6 +76,24 @@ export function CreditHistoryScreen() {
   const [txFilter, setTxFilter] = useState<TxFilter>('all');
   const [selectedTier, setSelectedTier] = useState(500000);
   const [showBuyModal, setShowBuyModal] = useState(false);
+  const [showAutoReload, setShowAutoReload] = useState(false);
+  const [autoReloadEnabled, setAutoReloadEnabled] = useState(false);
+  const [pinLockout, setPinLockout] = useState(false);
+  const [pinLockoutSec, setPinLockoutSec] = useState(0);
+  const [restoredAt, setRestoredAt] = useState<string | null>(null);
+  const [pinPaused, setPinPaused] = useState(false);
+
+  const loadPinStatus = useCallback(async () => {
+    if (!token) return;
+    try {
+      const s = await apiGetPinStatus(token);
+      setAutoReloadEnabled(!!s.auto_reload_enabled);
+      setPinLockout(!!s.pin_lockout);
+      setPinLockoutSec(s.pin_lockout_remaining_seconds || 0);
+      setPinPaused(!!s.auto_reload_paused_due_to_lockout);
+      setRestoredAt(s.auto_reload_settings?.restored_at ?? null);
+    } catch { /* ignore */ }
+  }, [token]);
 
   const load = useCallback(async () => {
     if (!token) { setLoading(false); return; }
@@ -89,7 +110,8 @@ export function CreditHistoryScreen() {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+    loadPinStatus();
+  }, [token, loadPinStatus]);
 
   const onRefresh = useCallback(async () => {
     if (!token) return;
@@ -105,7 +127,8 @@ export function CreditHistoryScreen() {
     } finally {
       setRefreshing(false);
     }
-  }, [token]);
+    loadPinStatus();
+  }, [token, loadPinStatus]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -154,6 +177,36 @@ export function CreditHistoryScreen() {
         >
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
+          {/* Escrow security status banner (lockout / restored / paused) */}
+          {pinLockout ? (
+            <View style={styles.bannerDanger}>
+              <Icon name="lock-clock" size={18} color={colors.statusFlash} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bannerTitle}>Security Lockout Active</Text>
+                <Text style={styles.bannerText}>
+                  Auto-reload mandate paused. PIN entry disabled until lock expires
+                  ({String(Math.floor(pinLockoutSec / 60)).padStart(2, '0')}:{String(pinLockoutSec % 60).padStart(2, '0')}).
+                </Text>
+              </View>
+            </View>
+          ) : restoredAt != null ? (
+            <View style={styles.bannerSuccess}>
+              <Icon name="check-circle" size={18} color={colors.statusSuccess} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bannerSuccessTitle}>Escrow Lockout Cleared & Trade PIN Active</Text>
+                <Text style={styles.bannerText}>Auto-reload mandate re-authorized. Your trade bids in Gulu & Lira auction hubs are fully live.</Text>
+              </View>
+            </View>
+          ) : pinPaused ? (
+            <View style={styles.bannerWarn}>
+              <Icon name="pause-circle" size={18} color={colors.secondary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bannerTitle}>Auto-reload paused</Text>
+                <Text style={styles.bannerText}>Verify your trade PIN to resume the mandate.</Text>
+              </View>
+            </View>
+          ) : null}
+
           {/* 1. Hero Balance Card */}
           <View style={styles.heroCard}>
             <View style={styles.heroShieldBadge}>
@@ -194,16 +247,18 @@ export function CreditHistoryScreen() {
             </View>
 
             <View style={styles.heroActions}>
-              <Pressable style={styles.heroActionPrimary} onPress={() => navigate('BuyCredits')}>
-                <Icon name="add_card" size={16} color={colors.onPrimary} />
+              <Pressable style={styles.heroActionPrimary} onPress={() => setShowBuyModal(true)}>
+                <Icon name="local-atm" size={16} color={colors.onPrimary} />
                 <Text style={styles.heroActionPrimaryText}>Top Up</Text>
               </Pressable>
+              <Pressable style={styles.heroActionSecondary} onPress={() => setShowAutoReload(true)}>
+                <Icon name="autorenew" size={16} color={autoReloadEnabled ? '#81c784' : colors.outline} />
+                <Text style={[styles.heroActionSecondaryText, autoReloadEnabled && { color: '#81c784' }]}>
+                  {autoReloadEnabled ? 'Auto-On' : 'Auto-Off'}
+                </Text>
+              </Pressable>
               <View style={styles.heroActionSecondary}>
-                <Icon name="sync" size={16} color="#81c784" />
-                <Text style={styles.heroActionSecondaryText}>Auto-On</Text>
-              </View>
-              <View style={styles.heroActionSecondary}>
-                <Icon name="qr_code_scanner" size={16} color={colors.primaryFixed} />
+                <Icon name="store" size={16} color={colors.primaryFixed} />
                 <Text style={styles.heroActionSecondaryText}>Pay Depot</Text>
               </View>
             </View>
@@ -289,7 +344,16 @@ export function CreditHistoryScreen() {
               </Pressable>
             </View>
 
-            <Button label="Buy Credits" variant="primary" icon="add_card" fullWidth onPress={() => setShowBuyModal(true)} style={styles.buyBtn} />
+            <Button label="Buy Credits" variant="primary" icon="payment" fullWidth onPress={() => setShowBuyModal(true)} style={styles.buyBtn} />
+
+            <Pressable style={styles.autoReloadBtn} onPress={() => setShowAutoReload(true)}>
+              <Icon name="autorenew" size={18} color={colors.secondary} />
+              <View style={styles.autoReloadBtnText}>
+                <Text style={styles.autoReloadBtnTitle}>Auto Credit Manager</Text>
+                <Text style={styles.autoReloadBtnDesc}>Set up automatic balance replenishment</Text>
+              </View>
+              <Icon name="chevron-right" size={18} color={colors.outline} />
+            </Pressable>
           </View>
 
           {/* 3. Wallet Privileges */}
@@ -363,7 +427,8 @@ export function CreditHistoryScreen() {
             ) : (
               filteredTx.map(tx => {
                 const cfg = txConfig(tx.type);
-                const isCredit = tx.type !== 'spend';
+                const isSecurity = tx.type === 'security';
+                const isCredit = tx.type !== 'spend' && !isSecurity;
                 return (
                   <View key={tx.id} style={styles.txItem}>
                     <View style={styles.txLeft}>
@@ -381,8 +446,8 @@ export function CreditHistoryScreen() {
                       </View>
                     </View>
                     <View style={styles.txRight}>
-                      <Text style={[styles.txAmount, { color: isCredit ? '#2e7d32' : colors.onSurface }]}>
-                        {isCredit ? '+' : '-'}{formatUGX(Math.abs(tx.amount))}
+                      <Text style={[styles.txAmount, isSecurity ? { color: colors.outline } : (isCredit ? { color: '#2e7d32' } : { color: colors.onSurface })]}>
+                        {isSecurity ? '—' : (isCredit ? '+' : '-')}{isSecurity ? '' : formatUGX(Math.abs(tx.amount))}
                       </Text>
                     </View>
                   </View>
@@ -410,6 +475,13 @@ export function CreditHistoryScreen() {
         onPurchased={load}
         initialAmount={selectedTier}
       />
+
+      {/* Auto-Reload Settings Modal */}
+      <AutoReloadSettingsModal
+        visible={showAutoReload}
+        onClose={() => setShowAutoReload(false)}
+        onActivated={() => { load(); }}
+      />
     </View>
   );
 }
@@ -422,6 +494,12 @@ const styles = StyleSheet.create({
   content: { padding: spacing.md, paddingBottom: spacing.xxl },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   errorText: { ...typography.bodyMd, color: colors.statusFlash, marginBottom: spacing.md },
+  bannerDanger: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start', backgroundColor: colors.errorContainer, borderRadius: radius.lg, padding: spacing.sm + 2, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.statusFlash },
+  bannerSuccess: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start', backgroundColor: '#ecfdf5', borderRadius: radius.lg, padding: spacing.sm + 2, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.statusSuccess },
+  bannerWarn: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start', backgroundColor: '#fffbeb', borderRadius: radius.lg, padding: spacing.sm + 2, marginBottom: spacing.md, borderWidth: 1, borderColor: '#fde68a' },
+  bannerTitle: { ...typography.bodyMd, color: '#92400e', fontWeight: '700' },
+  bannerSuccessTitle: { ...typography.bodyMd, color: '#065f46', fontWeight: '700' },
+  bannerText: { ...typography.bodySm, color: colors.onSurfaceVariant, marginTop: 2, lineHeight: 16 },
 
   /* Hero Card */
   heroCard: {
@@ -552,6 +630,30 @@ const styles = StyleSheet.create({
   tierBadgeText: { ...typography.labelSm, color: colors.onSurfaceVariant, fontSize: 9 },
   tierBonus: { ...typography.bodySm, color: colors.secondary, fontWeight: '500', marginTop: 1 },
   buyBtn: {},
+  autoReloadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm + 2,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    padding: spacing.sm + 2,
+    marginTop: spacing.sm,
+  },
+  autoReloadBtnText: {
+    flex: 1,
+  },
+  autoReloadBtnTitle: {
+    ...typography.labelLg,
+    color: colors.onSurface,
+    fontWeight: '700',
+  },
+  autoReloadBtnDesc: {
+    ...typography.bodySm,
+    color: colors.outline,
+    marginTop: 1,
+  },
 
   /* Perks */
   perksGrid: { flexDirection: 'row', gap: spacing.sm },

@@ -1554,3 +1554,160 @@ export async function apiTrackPromotionClick(
   );
   return data;
 }
+
+// ---------------------------------------------------------------------------
+// JEMINA PIN & Auto-Reload API
+// ---------------------------------------------------------------------------
+
+export interface ApiPinStatus {
+  pin_set: boolean;
+  pin_set_at: string | null;
+  pin_failed_attempts: number;
+  pin_lockout: boolean;
+  pin_lockout_remaining_seconds: number;
+  auto_reload_enabled: boolean;
+  auto_reload_paused_due_to_lockout: boolean;
+  auto_reload_settings: {
+    threshold: number;
+    topup_amount: number;
+    payment_rail: string;
+    mandate_reference: string | null;
+    activated_at: string | null;
+    restored_at: string | null;
+  } | null;
+}
+
+export interface ApiPinVerifyResult {
+  verified: boolean;
+  attempts_remaining: number;
+  pin_lockout: boolean;
+  pin_lockout_remaining_seconds: number;
+  message?: string;
+}
+
+export interface ApiPinResetResult {
+  restored: boolean;
+  restored_at: string | null;
+}
+
+export async function apiGetPinStatus(token: string): Promise<ApiPinStatus> {
+  const json = await request<ApiPinStatus>('/pin/status', { token });
+  return (json?.data ?? json) as ApiPinStatus;
+}
+
+export async function apiSetPin(token: string, pin: string, currentPin?: string): Promise<void> {
+  await request('/pin/set', {
+    method: 'POST',
+    token,
+    body: { pin, current_pin: currentPin },
+  });
+}
+
+export async function apiVerifyPin(token: string, pin: string): Promise<boolean> {
+  const json = await request<{ success: boolean }>('/pin/verify', {
+    method: 'POST',
+    token,
+    body: { pin },
+  });
+  return json?.data?.success === true || (json as any)?.success === true;
+}
+
+/**
+ * Verify the trade PIN and surface attempt / lockout detail on failure.
+ */
+export async function apiVerifyPinDetailed(token: string, pin: string): Promise<ApiPinVerifyResult> {
+  const response = await fetch(`${API_BASE_URL}/pin/verify`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ pin }),
+  });
+  const json = (await response.json().catch(() => null)) as any;
+  if (!json) {
+    throw new Error('Could not reach the JEMINA server.');
+  }
+  return {
+    verified: json.success === true,
+    attempts_remaining: typeof json.attempts_remaining === 'number' ? json.attempts_remaining : 3,
+    pin_lockout: json.pin_lockout === true,
+    pin_lockout_remaining_seconds: typeof json.pin_lockout_remaining_seconds === 'number' ? json.pin_lockout_remaining_seconds : 0,
+    message: json.message,
+  };
+}
+
+export async function apiSendOtp(token: string, method: 'pin' | 'mtn' | 'sms', purpose: string): Promise<{ method: string; expires_in?: number }> {
+  const json = await request<{ method: string; expires_in?: number }>('/pin/otp/send', {
+    method: 'POST',
+    token,
+    body: { method, purpose },
+  });
+  return (json?.data ?? json) as { method: string; expires_in?: number };
+}
+
+export async function apiVerifyOtp(token: string, otp: string, purpose: string): Promise<boolean> {
+  const json = await request<{ success: boolean }>('/pin/otp/verify', {
+    method: 'POST',
+    token,
+    body: { otp, purpose },
+  });
+  return json?.data?.success === true || (json as any)?.success === true;
+}
+
+/**
+ * Reset the trade PIN after verifying a registered MTN MoMo SIM OTP.
+ * Clears escrow lockout and restores the auto-reload mandate.
+ */
+export async function apiResetPin(token: string, otp: string, newPin: string): Promise<ApiPinResetResult> {
+  const json = await request<ApiEnvelope<ApiPinResetResult>>('/pin/reset', {
+    method: 'POST',
+    token,
+    body: { otp, new_pin: newPin },
+  });
+  return ((json?.data ?? json) as unknown) as ApiPinResetResult;
+}
+
+export async function apiActivateAutoReload(token: string, payload: {
+  pin?: string;
+  otp?: string;
+  threshold: number;
+  topup_amount: number;
+  payment_rail: string;
+}): Promise<{ mandate_reference: string }> {
+  const json = await request<{ mandate_reference: string }>('/pin/auto-reload/activate', {
+    method: 'POST',
+    token,
+    body: payload,
+  });
+  const d = (json?.data ?? json) as { mandate_reference?: string };
+  return { mandate_reference: d.mandate_reference ?? '' };
+}
+
+export async function apiDeactivateAutoReload(token: string): Promise<void> {
+  await request('/pin/auto-reload/deactivate', {
+    method: 'POST',
+    token,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Pickup Points API
+// ---------------------------------------------------------------------------
+
+export interface ApiPickupPoint {
+  id: string;
+  name: string;
+  location: string;
+  city: string;
+  state: string;
+  phone?: string | null;
+  hours?: string | null;
+  is_default: boolean;
+}
+
+export async function apiGetPickupPoints(): Promise<ApiPickupPoint[]> {
+  const data = await getJson<{ data: { pickup_points: ApiPickupPoint[] } }>('/pickup-points');
+  return data?.data?.pickup_points ?? [];
+}

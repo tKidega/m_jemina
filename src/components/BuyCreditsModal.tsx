@@ -253,10 +253,11 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    maxHeight: '92%',
+    maxHeight: '95%',
     backgroundColor: colors.surfaceContainerLowest,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
@@ -298,7 +299,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   body: {
-    flex: 1,
+    flexGrow: 1,
   },
   bodyContent: {
     padding: spacing.md,
