@@ -23,7 +23,6 @@ import {
   apiConfirmTwoFactor,
   apiDisableTwoFactor,
   apiGetSessions,
-  apiRevokeSession,
   apiRevokeOtherSessions,
   absoluteUrl,
 } from '../data/api';
@@ -265,25 +264,6 @@ export function AccountSettingsScreen({
     }
   }, [biometric, biometricSupported, biometricType]);
 
-  const handleRevokeSession = useCallback(async (sessionId: number, label: string) => {
-    if (!token) return;
-    Alert.alert('Revoke Session', `Revoke access for "${label}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Revoke',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await apiRevokeSession(token, sessionId);
-            setSessions(prev => prev.filter(s => s.id !== sessionId));
-          } catch (e) {
-            Alert.alert('Error', e instanceof Error ? e.message : 'Failed to revoke session.');
-          }
-        },
-      },
-    ]);
-  }, [token]);
-
   const handleRevokeOthers = useCallback(async () => {
     if (!token) return;
     Alert.alert('Sign Out Others', 'This will sign out all other devices. Continue?', [
@@ -454,7 +434,6 @@ export function AccountSettingsScreen({
               phone={phone}
               sessions={sessions}
               deviceName={deviceName}
-              onRevokeSession={handleRevokeSession}
               onRevokeOthers={handleRevokeOthers}
             />
           </ScrollView>
@@ -616,7 +595,6 @@ function SecurityTab({
   phone,
   sessions,
   deviceName,
-  onRevokeSession,
   onRevokeOthers,
 }: {
   twoFa: boolean;
@@ -629,7 +607,6 @@ function SecurityTab({
   phone: string;
   sessions: ApiSession[];
   deviceName: string;
-  onRevokeSession: (id: number, label: string) => void;
   onRevokeOthers: () => void;
 }) {
   const { navigate } = useNavigation();
@@ -725,42 +702,55 @@ function SecurityTab({
               <View style={styles.greenDotSmall} />
             </View>
           ) : (
-            sessions.map(session => (
-              <View key={session.id} style={styles.deviceRow}>
-                <Icon
-                  name={session.is_current ? 'smartphone' : 'laptop-windows'}
-                  size={20}
-                  color={colors.outline}
-                />
-                <View style={styles.deviceInfo}>
-                  <View style={styles.deviceNameRow}>
-                    <Text style={styles.deviceName}>
-                      {session.name || deviceName}
-                    </Text>
-                    {session.is_current ? (
-                      <View style={styles.currentBadge}>
-                        <Text style={styles.currentBadgeText}>Current</Text>
+            <>
+              {sessions
+                .filter(session => session.is_current)
+                .map(session => (
+                  <View key={session.id} style={styles.deviceRow}>
+                    <Icon name="smartphone" size={20} color={colors.outline} />
+                    <View style={styles.deviceInfo}>
+                      <View style={styles.deviceNameRow}>
+                        <Text style={styles.deviceName}>
+                          {session.name || deviceName}
+                        </Text>
+                        <View style={styles.currentBadge}>
+                          <Text style={styles.currentBadgeText}>Current</Text>
+                        </View>
                       </View>
-                    ) : null}
+                      <Text style={styles.deviceLocation}>
+                        {session.last_used_at
+                          ? `Last active ${new Date(session.last_used_at).toLocaleDateString()}`
+                          : 'Session active'}
+                      </Text>
+                    </View>
+                    <View style={styles.greenDotSmall} />
                   </View>
-                  <Text style={styles.deviceLocation}>
-                    {session.last_used_at
-                      ? `Last active ${new Date(session.last_used_at).toLocaleDateString()}`
-                      : 'Session active'}
-                  </Text>
-                </View>
-                {session.is_current ? (
-                  <View style={styles.greenDotSmall} />
-                ) : (
+                ))}
+
+              {/* Group all other (computer) sessions into a single entry */}
+              {sessions.filter(session => !session.is_current).length > 0 && (
+                <View style={styles.deviceRow}>
+                  <Icon name="laptop-windows" size={20} color={colors.outline} />
+                  <View style={styles.deviceInfo}>
+                    <View style={styles.deviceNameRow}>
+                      <Text style={styles.deviceName}>
+                        Other Sessions (Computer)
+                      </Text>
+                    </View>
+                    <Text style={styles.deviceLocation}>
+                      {sessions.filter(session => !session.is_current).length} other session
+                      {sessions.filter(session => !session.is_current).length === 1 ? '' : 's'} (Computer)
+                    </Text>
+                  </View>
                   <Pressable
                     style={styles.deviceRemoveBtn}
-                    onPress={() => onRevokeSession(session.id, session.name || 'Unknown device')}
+                    onPress={onRevokeOthers}
                   >
-                    <Icon name="close" size={18} color={colors.outline} />
+                    <Icon name="logout" size={18} color={colors.outline} />
                   </Pressable>
-                )}
-              </View>
-            ))
+                </View>
+              )}
+            </>
           )}
         </View>
       </SectionCard>

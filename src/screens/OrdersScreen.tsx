@@ -13,10 +13,9 @@ import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
 
-type OrderFilter = 'all' | 'active' | 'delivered' | 'cancelled';
+type OrderFilter = 'active' | 'delivered' | 'cancelled';
 
 const FILTERS: { key: OrderFilter; label: string }[] = [
-  { key: 'all', label: 'All Orders' },
   { key: 'active', label: 'Active' },
   { key: 'delivered', label: 'Delivered' },
   { key: 'cancelled', label: 'Cancelled' },
@@ -255,7 +254,7 @@ function InvoiceSection({ order }: { order: ApiOrder }) {
       groups[vendorKey].subtotal += item.total;
     });
     return Object.values(groups);
-  }, [order.items]);
+  }, [order]);
 
   // Calculate total delivery fees
   const totalDelivery = vendorGroups.reduce((sum, g) => sum + g.deliveryFee, 0);
@@ -315,8 +314,8 @@ function InvoiceSection({ order }: { order: ApiOrder }) {
               <View style={styles.tableHeader}>
                 <Text style={[styles.tableHeaderText, { flex: 2 }]}>Item</Text>
                 <Text style={[styles.tableHeaderText, { flex: 0.6, textAlign: 'center' }]}>Qty</Text>
-                <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Unit Price</Text>
-                <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Total</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Unit Price (UGX)</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Total (UGX)</Text>
               </View>
               {/* Table rows */}
               {group.items.map((item, idx) => (
@@ -326,8 +325,8 @@ function InvoiceSection({ order }: { order: ApiOrder }) {
                     {item.sku ? <Text style={styles.tableCellSku}>SKU: {item.sku}</Text> : null}
                   </View>
                   <Text style={[styles.tableCellText, { flex: 0.6, textAlign: 'center' }]}>{item.quantity}</Text>
-                  <Text style={[styles.tableCellText, { flex: 1, textAlign: 'right' }]}>{formatUGX(item.unit_price)}</Text>
-                  <Text style={[styles.tableCellTextBold, { flex: 1, textAlign: 'right' }]}>{formatUGX(item.total)}</Text>
+                  <Text style={[styles.tableCellText, { flex: 1, textAlign: 'right' }]}>{Math.round(item.unit_price).toLocaleString()}</Text>
+                  <Text style={[styles.tableCellTextBold, { flex: 1, textAlign: 'right' }]}>{Math.round(item.total).toLocaleString()}</Text>
                 </View>
               ))}
               {/* Vendor subtotal */}
@@ -416,7 +415,7 @@ export function OrdersScreen() {
   const { goBack, navigate, switchTab } = useNavigation();
   const { itemCount } = useCart();
   const [orders, setOrders] = useState<ApiOrder[]>([]);
-  const [filter, setFilter] = useState<OrderFilter>('all');
+  const [filter, setFilter] = useState<OrderFilter>('active');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -454,7 +453,6 @@ export function OrdersScreen() {
 
   const counts = useMemo(
     () => ({
-      all: orders.length,
       active: orders.filter(o => isActive(o.status)).length,
       delivered: orders.filter(o => isDelivered(o.status)).length,
       cancelled: orders.filter(o => isCancelled(o.status)).length,
@@ -463,9 +461,6 @@ export function OrdersScreen() {
   );
 
   const visibleOrders = useMemo(() => {
-    if (filter === 'all') {
-      return orders;
-    }
     if (filter === 'active') {
       return orders.filter(o => isActive(o.status));
     }
@@ -511,10 +506,6 @@ export function OrdersScreen() {
       <View style={styles.filterSection}>
         <View style={styles.filterTopRow}>
           <Text style={styles.filterEyebrow}>PURCHASE ORDER HISTORY</Text>
-          <Pressable style={styles.filterToggle} onPress={() => setFilter('all')} hitSlop={6}>
-            <Icon name="tune" size={14} color={colors.primary} />
-            <Text style={styles.filterToggleText}>Filter</Text>
-          </Pressable>
         </View>
         <ScrollView
           horizontal
@@ -562,8 +553,8 @@ export function OrdersScreen() {
           icon="receipt-long"
           title="Nothing here"
           subtitle="No orders match this filter."
-          actionLabel="Show All Orders"
-          onAction={() => setFilter('all')}
+          actionLabel="Show Active Orders"
+          onAction={() => setFilter('active')}
         />
       ) : (
         <ScrollView
@@ -1001,8 +992,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryContainer,
     paddingHorizontal: spacing.sm + 2,
     paddingVertical: spacing.sm,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
   },
   vendorHeaderText: {
     ...typography.labelMd,

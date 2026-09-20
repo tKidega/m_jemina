@@ -533,6 +533,16 @@ export async function apiDisableTwoFactor(token: string, password: string): Prom
   });
 }
 
+/** Change the current password; requires current-password confirmation. */
+export async function apiChangePassword(token: string, currentPassword: string, newPassword: string): Promise<string> {
+  const json = await request<{ message?: string }>('/security/change-password', {
+    method: 'POST',
+    token,
+    body: { current_password: currentPassword, new_password: newPassword, new_password_confirmation: newPassword },
+  });
+  return json?.message ?? 'Password updated successfully.';
+}
+
 /* ─── Security: Session Management ──────────────────── */
 
 export async function apiGetSessions(token: string): Promise<ApiSession[]> {

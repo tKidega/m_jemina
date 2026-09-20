@@ -13,7 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppHeader } from '../components/AppHeader';
 import { Icon, IconName } from '../components/Icon';
 import { Button } from '../components/Button';
-import { SpinLoader } from '../components/Loader';
+import { SpinLoader, SectionLoader } from '../components/Loader';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import {
@@ -311,7 +311,7 @@ export function SurveysScreen() {
       <AppHeader title="Surveys & Feedback" showBack onBack={goBack} />
       {loading ? (
         <View style={styles.center}>
-          <Text style={styles.loadingText}>Loading surveys...</Text>
+          <SectionLoader text="Loading surveys..." icon="assignment" />
         </View>
       ) : error ? (
         <View style={styles.center}>

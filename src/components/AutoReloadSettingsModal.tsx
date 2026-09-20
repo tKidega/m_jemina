@@ -4,7 +4,9 @@ import { Icon } from './Icon';
 import { Button } from './Button';
 import { Toast } from './Toast';
 import { useAuth } from '../state/AuthContext';
-import { apiGetPinStatus, apiSetPin, apiVerifyPinDetailed, apiSendOtp, apiVerifyOtp, apiActivateAutoReload, apiResetPin } from '../data/api';
+import { useNavigation } from '../navigation/NavigationContext';
+import { apiGetPinStatus, apiSetPin, apiVerifyPinDetailed, apiSendOtp, apiVerifyOtp, apiActivateAutoReload, apiResetPin, apiGetPaymentMethods } from '../data/api';
+import type { ApiPaymentMethod } from '../data/api';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
@@ -22,11 +24,14 @@ interface Props { visible: boolean; onClose: () => void; onActivated?: () => voi
 
 export function AutoReloadSettingsModal({ visible, onClose, onActivated }: Props) {
   const { token } = useAuth();
+  const { navigate } = useNavigation();
   const [step, setStep] = useState<Step>('settings');
   const [enabled, setEnabled] = useState(true);
   const [threshold, setThreshold] = useState(100000);
   const [topupIdx, setTopupIdx] = useState(1);
   const [rail, setRail] = useState<'mtn' | 'airtel'>('mtn');
+  const [paymentMethods, setPaymentMethods] = useState<ApiPaymentMethod[]>([]);
+  const [defaultMethod, setDefaultMethod] = useState<ApiPaymentMethod | null>(null);
   const [pin, setPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [otp, setOtp] = useState('');
@@ -79,7 +84,7 @@ export function AutoReloadSettingsModal({ visible, onClose, onActivated }: Props
     }, 1000);
   };
 
-  const checkPinStatus = async () => {
+const checkPinStatus = async () => {
     if (!token) return;
     try {
       const status = await apiGetPinStatus(token);
@@ -87,13 +92,42 @@ export function AutoReloadSettingsModal({ visible, onClose, onActivated }: Props
       if (status.pin_lockout) {
         setStep('lockout');
         startLockCountdown(status.pin_lockout_remaining_seconds || 3600);
-      } else {
       }
     } catch { /* ignore */ }
   };
 
+  const loadPaymentMethods = async () => {
+    if (!token) return;
+    try {
+      const methods = await apiGetPaymentMethods(token);
+      setPaymentMethods(methods);
+      setDefaultMethod(methods.find(m => m.is_default) ?? methods[0] ?? null);
+    } catch { /* ignore */ }
+  };
+
+  const railFromMethod = (m: ApiPaymentMethod): 'mtn' | 'airtel' | null => {
+    const p = (m.provider || '').toLowerCase();
+    if (p === 'mtn' || p === 'mtn_mo_mo' || p === 'mtn_mobile_money') return 'mtn';
+    if (p === 'airtel' || p === 'airtel_money') return 'airtel';
+    return null;
+  };
+
+  // Rail options derived from the user's saved payment methods (mobile money),
+  // falling back to the hardcoded defaults.
+  const railOptions: { rail: 'mtn' | 'airtel'; name: string; phone: string; provided: boolean }[] = (() => {
+    const map = new Map<'mtn' | 'airtel', string>();
+    paymentMethods.forEach(m => {
+      const r = railFromMethod(m);
+      if (r && m.account_number) map.set(r, m.account_number);
+    });
+    return [
+      { rail: 'mtn', name: 'MTN MoMo', phone: map.get('mtn') ?? '+256 772 *** 891', provided: map.has('mtn') },
+      { rail: 'airtel', name: 'Airtel Money', phone: map.get('airtel') ?? '+256 754 *** 440', provided: map.has('airtel') },
+    ];
+  })();
+
   useEffect(() => {
-    if (visible) checkPinStatus();
+    if (visible) { checkPinStatus(); loadPaymentMethods(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
@@ -279,18 +313,25 @@ export function AutoReloadSettingsModal({ visible, onClose, onActivated }: Props
                   ))}
                 </View>
 
-                <View><Text style={s.secLbl}>Charge payment rail</Text>
-                  <Pressable style={[s.railCard, rail === 'mtn' && s.railOn]} onPress={() => setRail('mtn')}>
-                    <View style={[s.railRadio, rail === 'mtn' && s.railRadioOn]}>{rail === 'mtn' && <View style={s.railDot} />}</View>
-                    <View style={{ flex: 1 }}><View style={s.railRow}><Text style={s.railName}>MTN MoMo</Text><View style={s.fastBadge}><Text style={s.fastTxt}>Fastest</Text></View></View>
-                      <Text style={s.railPhone}>+256 772 *** 891 (Uganda)</Text></View>
-                    <Icon name="smartphone" size={18} color={colors.outline} />
-                  </Pressable>
-                  <Pressable style={s.railCard} onPress={() => setRail('airtel')}>
-                    <View style={[s.railRadio, rail === 'airtel' && s.railRadioOn]}>{rail === 'airtel' && <View style={s.railDot} />}</View>
-                    <View style={{ flex: 1 }}><Text style={s.railName}>Airtel Money</Text><Text style={s.railPhone}>+256 754 *** 440</Text></View>
-                    <Icon name="smartphone" size={18} color={colors.outlineVariant} />
-                  </Pressable>
+<View><Text style={s.secLbl}>Charge payment rail</Text>
+                  {railOptions.map(op => (
+                    <Pressable key={op.rail} style={[s.railCard, rail === op.rail && s.railOn]} onPress={() => setRail(op.rail)}>
+                      <View style={[s.railRadio, rail === op.rail && s.railRadioOn]}>{rail === op.rail && <View style={s.railDot} />}</View>
+                      <View style={{ flex: 1 }}><View style={s.railRow}><Text style={s.railName}>{op.name}</Text>
+                        {op.rail === 'mtn' && <View style={s.fastBadge}><Text style={s.fastTxt}>Fastest</Text></View>}
+                        {op.provided && <View style={s.savedBadge}><Text style={s.savedTxt}>Saved</Text></View>}
+                      </View>
+                        <Text style={s.railPhone}>{op.phone} {op.provided ? '(Uganda)' : ''}</Text></View>
+                      <Icon name="smartphone" size={18} color={rail === op.rail ? colors.primaryContainer : colors.outline} />
+                    </Pressable>
+                  ))}
+                  {defaultMethod ? (
+                    <Pressable style={s.manageRailBtn} onPress={() => { close(); navigate('PaymentMethods' as never); }}>
+                      <Icon name="settings" size={15} color={colors.secondary} />
+                      <Text style={s.manageRailTxt}>Manage Payment Methods in Account Settings</Text>
+                      <Icon name="chevron-right" size={16} color={colors.outline} />
+                    </Pressable>
+                  ) : null}
                 </View>
 
                 <View style={s.compCard}><Icon name="verified-user" size={18} color={colors.secondary} />
@@ -605,8 +646,12 @@ const s = StyleSheet.create({
   railDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.onPrimary },
   railRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   railName: { ...typography.labelLg, color: colors.onSurface, fontWeight: '700' },
-  fastBadge: { backgroundColor: '#ffcc0033', borderRadius: radius.sm, paddingHorizontal: 6, paddingVertical: 1 },
+fastBadge: { backgroundColor: '#ffcc0033', borderRadius: radius.sm, paddingHorizontal: 6, paddingVertical: 1 },
   fastTxt: { ...typography.labelSm, color: '#7a5900', fontWeight: '700', fontSize: 10 },
+  savedBadge: { backgroundColor: '#1b4332', borderRadius: radius.sm, paddingHorizontal: 6, paddingVertical: 1, marginLeft: 4 },
+  savedTxt: { ...typography.labelSm, color: '#d8f3dc', fontWeight: '700', fontSize: 10 },
+  manageRailBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: spacing.sm, marginTop: 2 },
+  manageRailTxt: { ...typography.labelMd, color: colors.secondary, fontWeight: '600', flex: 1 },
   railPhone: { ...typography.bodySm, color: colors.onSurfaceVariant, fontFamily: 'monospace', fontSize: 11 },
   compCard: { flexDirection: 'row', gap: spacing.sm, backgroundColor: colors.surfaceContainerLow, borderRadius: radius.lg, padding: spacing.sm + 2 },
   compTxt: { ...typography.bodySm, color: colors.outline, flex: 1, lineHeight: 16 },
