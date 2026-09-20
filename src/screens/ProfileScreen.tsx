@@ -26,10 +26,11 @@ interface MenuRow {
 
 const MENU_ITEMS: MenuRow[] = [
   { icon: 'receipt-long', label: 'Orders & Purchase History', route: 'Orders' },
+  { icon: 'chat', label: 'Messages & Inbox', sub: 'Order updates & support replies', route: 'Messages' },
+  { icon: 'rate-review', label: 'Product Reviews & Ratings', sub: 'Earn credits on reviews', route: 'MyReviews' },
   { icon: 'request-quote', label: 'Wholesale Inquiries & RFQs', sub: 'B2B corporate quotes', route: 'MyInquiries' },
   { icon: 'favorite', label: 'Wishlist & Coupons', sub: 'Saved products & promo codes', route: 'Wishlist' },
   { icon: 'manage-accounts', label: 'Account Settings & Security', route: 'AccountSettings' },
-  { icon: 'rate-review', label: 'Surveys & Feedback', route: 'Surveys' },
   { icon: 'support-agent', label: 'Help & Support', sub: 'WhatsApp / Call', route: 'HelpCenter' },
 ];
 

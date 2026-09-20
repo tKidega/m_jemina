@@ -278,6 +278,10 @@ export interface ApiUser {
   timezone?: string | null;
   email_verified_at?: string | null;
   created_at?: string | null;
+  updated_at?: string | null;
+  password_changed_at?: string | null;
+  pin_gate_enabled?: boolean;
+  jemina_pin_set?: boolean;
 }
 
 export interface ApiCartItem {
@@ -1575,6 +1579,8 @@ export interface ApiPinStatus {
   pin_failed_attempts: number;
   pin_lockout: boolean;
   pin_lockout_remaining_seconds: number;
+  pin_gate_enabled: boolean;
+  password_changed_at: string | null;
   auto_reload_enabled: boolean;
   auto_reload_paused_due_to_lockout: boolean;
   auto_reload_settings: {
@@ -1677,6 +1683,16 @@ export async function apiResetPin(token: string, otp: string, newPin: string): P
     body: { otp, new_pin: newPin },
   });
   return ((json?.data ?? json) as unknown) as ApiPinResetResult;
+}
+
+/** Toggle extra PIN security — require the JEMINA PIN to open Cart / Account screens. */
+export async function apiSetPinGate(token: string, enabled: boolean): Promise<{ pin_gate_enabled: boolean }> {
+  const json = await request<ApiEnvelope<{ pin_gate_enabled: boolean }>>('/pin/gate', {
+    method: 'POST',
+    token,
+    body: { enabled },
+  });
+  return ((json?.data ?? json) as unknown) as { pin_gate_enabled: boolean };
 }
 
 export async function apiActivateAutoReload(token: string, payload: {

@@ -16,6 +16,7 @@ import {
 } from './src/lib/notifications';
 import { Sidebar } from './src/components/Sidebar';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { PinProtectedScreen } from './src/components/PinProtectedScreen';
 import { MarketplaceScreen } from './src/screens/MarketplaceScreen';
 import { ProductDetailsScreen } from './src/screens/ProductDetailsScreen';
 import { ProductInquiryScreen } from './src/screens/ProductInquiryScreen';
@@ -106,7 +107,11 @@ function Router() {
     return <FeaturedVendorsScreen />;
   }
   if (route === 'EditProfile' || route === 'AccountSettings') {
-    return <AccountSettingsScreen initialTab="security" />;
+    return (
+      <PinProtectedScreen gateKey="account" label="Account">
+        <AccountSettingsScreen initialTab="security" />
+      </PinProtectedScreen>
+    );
   }
   if (route === 'AddressBook') {
     return <AccountSettingsScreen initialTab="logistics" />;
@@ -151,10 +156,18 @@ function Router() {
     return <RegisterScreen />;
   }
   if (tab === 'Cart') {
-    return <CartScreen />;
+    return (
+      <PinProtectedScreen gateKey="cart" label="Cart">
+        <CartScreen />
+      </PinProtectedScreen>
+    );
   }
   if (tab === 'Profile') {
-    return <ProfileScreen />;
+    return (
+      <PinProtectedScreen gateKey="account" label="Account">
+        <ProfileScreen />
+      </PinProtectedScreen>
+    );
   }
   if (route === 'Marketplace' || tab === 'Marketplace') {
     return <MarketplaceScreen />;

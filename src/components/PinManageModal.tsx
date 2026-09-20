@@ -127,7 +127,7 @@ export function PinManageModal({ visible, onClose }: Props) {
                     <Text style={s.statusTitle}>{pinSet ? 'Trade PIN Active' : 'No Trade PIN Set'}</Text>
                     <Text style={s.statusSub}>
                       {pinSet
-                        ? (pinSetAt ? `Created ${new Date(pinSetAt).toLocaleDateString()} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â protects escrow & auto-reload authorizations.` : 'Protects escrow & auto-reload authorizations.')
+                        ? (pinSetAt ? `Created ${new Date(pinSetAt).toLocaleDateString()} — protects escrow & auto-reload authorizations.` : 'Protects escrow & auto-reload authorizations.')
                         : 'A 4-digit PIN secures escrow, auto-reload and sensitive account actions.'}
                     </Text>
                   </View>
@@ -136,7 +136,7 @@ export function PinManageModal({ visible, onClose }: Props) {
                 {lockout && (
                   <View style={s.errBox}>
                     <Icon name="lock-clock" size={16} color={colors.statusFlash} />
-                    <Text style={s.errTxt}>Security lockout active ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â PIN entry disabled for 20 minutes.</Text>
+                    <Text style={s.errTxt}>Security lockout active — PIN entry disabled for 20 minutes.</Text>
                   </View>
                 )}
 
@@ -153,12 +153,23 @@ export function PinManageModal({ visible, onClose }: Props) {
 
             {step === 'set' && (
               <>
-                <Text style={s.desc}>Enter a 4-digit trade PIN. Keep it private ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â it authorizes escrow and auto-reload mandates.</Text>
+                <Text style={s.desc}>Enter a 4-digit trade PIN. Keep it private — it authorizes escrow and auto-reload mandates.</Text>
                 {dots(newPin)}
                 <Text style={s.fieldLbl}>New PIN</Text>
                 {dots(confirm)}
                 <Text style={s.fieldLbl}>Confirm PIN</Text>
                 {err ? <View style={s.errBox}><Icon name="error-outline" size={16} color={colors.statusFlash} /><Text style={s.errTxt}>{err}</Text></View> : null}
+                {keypad(
+                  d => {
+                    if (newPin.length < MAX_LEN) setNewPin(p => p + d);
+                    else if (confirm.length < MAX_LEN) setConfirm(p => p + d);
+                  },
+                  () => {
+                    if (confirm.length > 0) setConfirm(p => p.slice(0, -1));
+                    else setNewPin(p => p.slice(0, -1));
+                  },
+                  loading,
+                )}
                 <View style={s.row}>
                   <Pressable style={s.miniBtn} onPress={backToStatus}><Text style={s.miniTxt}>Back</Text></Pressable>
                   <Button label={loading ? 'Saving...' : 'Save PIN'} variant="primary" icon="lock" style={{ flex: 3 }} onPress={() => savePin(false)} disabled={loading || newPin.length !== MAX_LEN || confirm.length !== MAX_LEN} />

@@ -26,6 +26,8 @@ import {
   apiDisableTwoFactor,
   apiGetSessions,
   apiRevokeOtherSessions,
+  apiGetPinStatus,
+  apiSetPinGate,
   absoluteUrl,
 } from '../data/api';
 import type { ApiUser, ApiSession } from '../data/api';
@@ -134,6 +136,12 @@ export function AccountSettingsScreen({
   const [deviceName, setDeviceName] = useState('Android Device');
   const [refreshing, setRefreshing] = useState(false);
 
+  // JEMINA PIN state
+  const [pinSet, setPinSet] = useState(false);
+  const [pinGate, setPinGate] = useState(false);
+  const [pinGateSaving, setPinGateSaving] = useState(false);
+  const [passwordChangedAt, setPasswordChangedAt] = useState<string | null>(null);
+
   // Preferences
   const [smsTracking, setSmsTracking] = useState(true);
   const [priceAlerts, setPriceAlerts] = useState(true);
@@ -143,6 +151,7 @@ export function AccountSettingsScreen({
       try {
         const p = await apiGetProfile(token);
         setProfile(p);
+        setPasswordChangedAt(p?.password_changed_at ?? p?.updated_at ?? null);
       } catch { /* ignore */ }
     }
   }, [token]);
@@ -150,14 +159,20 @@ export function AccountSettingsScreen({
   const loadSecurityData = useCallback(async () => {
     if (!token) return;
     try {
-      const [status, sessionList] = await Promise.all([
+      const [status, sessionList, pin] = await Promise.all([
         apiGetTwoFactorStatus(token),
         apiGetSessions(token),
+        apiGetPinStatus(token).catch(() => null),
       ]);
       setTwoFa(status.enabled);
       setSessions(sessionList);
+      if (pin) {
+        setPinSet(!!pin.pin_set);
+        setPinGate(!!pin.pin_gate_enabled);
+        setPasswordChangedAt(pin.password_changed_at ?? passwordChangedAt);
+      }
     } catch { /* ignore — defaults remain */ }
-  }, [token]);
+  }, [token, passwordChangedAt]);
 
   const loadDeviceInfo = useCallback(async () => {
     const name = await getDeviceModel();
@@ -287,6 +302,26 @@ export function AccountSettingsScreen({
       },
     ]);
   }, [token]);
+
+  const handleTogglePinGate = useCallback(async () => {
+    if (!token || !pinSet) return;
+    setPinGateSaving(true);
+    try {
+      const next = !pinGate;
+      const res = await apiSetPinGate(token, next);
+      setPinGate(!!res.pin_gate_enabled);
+      Alert.alert(
+        next ? 'Screen-lock PIN enabled' : 'Screen-lock PIN disabled',
+        next
+          ? 'Your JEMINA PIN is now required to open Cart and Account screens.'
+          : 'Cart and Account screens are no longer PIN-gated.',
+      );
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Could not update PIN security.');
+    } finally {
+      setPinGateSaving(false);
+    }
+  }, [token, pinSet, pinGate]);
 
   const photoUrl = profile?.photo
     ? absoluteUrl(profile.photo) ?? profile.photo
@@ -441,6 +476,11 @@ export function AccountSettingsScreen({
               onRevokeOthers={handleRevokeOthers}
               onChangePassword={() => setShowChangePassword(true)}
               onManagePin={() => setShowPinManage(true)}
+              passwordChangedAt={passwordChangedAt}
+              pinSet={pinSet}
+              pinGate={pinGate}
+              onTogglePinGate={handleTogglePinGate}
+              pinGateSaving={pinGateSaving}
             />
           </ScrollView>
         ) : tab === 'payments' ? (
@@ -497,7 +537,7 @@ export function AccountSettingsScreen({
       />
       <PinManageModal
         visible={showPinManage}
-        onClose={() => setShowPinManage(false)}
+        onClose={() => { setShowPinManage(false); loadSecurityData(); }}
       />
     </View>
   );
@@ -614,6 +654,11 @@ function SecurityTab({
   onRevokeOthers,
   onChangePassword,
   onManagePin,
+  passwordChangedAt,
+  pinSet,
+  pinGate,
+  onTogglePinGate,
+  pinGateSaving,
 }: {
   twoFa: boolean;
   twoFaLoading: boolean;
@@ -628,6 +673,11 @@ function SecurityTab({
   onRevokeOthers: () => void;
   onChangePassword: () => void;
   onManagePin: () => void;
+  passwordChangedAt: string | null;
+  pinSet: boolean;
+  pinGate: boolean;
+  onTogglePinGate: () => void;
+  pinGateSaving: boolean;
 }) {
   return (
     <View style={styles.tabContent}>
@@ -666,7 +716,11 @@ function SecurityTab({
         <View style={styles.passwordRow}>
           <View>
             <Text style={styles.toggleLabel}>Account Password</Text>
-            <Text style={styles.toggleSub}>Verify your current password to set a new one</Text>
+            <Text style={styles.toggleSub}>
+              {passwordChangedAt
+                ? `Last changed ${new Date(passwordChangedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`
+                : 'Never changed'}
+            </Text>
           </View>
           <Pressable
             style={styles.updateBtn}
@@ -678,18 +732,36 @@ function SecurityTab({
 
         <Sep />
 
-        {/* JEMINA Trade PIN */}
+        {/* JEMINA PIN */}
         <View style={styles.passwordRow}>
-          <View>
-            <Text style={styles.toggleLabel}>JEMINA Trade PIN</Text>
-            <Text style={styles.toggleSub}>Escrow & auto-reload authorizations</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.toggleLabel}>Jemina Pin</Text>
+            <Text style={styles.toggleSub}>{pinSet ? 'PIN is set' : 'PIN not set — set a 4-digit PIN to lock escrow & auto-reload'}</Text>
           </View>
           <Pressable
             style={styles.updateBtn}
             onPress={onManagePin}
           >
-            <Text style={styles.updateBtnText}>Manage</Text>
+            <Text style={styles.updateBtnText}>{pinSet ? 'Manage' : 'Set'}</Text>
           </Pressable>
+        </View>
+
+        <Sep />
+
+        {/* PIN Gate — require PIN for Cart / Account */}
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleRowBody}>
+            <View style={styles.toggleLabelRow}>
+              <Icon name="lock-clock" size={18} color={colors.primary} />
+              <Text style={styles.toggleLabel}>Extra data security</Text>
+            </View>
+            <Text style={styles.toggleSub}>
+              {pinSet
+                ? 'Require your JEMINA PIN to open the Cart and Account screens'
+                : 'Set your JEMINA PIN first to enable screen-lock security'}
+            </Text>
+          </View>
+          <Toggle value={pinGate} onValueChange={onTogglePinGate} disabled={!pinSet || pinGateSaving} />
         </View>
 
         <Sep />
