@@ -308,18 +308,82 @@ export function VendorActionsScreen() {
   }
 
   if (journey.has_vendor || registered) {
+    const currentPlan = 'Starter';
+    const upgradePlans = [
+      { key: 'professional', name: 'Pro', tagline: 'Up to 300 products · Sales analytics · Priority support', color: '#1a1f71' },
+      { key: 'corporate', name: 'Corporate', tagline: 'Multi-store · Bulk RFQs · Dedicated account manager', color: '#7c3aed' },
+      { key: 'enterprise', name: 'Enterprise', tagline: 'Unlimited listings · APIs · Custom logistics & escrow', color: '#059669' },
+    ];
     return (
       <View style={styles.root}>
         <AppHeader title="Trader Signup" showBack onBack={goBack} />
-        <View style={styles.center}>
-          <Icon name="check-circle" size={56} color={colors.statusSuccess} />
-          <Text style={styles.centerTitle}>Vendor account created</Text>
-          <Text style={styles.centerSub}>
-            {status?.vendor?.shop_name
-              ? `Your store "${status.vendor.shop_name}" is active on JEMINA.`
-              : 'Your vendor account has been created successfully.'}
-          </Text>
-        </View>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Success hero */}
+          <View style={styles.successHero}>
+            <View style={styles.successIconWrap}>
+              <Icon name="check-circle" size={44} color={colors.statusSuccess} />
+            </View>
+            <Text style={styles.successTitle}>Vendor Account Created</Text>
+            <Text style={styles.successSub}>
+              {status?.vendor?.shop_name
+                ? `Your store "${status.vendor.shop_name}" is active on JEMINA and ready for review.`
+                : 'Your vendor account has been created successfully.'}
+            </Text>
+
+            {/* Subscribed package */}
+            <View style={styles.planBadge}>
+              <View style={styles.planBadgeLeft}>
+                <Icon name="star" size={16} color={colors.secondary} />
+                <Text style={styles.planBadgeLabel}>Current plan</Text>
+              </View>
+              <Text style={styles.planBadgeValue}>{currentPlan}</Text>
+            </View>
+          </View>
+
+          {/* What happens next */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionCardTitle}>What happens next</Text>
+            {[
+              { t: 'Vendor review', d: 'Our team reviews your store within 24–36 hours.' },
+              { t: 'Account upgrade', d: 'Your account is upgraded to vendor status and your dashboard unlocks.' },
+              { t: 'Escrow & trading', d: 'Your trade PIN and escrow wallet are ready for verified deals.' },
+              { t: 'Start trading', d: 'List products and accept orders once your store is approved.' },
+            ].map((s, i) => (
+              <View key={s.t} style={styles.nextRow}>
+                <View style={styles.nextDot}>
+                  <Text style={styles.nextDotText}>{i + 1}</Text>
+                </View>
+                <View style={styles.nextBody}>
+                  <Text style={styles.nextTitle}>{s.t}</Text>
+                  <Text style={styles.nextDesc}>{s.d}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+
+          {/* Upgrade packages carousel */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionCardTitle}>Available upgrades</Text>
+            <Text style={styles.sectionCardSub}>
+              Grow beyond Starter when your store is approved.
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.upgradeRow}>
+              {upgradePlans.map(plan => (
+                <View key={plan.key} style={[styles.planCard, { borderTopColor: plan.color }]}>
+                  <Text style={[styles.planCardName, { color: plan.color }]}>{plan.name}</Text>
+                  <Text style={styles.planCardTag}>{plan.tagline}</Text>
+                  <View style={[styles.planCta, { backgroundColor: `${plan.color}1a` }]}>
+                    <Text style={[styles.planCtaText, { color: plan.color }]}>Coming soon</Text>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </ScrollView>
       </View>
     );
   }
@@ -731,6 +795,100 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: spacing.sm,
   },
+
+  /* Success summary */
+  successHero: {
+    alignItems: 'center',
+    paddingVertical: spacing.lg + 4,
+    paddingHorizontal: spacing.lg,
+  },
+  successIconWrap: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: `${colors.statusSuccess}1a`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  successTitle: {
+    ...typography.headlineLg,
+    color: colors.onSurface,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  successSub: {
+    ...typography.bodyMd,
+    color: colors.onSurfaceVariant,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+    lineHeight: 20,
+    paddingHorizontal: spacing.sm,
+  },
+  planBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.lg,
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.full,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.lg,
+  },
+  planBadgeLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  planBadgeLabel: { ...typography.bodySm, color: colors.onSurfaceVariant },
+  planBadgeValue: {
+    ...typography.labelMd,
+    color: colors.secondary,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+  },
+  sectionCard: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  sectionCardTitle: { ...typography.headlineSm, color: colors.onSurface, fontWeight: '700' },
+  sectionCardSub: { ...typography.bodySm, color: colors.onSurfaceVariant, marginTop: 4, lineHeight: 18 },
+  nextRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, marginTop: spacing.lg },
+  nextDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.secondaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  nextDotText: { ...typography.labelSm, color: colors.onSecondary, fontWeight: '700' },
+  nextBody: { flex: 1 },
+  nextTitle: { ...typography.labelMd, color: colors.onSurface, fontWeight: '700' },
+  nextDesc: { ...typography.bodySm, color: colors.onSurfaceVariant, marginTop: 2, lineHeight: 18 },
+  upgradeRow: { gap: spacing.sm, paddingTop: spacing.md },
+  planCard: {
+    width: 200,
+    borderWidth: 1,
+    borderTopWidth: 3,
+    borderColor: colors.borderLight,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  planCardName: { ...typography.headlineSm, fontWeight: '700', marginBottom: 4 },
+  planCardTag: { ...typography.bodySm, color: colors.onSurfaceVariant, lineHeight: 18, minHeight: 54 },
+  planCta: {
+    alignSelf: 'flex-start',
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 6,
+    marginTop: spacing.sm,
+  },
+  planCtaText: { ...typography.labelSm, fontWeight: '700' },
   centerBtn: {
     width: '100%',
     marginTop: spacing.lg,

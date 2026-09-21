@@ -332,6 +332,10 @@ export function CheckoutScreen() {
         notes: notes || undefined,
         voucher_code: voucherCode || undefined,
         discount_amount: voucherDiscount || undefined,
+        pickup_point_id:
+          fulfilment === 'pickup' && selectedPickupPoint.id !== 'jemina-point'
+            ? Number(selectedPickupPoint.id)
+            : undefined,
         pickup_point:
           fulfilment === 'pickup'
             ? { name: selectedPickupPoint.name, location: selectedPickupPoint.location }

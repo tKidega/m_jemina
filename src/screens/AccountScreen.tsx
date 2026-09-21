@@ -5,6 +5,7 @@ import { AppHeader, HeaderActions } from '../components/AppHeader';
 import { BottomNav } from '../components/BottomNav';
 import { Icon, IconName } from '../components/Icon';
 import { Button } from '../components/Button';
+import { BuyCreditsModal } from '../components/BuyCreditsModal';
 import { useAuth } from '../state/AuthContext';
 import { useCart } from '../state/CartContext';
 import { useNavigation } from '../navigation/NavigationContext';
@@ -27,18 +28,19 @@ interface MenuRow {
 const MENU_ITEMS: MenuRow[] = [
   { icon: 'receipt-long', label: 'Orders & Purchase History', route: 'Orders' },
   { icon: 'chat', label: 'Messages & Inbox', sub: 'Order updates & support replies', route: 'Messages' },
-  { icon: 'rate-review', label: 'Product Reviews & Ratings', sub: 'Earn credits on reviews', route: 'MyReviews' },
+  { icon: 'rate-review', label: 'Ratings & Reviews', sub: 'Earn credits on reviews', route: 'MyReviews' },
   { icon: 'request-quote', label: 'Wholesale Inquiries & RFQs', sub: 'B2B corporate quotes', route: 'MyInquiries' },
   { icon: 'favorite', label: 'Wishlist & Coupons', sub: 'Saved products & promo codes', route: 'Wishlist' },
-  { icon: 'manage-accounts', label: 'Account Settings & Security', route: 'AccountSettings' },
-  { icon: 'support-agent', label: 'Help & Support', sub: 'WhatsApp / Call', route: 'HelpCenter' },
+  { icon: 'manage-accounts', label: 'Settings & Security', route: 'AccountSettings' },
+  { icon: 'support-agent', label: 'Help & Support', sub: 'Chatbot / FAQ', route: 'HelpCenter' },
 ];
 
-export function ProfileScreen() {
+export function AccountScreen() {
   const { user, token, isAuthenticated, logout } = useAuth();
   const { itemCount } = useCart();
   const { navigate } = useNavigation();
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const [showBuyCredits, setShowBuyCredits] = useState(false);
   const [defaultAddress, setDefaultAddress] = useState<ApiAddress | null>(null);
   const [profile, setProfile] = useState<ApiUser | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -231,7 +233,7 @@ export function ProfileScreen() {
                 <Text style={styles.creditLabel}>JEMINA Credits Balance</Text>
                 <Text style={styles.creditValue}>{formatUGX(creditBalance)}</Text>
               </View>
-              <Pressable style={styles.topUpBtn} onPress={() => navigate('BuyCredits')}>
+              <Pressable style={styles.topUpBtn} onPress={() => setShowBuyCredits(true)}>
                 <Icon name="add-circle" size={18} color={colors.onSecondaryContainer} />
                 <Text style={styles.topUpText}>Top Up</Text>
               </Pressable>
@@ -323,6 +325,10 @@ export function ProfileScreen() {
         </View>
       </ScrollView>
       <BottomNav />
+      <BuyCreditsModal
+        visible={showBuyCredits}
+        onClose={() => setShowBuyCredits(false)}
+      />
     </View>
   );
 }

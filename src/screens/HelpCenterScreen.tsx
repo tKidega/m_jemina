@@ -326,7 +326,7 @@ export function HelpCenterScreen() {
           {([
             { key: 'tickets' as Tab, label: 'Support Tickets', count: tickets.length },
             { key: 'chatbot' as Tab, label: 'AI Chatbot', count: null },
-            { key: 'faq' as Tab, label: 'FAQ & Knowledge', count: null },
+            { key: 'faq' as Tab, label: 'FAQ', count: null },
           ]).map(tab => (
             <Pressable
               key={tab.key}
@@ -377,7 +377,9 @@ export function HelpCenterScreen() {
             </View>
 
             {loading ? (
-              <SectionLoader text="Loading tickets..." icon="support-agent" />
+              <View style={styles.ticketsLoading}>
+                <SectionLoader text="Loading tickets..." icon="support-agent" />
+              </View>
             ) : error ? (
               <View style={styles.center}>
                 <Icon name="error-outline" size={40} color={colors.outline} />
@@ -675,6 +677,13 @@ const styles = StyleSheet.create({
   center: {
     alignItems: 'center',
     paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    justifyContent: 'center',
+  },
+  ticketsLoading: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xl * 2,
     paddingHorizontal: spacing.lg,
   },
   loadingText: {

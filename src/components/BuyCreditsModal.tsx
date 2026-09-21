@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, 
 import { Icon, IconName } from './Icon';
 import { Button } from './Button';
 import { useAuth } from '../state/AuthContext';
-import { apiInitiatePayment, apiGetPaymentStatus, apiGetCreditBalance, ApiPaymentResult, ApiPaymentStatus } from '../data/api';
+import { apiInitiatePayment, apiGetPaymentStatus, apiGetCreditBalance, apiGetAcceptedPaymentMethods, ApiAcceptedPaymentMethod, ApiPaymentResult, ApiPaymentStatus } from '../data/api';
 import { formatUGX } from './ProductCard';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -11,12 +11,11 @@ import { spacing, radius } from '../theme/spacing';
 
 const AMOUNTS = [50000, 100000, 250000, 500000, 1000000];
 
-const GATEWAYS: { id: string; api: string; label: string; icon: IconName; color: string }[] = [
-  { id: 'mtn', api: 'mtn_mobile_money', label: 'MTN MoMo', icon: 'smartphone', color: '#ffcc00' },
-  { id: 'stripe', api: 'stripe', label: 'Card Payment', icon: 'credit-card', color: '#1a1f71' },
-  { id: 'flutterwave', api: 'flutterwave', label: 'Flutterwave', icon: 'account-balance-wallet', color: '#f5a623' },
-  { id: 'bitcoin', api: 'bitcoin', label: 'Bitcoin', icon: 'currency-bitcoin', color: '#f7931a' },
-];
+const METHOD_META: Record<string, { icon: IconName; color: string }> = {
+  mobile_money: { icon: 'smartphone', color: '#ffcc00' },
+  card: { icon: 'credit-card', color: '#1a1f71' },
+  bitcoin: { icon: 'currency-bitcoin', color: '#f7931a' },
+};
 
 interface Props {
   visible: boolean;
@@ -28,13 +27,24 @@ interface Props {
 export function BuyCreditsModal({ visible, onClose, onPurchased, initialAmount }: Props) {
   const { token } = useAuth();
   const [amount, setAmount] = useState<number>(AMOUNTS[1]);
-  const [gateway, setGateway] = useState(GATEWAYS[0]);
+  const [methods, setMethods] = useState<ApiAcceptedPaymentMethod[]>([]);
+  const [gateway, setGateway] = useState<ApiAcceptedPaymentMethod | null>(null);
   const [result, setResult] = useState<ApiPaymentResult | null>(null);
   const [status, setStatus] = useState<ApiPaymentStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const loadMethods = useCallback(async () => {
+    try {
+      const list = await apiGetAcceptedPaymentMethods();
+      setMethods(list);
+      setGateway(current => current ?? list[0] ?? null);
+    } catch {
+      setError('Could not load payment methods.');
+    }
+  }, []);
 
   const loadBalance = useCallback(async () => {
     if (!token) return;
@@ -44,13 +54,13 @@ export function BuyCreditsModal({ visible, onClose, onPurchased, initialAmount }
   useEffect(() => {
     if (visible) {
       loadBalance();
+      loadMethods();
       setResult(null);
       setStatus(null);
       setError(null);
       setAmount(initialAmount ?? AMOUNTS[1]);
-      setGateway(GATEWAYS[0]);
     }
-  }, [visible, loadBalance, initialAmount]);
+  }, [visible, loadBalance, loadMethods, initialAmount]);
 
   useEffect(() => {
     if (!result?.transaction_id || !token) return;
@@ -70,13 +80,14 @@ export function BuyCreditsModal({ visible, onClose, onPurchased, initialAmount }
 
   const initiate = useCallback(async () => {
     if (!token) { setError('Sign in to buy credits.'); return; }
+    if (!gateway) { setError('Select a payment method.'); return; }
     setError(null);
     setLoading(true);
     try {
       const res = await apiInitiatePayment(token, {
-        gateway: gateway.api,
+        gateway: gateway.gateways?.[0] ?? gateway.key,
         amount,
-        currency: gateway.api === 'bitcoin' ? 'BTC' : 'UGX',
+        currency: gateway.currencies?.[0] ?? (gateway.key === 'bitcoin' ? 'BTC' : 'UGX'),
         description: 'Purchase JEMINA Credits',
         metadata: { type: 'credit_purchase' },
       });
@@ -147,23 +158,31 @@ export function BuyCreditsModal({ visible, onClose, onPurchased, initialAmount }
 
                 {/* Payment Methods */}
                 <Text style={styles.sectionLabel}>Payment Method</Text>
-                {GATEWAYS.map(g => (
-                  <Pressable
-                    key={g.id}
-                    style={[styles.gatewayRow, gateway.id === g.id && styles.gatewayRowActive]}
-                    onPress={() => setGateway(g)}
-                  >
-                    <View style={[styles.gatewayIcon, { backgroundColor: `${g.color}1a` }]}>
-                      <Icon name={g.icon} size={20} color={g.color} />
-                    </View>
-                    <Text style={[styles.gatewayLabel, gateway.id === g.id && styles.gatewayLabelActive]}>
-                      {g.label}
-                    </Text>
-                    <View style={[styles.radio, gateway.id === g.id && styles.radioActive]}>
-                      {gateway.id === g.id && <View style={styles.radioDot} />}
-                    </View>
-                  </Pressable>
-                ))}
+                {methods.length === 0 ? (
+                  <Text style={styles.gatewayLabel}>Loading payment methods...</Text>
+                ) : (
+                  methods.map(m => {
+                    const meta = METHOD_META[m.key] ?? { icon: 'account-balance-wallet' as IconName, color: colors.secondary };
+                    const active = gateway?.key === m.key;
+                    return (
+                      <Pressable
+                        key={m.key}
+                        style={[styles.gatewayRow, active && styles.gatewayRowActive]}
+                        onPress={() => setGateway(m)}
+                      >
+                        <View style={[styles.gatewayIcon, { backgroundColor: `${meta.color}1a` }]}>
+                          <Icon name={meta.icon} size={20} color={meta.color} />
+                        </View>
+                        <Text style={[styles.gatewayLabel, active && styles.gatewayLabelActive]}>
+                          {m.label}
+                        </Text>
+                        <View style={[styles.radio, active && styles.radioActive]}>
+                          {active && <View style={styles.radioDot} />}
+                        </View>
+                      </Pressable>
+                    );
+                  })
+                )}
 
                 {/* Summary */}
                 <View style={styles.summaryCard}>

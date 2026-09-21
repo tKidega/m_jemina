@@ -122,6 +122,21 @@ function OrderCard({ order, token }: { order: ApiOrder; token?: string | null })
             </Text>
           </View>
         </View>
+        {order.fulfilment === 'pickup' ? (
+          <View style={styles.fulfilRow}>
+            <Icon name="storefront" size={14} color={colors.secondary} />
+            <Text style={styles.fulfilText} numberOfLines={2}>
+              {order.pickup_point
+                ? `Pickup: ${order.pickup_point.name} — ${order.pickup_point.location}`
+                : 'Pickup at Jemina Hub'}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.fulfilRow}>
+            <Icon name="local-shipping" size={14} color={colors.secondary} />
+            <Text style={styles.fulfilText} numberOfLines={2}>Delivery to address</Text>
+          </View>
+        )}
       </View>
 
       {items && items.length > 0 ? (
@@ -775,6 +790,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
+  },
+  fulfilRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: spacing.sm,
+  },
+  fulfilText: {
+    ...typography.bodySm,
+    color: colors.onSurfaceVariant,
+    flex: 1,
   },
   itemsSection: {
     padding: spacing.sm,

@@ -652,6 +652,19 @@ export interface ApiOrderItem {
   delivery_fee?: number | null;
 }
 
+export interface ApiOrderPickupPoint {
+  id: string;
+  vendor_id?: string | null;
+  vendor_name?: string | null;
+  name: string;
+  location: string;
+  city?: string | null;
+  state?: string | null;
+  phone?: string | null;
+  hours?: string | null;
+  is_default?: boolean;
+}
+
 export interface ApiOrder {
   id: number;
   order_number: string;
@@ -667,6 +680,8 @@ export interface ApiOrder {
   notes?: string | null;
   items?: ApiOrderItem[];
   items_count?: number;
+  fulfilment?: 'pickup' | 'delivery';
+  pickup_point?: ApiOrderPickupPoint | null;
 }
 
 interface OrdersResponse {
@@ -689,6 +704,7 @@ export async function apiCreateOrder(
     voucher_id?: number;
     voucher_code?: string;
     discount_amount?: number;
+    pickup_point_id?: number;
     pickup_point?: { name: string; location: string } | null;
     fulfilment?: 'pickup' | 'delivery';
   },
@@ -746,6 +762,21 @@ export interface ApiPaymentStatus {
 export async function apiGetPaymentStatus(token: string, transactionId: string): Promise<ApiPaymentStatus> {
   const json = await request<ApiPaymentStatus>(`/payments/${transactionId}/status`, { token });
   return json.data as ApiPaymentStatus;
+}
+
+export interface ApiAcceptedPaymentMethod {
+  key: string;
+  label: string;
+  icon?: string;
+  currencies?: string[];
+  gateways?: string[];
+}
+
+// Accepted payment METHODS served by the platform (mobile_money / card / bitcoin).
+// Gateways (stripe, flutterwave, ...) are processors, not user-facing methods.
+export async function apiGetAcceptedPaymentMethods(): Promise<ApiAcceptedPaymentMethod[]> {
+  const json = await request<{ methods: ApiAcceptedPaymentMethod[] }>('/payments/methods');
+  return json.data?.methods ?? [];
 }
 
 // ---------------------------------------------------------------------------
@@ -1143,6 +1174,36 @@ export async function apiGetProfile(token: string): Promise<ApiUser | null> {
   } catch {
     return null;
   }
+}
+
+export interface ProfilePhotoInput {
+  uri: string;
+  name?: string;
+  type?: string;
+}
+
+// Uploads a picked image (multipart) and returns the updated user with the new photo.
+export async function apiUploadProfilePhoto(token: string, photo: ProfilePhotoInput): Promise<ApiUser> {
+  const form = new FormData();
+  form.append('photo', {
+    uri: photo.uri,
+    name: photo.name ?? 'photo.jpg',
+    type: photo.type ?? 'image/jpeg',
+  } as unknown as Blob);
+  const response = await fetch(`${API_BASE_URL}/profile/photo`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  const json = (await response.json().catch(() => null)) as {
+    success?: boolean;
+    message?: string;
+    data?: { user?: ApiUser };
+  } | null;
+  if (!response.ok || !json || json.success === false) {
+    throw new Error(json?.message || `Photo upload failed (${response.status}).`);
+  }
+  return (json.data?.user) as ApiUser;
 }
 
 // ---------------------------------------------------------------------------
@@ -1729,6 +1790,7 @@ export async function apiDeactivateAutoReload(token: string): Promise<void> {
 export interface ApiPickupPoint {
   id: string;
   name: string;
+  vendor_name?: string | null;
   location: string;
   city: string;
   state: string;

@@ -28,10 +28,12 @@ import {
   apiRevokeOtherSessions,
   apiGetPinStatus,
   apiSetPinGate,
+  apiUploadProfilePhoto,
   absoluteUrl,
 } from '../data/api';
 import type { ApiUser, ApiSession } from '../data/api';
 import { getDeviceModel } from '../lib/device';
+import { pickProfilePhoto } from '../lib/imagePicker';
 import { isBiometricAvailable, promptBiometric, biometryLabel } from '../lib/biometric';
 import type { BiometryType } from 'react-native-biometrics';
 import { colors } from '../theme/colors';
@@ -120,6 +122,7 @@ export function AccountSettingsScreen({
   const { user, token } = useAuth();
   const [tab, setTab] = useState<SettingsTab>(initialTab);
   const [profile, setProfile] = useState<ApiUser | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   // Profile image modal
   const [showImageModal, setShowImageModal] = useState(false);
@@ -145,6 +148,12 @@ export function AccountSettingsScreen({
   // Preferences
   const [smsTracking, setSmsTracking] = useState(true);
   const [priceAlerts, setPriceAlerts] = useState(true);
+  const [pushNotifs, setPushNotifs] = useState(true);
+  const [emailOrders, setEmailOrders] = useState(true);
+  const [payRefunds, setPayRefunds] = useState(true);
+  const [securityAlerts, setSecurityAlerts] = useState(true);
+  const [promoDeals, setPromoDeals] = useState(false);
+  const [lowBalanceAlerts, setLowBalanceAlerts] = useState(true);
 
   const loadProfile = useCallback(async () => {
     if (token) {
@@ -336,6 +345,34 @@ export function AccountSettingsScreen({
     }
   }, [token, pinSet, pinGate]);
 
+  const doUploadPhoto = async (source: 'library' | 'camera') => {
+    if (!token) {
+      Alert.alert('Not signed in', 'Please sign in to update your photo.');
+      return;
+    }
+    const picked = await pickProfilePhoto(source);
+    if (!picked) return;
+    setUploadingPhoto(true);
+    try {
+      const updated = await apiUploadProfilePhoto(token, picked);
+      setProfile(updated);
+      Alert.alert('Photo updated', 'Your profile photo has been updated.');
+    } catch (e) {
+      Alert.alert('Photo update failed', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleUploadPhoto = () => {
+    if (uploadingPhoto) return;
+    Alert.alert('Profile Photo', 'Choose a source', [
+      { text: 'Take Photo', onPress: () => doUploadPhoto('camera') },
+      { text: 'Choose from Library', onPress: () => doUploadPhoto('library') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
   const photoUrl = profile?.photo
     ? absoluteUrl(profile.photo) ?? profile.photo
     : undefined;
@@ -484,6 +521,7 @@ export function AccountSettingsScreen({
               biometricSupported={biometricSupported}
               onBiometric={handleToggleBiometric}
               phone={phone}
+              email={email}
               sessions={sessions}
               deviceName={deviceName}
               onRevokeOthers={handleRevokeOthers}
@@ -506,6 +544,20 @@ export function AccountSettingsScreen({
             onSmsTracking={() => setSmsTracking(v => !v)}
             priceAlerts={priceAlerts}
             onPriceAlerts={() => setPriceAlerts(v => !v)}
+            pushNotifs={pushNotifs}
+            onPushNotifs={() => setPushNotifs(v => !v)}
+            emailOrders={emailOrders}
+            onEmailOrders={() => setEmailOrders(v => !v)}
+            payRefunds={payRefunds}
+            onPayRefunds={() => setPayRefunds(v => !v)}
+            securityAlerts={securityAlerts}
+            onSecurityAlerts={() => setSecurityAlerts(v => !v)}
+            promoDeals={promoDeals}
+            onPromoDeals={() => setPromoDeals(v => !v)}
+            lowBalanceAlerts={lowBalanceAlerts}
+            onLowBalanceAlerts={() => setLowBalanceAlerts(v => !v)}
+            memberSince={user?.createdAt}
+            role={profile?.role ?? user?.role ?? 'customer'}
           />
         )}
       </View>
@@ -531,9 +583,9 @@ export function AccountSettingsScreen({
               <Text style={styles.imageModalHint}>Your current profile photo</Text>
             </View>
             <View style={styles.imageModalActions}>
-              <Pressable style={styles.imageModalActionBtn} onPress={() => { setShowImageModal(false); navigate('EditProfile'); }}>
+              <Pressable style={styles.imageModalActionBtn} onPress={() => { setShowImageModal(false); handleUploadPhoto(); }}>
                 <Icon name="photo-camera" size={20} color={colors.onPrimary} />
-                <Text style={styles.imageModalActionText}>Upload New Photo</Text>
+                <Text style={styles.imageModalActionText}>{uploadingPhoto ? 'Uploading...' : 'Upload New Photo'}</Text>
               </Pressable>
               <Pressable style={[styles.imageModalActionBtn, styles.imageModalActionSecondary]} onPress={() => setShowImageModal(false)}>
                 <Text style={[styles.imageModalActionText, { color: colors.onSurfaceVariant }]}>Close</Text>
@@ -662,6 +714,7 @@ function SecurityTab({
   biometricSupported,
   onBiometric,
   phone,
+  email,
   sessions,
   deviceName,
   onRevokeOthers,
@@ -681,6 +734,7 @@ function SecurityTab({
   biometricSupported: boolean;
   onBiometric: () => void;
   phone: string;
+  email: string;
   sessions: ApiSession[];
   deviceName: string;
   onRevokeOthers: () => void;
@@ -716,7 +770,7 @@ function SecurityTab({
             </View>
             <Text style={styles.toggleSub}>
               {twoFa
-                ? `Active via Email OTP to ${phone}`
+                ? `Active via Email OTP to ${email}`
                 : 'Email OTP code on every sign-in'}
             </Text>
           </View>
@@ -886,11 +940,39 @@ function PreferencesTab({
   onSmsTracking,
   priceAlerts,
   onPriceAlerts,
+  pushNotifs,
+  onPushNotifs,
+  emailOrders,
+  onEmailOrders,
+  payRefunds,
+  onPayRefunds,
+  securityAlerts,
+  onSecurityAlerts,
+  promoDeals,
+  onPromoDeals,
+  lowBalanceAlerts,
+  onLowBalanceAlerts,
+  memberSince,
+  role,
 }: {
   smsTracking: boolean;
   onSmsTracking: () => void;
   priceAlerts: boolean;
   onPriceAlerts: () => void;
+  pushNotifs: boolean;
+  onPushNotifs: () => void;
+  emailOrders: boolean;
+  onEmailOrders: () => void;
+  payRefunds: boolean;
+  onPayRefunds: () => void;
+  securityAlerts: boolean;
+  onSecurityAlerts: () => void;
+  promoDeals: boolean;
+  onPromoDeals: () => void;
+  lowBalanceAlerts: boolean;
+  onLowBalanceAlerts: () => void;
+  memberSince?: string | null;
+  role?: string;
 }) {
   return (
     <ScrollView
@@ -925,10 +1007,128 @@ function PreferencesTab({
           </View>
           <Toggle value={priceAlerts} onValueChange={onPriceAlerts} />
         </View>
+
+        <Sep />
+
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleRowBody}>
+            <Text style={styles.toggleLabel}>Push Notifications</Text>
+            <Text style={styles.toggleSub}>
+              In-app banners & phone alerts for orders and messages
+            </Text>
+          </View>
+          <Toggle value={pushNotifs} onValueChange={onPushNotifs} />
+        </View>
+
+        <Sep />
+
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleRowBody}>
+            <Text style={styles.toggleLabel}>Email Order Updates</Text>
+            <Text style={styles.toggleSub}>
+              Order confirmations, invoices & delivery receipts by email
+            </Text>
+          </View>
+          <Toggle value={emailOrders} onValueChange={onEmailOrders} />
+        </View>
+
+        <Sep />
+
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleRowBody}>
+            <Text style={styles.toggleLabel}>Payment & Refund Notifications</Text>
+            <Text style={styles.toggleSub}>
+              Credit top-ups, payments, and refund status alerts
+            </Text>
+          </View>
+          <Toggle value={payRefunds} onValueChange={onPayRefunds} />
+        </View>
+
+        <Sep />
+
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleRowBody}>
+            <Text style={styles.toggleLabel}>Security Alerts</Text>
+            <Text style={styles.toggleSub}>
+              New sign-ins, PIN & 2FA changes, and device logins
+            </Text>
+          </View>
+          <Toggle value={securityAlerts} onValueChange={onSecurityAlerts} />
+        </View>
+
+        <Sep />
+
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleRowBody}>
+            <Text style={styles.toggleLabel}>Promotional Deals & Offers</Text>
+            <Text style={styles.toggleSub}>
+              Seasonal sales, vouchers, and loyalty bonuses
+            </Text>
+          </View>
+          <Toggle value={promoDeals} onValueChange={onPromoDeals} />
+        </View>
+
+        <Sep />
+
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleRowBody}>
+            <Text style={styles.toggleLabel}>Low Balance & Auto-Reload Alerts</Text>
+            <Text style={styles.toggleSub}>
+              Warn when JEMINA credits run low and for auto-reload runs
+            </Text>
+          </View>
+          <Toggle value={lowBalanceAlerts} onValueChange={onLowBalanceAlerts} />
+        </View>
       </SectionCard>
 
-      {/* Tax Records & Data */}
-      <SectionCard title="Tax Records & Data" icon="shield">
+      {/* Your Data & Downloads */}
+      <SectionCard title="Your Data & Downloads" icon="shield">
+        <View style={styles.accountSnapshot}>
+          <Text style={styles.dataRowLabel}>Account Snapshot</Text>
+          <Text style={styles.dataRowSub}>
+            Role: {role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Customer'}
+            {memberSince ? `  ·  Member since ${new Date(memberSince).toLocaleDateString()}` : ''}
+          </Text>
+        </View>
+
+        <Sep />
+
+        <Pressable
+          style={styles.dataRow}
+          onPress={() => Alert.alert('My Orders & Receipts', 'Coming soon.')}
+        >
+          <View style={styles.dataRowLeft}>
+            <Icon name="receipt-long" size={20} color={colors.outline} />
+            <View>
+              <Text style={styles.dataRowLabel}>My Orders & Receipts</Text>
+              <Text style={styles.dataRowSub}>
+                Download your order history and payment receipts (CSV / PDF)
+              </Text>
+            </View>
+          </View>
+          <Icon name="file-download" size={18} color={colors.outline} />
+        </Pressable>
+
+        <Sep />
+
+        <Pressable
+          style={styles.dataRow}
+          onPress={() => Alert.alert('Credit & Wallet Statement', 'Coming soon.')}
+        >
+          <View style={styles.dataRowLeft}>
+            <Icon name="account-balance-wallet" size={20} color={colors.outline} />
+            <View>
+              <Text style={styles.dataRowLabel}>Credit & Wallet Statement</Text>
+              <Text style={styles.dataRowSub}>
+                Top-ups, spends, and bonus credits in a single report
+              </Text>
+            </View>
+          </View>
+          <Icon name="file-download" size={18} color={colors.outline} />
+        </Pressable>
+
+        <Sep />
+
         <Pressable
           style={styles.dataRow}
           onPress={() => Alert.alert('URA EFRIS', 'Coming soon.')}
@@ -967,12 +1167,21 @@ function PreferencesTab({
 
         <Sep />
 
+        <View style={styles.accountSnapshot}>
+          <Text style={styles.dataRowLabel}>About your system</Text>
+          <Text style={styles.dataRowSub}>
+            Jemina Mobile · v0.0.1 · API /api/v1 · Regional: Uganda (UGX)
+          </Text>
+        </View>
+
+        <Sep />
+
         <Pressable
           style={styles.deactivateBtn}
           onPress={() =>
             Alert.alert(
               'Deactivate Account',
-              'Are you sure? This action is permanent.',
+              'This permanently closes your customer account and removes your saved data. This action cannot be undone.',
               [
                 { text: 'Cancel', style: 'cancel' },
                 {
@@ -984,10 +1193,18 @@ function PreferencesTab({
             )
           }
         >
-          <Icon name="no-accounts" size={16} color={colors.error} />
-          <Text style={styles.deactivateText}>
-            Deactivate or Terminate Wholesale Account
-          </Text>
+          <View style={styles.deactivateIcon}>
+            <Icon name="no-accounts" size={18} color={colors.error} />
+          </View>
+          <View style={styles.deactivateBody}>
+            <Text style={styles.deactivateText}>
+              Deactivate Customer Account
+            </Text>
+            <Text style={styles.deactivateSub}>
+              Permanently close your account and erase your profile data
+            </Text>
+          </View>
+          <Icon name="chevron-right" size={18} color={colors.error} />
         </Pressable>
       </SectionCard>
       <View style={styles.bottomPad} />
@@ -1572,17 +1789,42 @@ const styles = StyleSheet.create({
     color: colors.outline,
     marginTop: 1,
   },
+  accountSnapshot: {
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
 
   /* Deactivate */
   deactivateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: spacing.sm,
     marginTop: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.errorContainer,
+    backgroundColor: colors.errorContainer,
+    borderRadius: radius.lg,
+    padding: spacing.md,
   },
+  deactivateIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surfaceContainerLowest,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deactivateBody: { flex: 1 },
   deactivateText: {
     ...typography.labelMd,
     color: colors.error,
+    fontWeight: '700',
+  },
+  deactivateSub: {
+    ...typography.bodySm,
+    color: colors.onErrorContainer,
+    marginTop: 2,
   },
 
   /* Image Modal */

@@ -26,7 +26,7 @@ import { CartScreen } from './src/screens/CartScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { TwoFactorScreen } from './src/screens/TwoFactorScreen';
 import { RegisterScreen } from './src/screens/RegisterScreen';
-import { ProfileScreen } from './src/screens/ProfileScreen';
+import { AccountScreen } from './src/screens/AccountScreen';
 import { CheckoutScreen } from './src/screens/CheckoutScreen';
 import { OrdersScreen } from './src/screens/OrdersScreen';
 import { OrderConfirmationScreen } from './src/screens/OrderConfirmationScreen';
@@ -165,7 +165,7 @@ function Router() {
   if (tab === 'Profile') {
     return (
       <PinProtectedScreen gateKey="account" label="Account">
-        <ProfileScreen />
+        <AccountScreen />
       </PinProtectedScreen>
     );
   }

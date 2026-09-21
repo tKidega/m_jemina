@@ -6,7 +6,7 @@ import { Button } from '../components/Button';
 import { EmptyState } from '../components/EmptyState';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { apiInitiatePayment, apiGetPaymentStatus, apiGetCreditBalance, ApiPaymentResult, ApiPaymentStatus } from '../data/api';
+import { apiInitiatePayment, apiGetPaymentStatus, apiGetCreditBalance, apiGetAcceptedPaymentMethods, ApiAcceptedPaymentMethod, ApiPaymentResult, ApiPaymentStatus } from '../data/api';
 import { formatUGX } from '../components/ProductCard';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -14,18 +14,18 @@ import { spacing, radius } from '../theme/spacing';
 
 const AMOUNTS = [50000, 100000, 250000, 500000, 1000000];
 
-const GATEWAYS: { id: string; api: string; label: string; icon: IconName; currency: string }[] = [
-  { id: 'mtn', api: 'mtn_mobile_money', label: 'MTN Mobile Money', icon: 'smartphone', currency: 'UGX' },
-  { id: 'stripe', api: 'stripe', label: 'Card Payment', icon: 'credit-card', currency: 'USD' },
-  { id: 'flutterwave', api: 'flutterwave', label: 'Flutterwave', icon: 'account-balance-wallet', currency: 'UGX' },
-  { id: 'bitcoin', api: 'bitcoin', label: 'Bitcoin', icon: 'currency-bitcoin', currency: 'BTC' },
-];
+const METHOD_META: Record<string, { icon: IconName; color: string }> = {
+  mobile_money: { icon: 'smartphone', color: '#ffcc00' },
+  card: { icon: 'credit-card', color: '#1a1f71' },
+  bitcoin: { icon: 'currency-bitcoin', color: '#f7931a' },
+};
 
 export function BuyCreditsScreen() {
   const { token, isAuthenticated } = useAuth();
   const { goBack, navigate } = useNavigation();
   const [amount, setAmount] = useState<number>(AMOUNTS[1]);
-  const [gateway, setGateway] = useState(GATEWAYS[0]);
+  const [methods, setMethods] = useState<ApiAcceptedPaymentMethod[]>([]);
+  const [gateway, setGateway] = useState<ApiAcceptedPaymentMethod | null>(null);
   const [result, setResult] = useState<ApiPaymentResult | null>(null);
   const [status, setStatus] = useState<ApiPaymentStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +46,12 @@ export function BuyCreditsScreen() {
 
   useEffect(() => {
     loadBalance();
+    apiGetAcceptedPaymentMethods()
+      .then(list => {
+        setMethods(list);
+        setGateway(current => current ?? list[0] ?? null);
+      })
+      .catch(() => {});
   }, [loadBalance]);
 
   const initiate = useCallback(async () => {
@@ -53,13 +59,17 @@ export function BuyCreditsScreen() {
       setError('You need to be signed in to buy credits.');
       return;
     }
+    if (!gateway) {
+      setError('Select a payment method.');
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
       const res = await apiInitiatePayment(token, {
-        gateway: gateway.api,
+        gateway: gateway.gateways?.[0] ?? gateway.key,
         amount,
-        currency: gateway.currency,
+        currency: gateway.currencies?.[0] ?? (gateway.key === 'bitcoin' ? 'BTC' : 'UGX'),
         description: 'Purchase JEMINA Credits',
         metadata: { type: 'credit_purchase' },
       });
@@ -170,24 +180,29 @@ export function BuyCreditsScreen() {
           })}
         </View>
 
-        {/* Gateway selection */}
+        {/* Method selection */}
         <Text style={styles.sectionTitle}>Payment Method</Text>
-        {GATEWAYS.map(g => {
-          const active = gateway.id === g.id;
-          return (
-            <Pressable
-              key={g.id}
-              style={[styles.gatewayRow, active && styles.gatewayRowActive]}
-              onPress={() => setGateway(g)}
-            >
-              <View style={[styles.gatewayIcon, active && styles.gatewayIconActive]}>
-                <Icon name={g.icon} size={22} color={active ? colors.onSecondary : colors.onSurfaceVariant} />
-              </View>
-              <Text style={[styles.gatewayLabel, active && styles.gatewayLabelActive]}>{g.label}</Text>
-              <Icon name={active ? 'check-circle' : 'radio-button-unchecked'} size={20} color={active ? colors.secondary : colors.outline} />
-            </Pressable>
-          );
-        })}
+        {methods.length === 0 ? (
+          <Text style={styles.gatewayLabel}>Loading payment methods...</Text>
+        ) : (
+          methods.map(m => {
+            const meta = METHOD_META[m.key] ?? { icon: 'account-balance-wallet' as IconName, color: colors.secondary };
+            const active = gateway?.key === m.key;
+            return (
+              <Pressable
+                key={m.key}
+                style={[styles.gatewayRow, active && styles.gatewayRowActive]}
+                onPress={() => setGateway(m)}
+              >
+                <View style={[styles.gatewayIcon, active && styles.gatewayIconActive]}>
+                  <Icon name={meta.icon} size={22} color={active ? colors.onSecondary : colors.onSurfaceVariant} />
+                </View>
+                <Text style={[styles.gatewayLabel, active && styles.gatewayLabelActive]}>{m.label}</Text>
+                <Icon name={active ? 'check-circle' : 'radio-button-unchecked'} size={20} color={active ? colors.secondary : colors.outline} />
+              </Pressable>
+            );
+          })
+        )}
 
         {/* Summary */}
         <View style={styles.summaryCard}>

@@ -24,7 +24,9 @@ import {
   apiUpdateAddress,
   apiDeleteAddress,
   apiSetDefaultAddress,
+  apiGetPickupPoints,
   ApiAddress,
+  ApiPickupPoint,
 } from '../data/api';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -122,6 +124,7 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
   const { token, isAuthenticated } = useAuth();
   const { goBack, navigate } = useNavigation();
   const [addresses, setAddresses] = useState<ApiAddress[]>([]);
+  const [pickupHubs, setPickupHubs] = useState<ApiPickupPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -156,6 +159,12 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    apiGetPickupPoints()
+      .then(setPickupHubs)
+      .catch(() => {});
+  }, []);
 
   const onRefresh = useCallback(() => load(true), [load]);
 
@@ -342,15 +351,36 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
             <View style={styles.logisticsDivider} />
 
             {/* Hub */}
-            <View style={styles.logisticsRow}>
-              <Icon name="warehouse" size={20} color={colors.primary} />
-              <View style={styles.logisticsInfo}>
-                <Text style={styles.logisticsLabel}>Gulu Central Logistics Hub</Text>
-                <Text style={styles.logisticsSub}>
-                  Owonzi Complex · Free Self-Pickup & Bulk Container Staging
-                </Text>
+            {pickupHubs.length > 0 ? (
+              <>
+                <Text style={styles.pickupSectionLabel}>Available pickup hubs</Text>
+                {pickupHubs.map(hub => (
+                  <View key={String(hub.id)} style={styles.logisticsRow}>
+                    <Icon name="warehouse" size={20} color={colors.primary} />
+                    <View style={styles.logisticsInfo}>
+                      <Text style={styles.logisticsLabel}>{hub.name}</Text>
+                      <Text style={styles.logisticsSub}>
+                        {[hub.location, hub.city, hub.state].filter(Boolean).join(' · ') || 'Free self-pickup'}
+                      </Text>
+                      {hub.vendor_name ? (
+                        <Text style={styles.logisticsPhone}>{hub.vendor_name}</Text>
+                      ) : null}
+                      {hub.phone ? <Text style={styles.logisticsPhone}>{hub.phone}</Text> : null}
+                    </View>
+                  </View>
+                ))}
+              </>
+            ) : (
+              <View style={styles.logisticsRow}>
+                <Icon name="warehouse" size={20} color={colors.primary} />
+                <View style={styles.logisticsInfo}>
+                  <Text style={styles.logisticsLabel}>Gulu Central Logistics Hub</Text>
+                  <Text style={styles.logisticsSub}>
+                    Owonzi Complex · Free Self-Pickup & Bulk Container Staging
+                  </Text>
+                </View>
               </View>
-            </View>
+            )}
           </View>
 
           {/* Other Addresses */}
@@ -551,6 +581,12 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.borderLight,
     marginVertical: spacing.sm,
+  },
+  pickupSectionLabel: {
+    ...typography.labelMd,
+    color: colors.onSurfaceVariant,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
   },
 
   /* Address Card */

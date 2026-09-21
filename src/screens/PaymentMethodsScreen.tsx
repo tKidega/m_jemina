@@ -23,6 +23,8 @@ import {
   apiSavePaymentMethod,
   apiUpdatePaymentMethod,
   apiDeletePaymentMethod,
+  apiGetAcceptedPaymentMethods,
+  ApiAcceptedPaymentMethod,
   ApiPaymentMethod,
   ApiPaymentMethodType,
 } from '../data/api';
@@ -205,6 +207,7 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
   const { token, isAuthenticated } = useAuth();
   const { goBack, navigate } = useNavigation();
   const [methods, setMethods] = useState<ApiPaymentMethod[]>([]);
+  const [accepted, setAccepted] = useState<ApiAcceptedPaymentMethod[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -235,6 +238,12 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
     },
     [token],
   );
+
+  useEffect(() => {
+    apiGetAcceptedPaymentMethods()
+      .then(setAccepted)
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     load();
@@ -397,6 +406,28 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
             <Icon name="add" size={18} color={colors.primaryContainer} />
             <Text style={styles.addPaymentText}>Add Mobile Money / Card</Text>
           </Pressable>
+
+          {/* Accepted payment methods */}
+          {accepted.length > 0 ? (
+            <View style={styles.acceptedBox}>
+              <Text style={styles.acceptedTitle}>All accepted payment methods</Text>
+              <Text style={styles.acceptedSub}>
+                Jemina accepts the methods below at checkout. Saving a payment rail makes checkout faster — your
+                default is pre-selected and your other saved rails stay one tap away.
+              </Text>
+              {accepted.map(m => (
+                <View key={m.key} style={styles.acceptedRow}>
+                  <View style={styles.acceptedDot} />
+                  <View style={styles.acceptedInfo}>
+                    <Text style={styles.acceptedName}>{m.label}</Text>
+                    {m.gateways && m.gateways.length > 0 ? (
+                      <Text style={styles.acceptedMeta}>{m.gateways.join(', ')}</Text>
+                    ) : null}
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </ScrollView>
       )}
 
@@ -678,6 +709,26 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   addPaymentText: { ...typography.labelLg, color: colors.primaryContainer, fontWeight: '600' },
+
+  /* Accepted Payment Methods Info */
+  acceptedBox: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  acceptedTitle: { ...typography.labelMd, color: colors.onSurface, fontWeight: '700' },
+  acceptedSub: { ...typography.bodySm, color: colors.onSurfaceVariant, marginTop: 4, lineHeight: 18 },
+  acceptedRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md },
+  acceptedDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.secondary,
+  },
+  acceptedInfo: { flex: 1 },
+  acceptedName: { ...typography.bodyMd, color: colors.onSurface, fontWeight: '600' },
+  acceptedMeta: { ...typography.bodySm, color: colors.outline, textTransform: 'capitalize' },
 
   /* Modal */
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
