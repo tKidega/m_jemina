@@ -92,8 +92,8 @@ android {
         applicationId "com.m_jemina"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 5
-        versionName "1.1.3"
+        versionCode 6
+        versionName "1.2.0"
     }
     signingConfigs {
         debug {
