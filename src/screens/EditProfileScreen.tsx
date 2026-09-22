@@ -174,7 +174,7 @@ export function EditProfileScreen({ embedded = false }: { embedded?: boolean }) 
             </View>
             <Text style={styles.label}>Gender</Text>
             <View style={styles.pillRow}>
-              {['male', 'female', 'other'].map(g => (
+              {['male', 'female'].map(g => (
                 <Pressable
                   key={g}
                   style={[styles.pill, form.gender === g && styles.pillActive]}
@@ -297,23 +297,27 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: spacing.lg,
-    paddingBottom: spacing.xxl,
+    padding: spacing.md,
+    paddingBottom: spacing.lg,
   },
   sectionHead: {
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
   },
   card: {
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
     borderColor: colors.borderLight,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
   },
   label: {
     ...typography.labelMd,
-    color: colors.onSurface,
-    marginBottom: spacing.xs,
+    color: colors.onSurfaceVariant,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 4,
     marginTop: spacing.sm,
   },
   inputWrap: {
@@ -322,14 +326,14 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     borderWidth: 1,
     borderColor: colors.borderLight,
-    borderRadius: radius.lg,
+    borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     backgroundColor: colors.surfaceContainerLow,
-    marginTop: spacing.xs,
+    marginTop: 4,
   },
   input: {
     flex: 1,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm + 2,
     color: colors.onSurface,
     fontFamily: typography.bodyMd.fontFamily,
     fontSize: typography.bodyMd.fontSize,
