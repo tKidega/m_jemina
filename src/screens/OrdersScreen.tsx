@@ -737,7 +737,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: spacing.md,
-    padding: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.xs,
+    paddingBottom: 6,
     backgroundColor: 'rgba(242, 243, 249, 0.5)',
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
@@ -795,7 +797,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: spacing.sm,
+    marginTop: 2,
   },
   fulfilText: {
     ...typography.bodySm,
@@ -803,7 +805,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   itemsSection: {
-    padding: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.sm,
     gap: spacing.sm,
   },
   itemRow: {

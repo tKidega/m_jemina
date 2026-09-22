@@ -38,13 +38,13 @@ export function BuyCreditsModal({ visible, onClose, onPurchased, initialAmount }
 
   const loadMethods = useCallback(async () => {
     try {
-      const list = await apiGetAcceptedPaymentMethods();
+      const list = await apiGetAcceptedPaymentMethods(token);
       setMethods(list);
       setGateway(current => current ?? list[0] ?? null);
     } catch {
       setError('Could not load payment methods.');
     }
-  }, []);
+  }, [token]);
 
   const loadBalance = useCallback(async () => {
     if (!token) return;

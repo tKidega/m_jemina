@@ -46,13 +46,14 @@ export function BuyCreditsScreen() {
 
   useEffect(() => {
     loadBalance();
-    apiGetAcceptedPaymentMethods()
+    if (!token) return;
+    apiGetAcceptedPaymentMethods(token)
       .then(list => {
         setMethods(list);
         setGateway(current => current ?? list[0] ?? null);
       })
       .catch(() => {});
-  }, [loadBalance]);
+  }, [loadBalance, token]);
 
   const initiate = useCallback(async () => {
     if (!token) {

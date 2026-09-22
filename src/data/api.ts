@@ -774,8 +774,8 @@ export interface ApiAcceptedPaymentMethod {
 
 // Accepted payment METHODS served by the platform (mobile_money / card / bitcoin).
 // Gateways (stripe, flutterwave, ...) are processors, not user-facing methods.
-export async function apiGetAcceptedPaymentMethods(): Promise<ApiAcceptedPaymentMethod[]> {
-  const json = await request<{ methods: ApiAcceptedPaymentMethod[] }>('/payments/methods');
+export async function apiGetAcceptedPaymentMethods(token?: string | null): Promise<ApiAcceptedPaymentMethod[]> {
+  const json = await request<{ methods: ApiAcceptedPaymentMethod[] }>('/payments/methods', { token });
   return json.data?.methods ?? [];
 }
 

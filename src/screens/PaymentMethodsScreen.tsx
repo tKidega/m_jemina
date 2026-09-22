@@ -240,10 +240,11 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
   );
 
   useEffect(() => {
-    apiGetAcceptedPaymentMethods()
+    if (!token) return;
+    apiGetAcceptedPaymentMethods(token)
       .then(setAccepted)
       .catch(() => {});
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     load();
