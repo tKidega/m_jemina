@@ -376,6 +376,7 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
                 <Text style={styles.pickupEmptyText}>No pickup hubs available right now.</Text>
               </View>
             )}
+          </View>
 
           {/* Other Addresses */}
           {otherAddresses.length > 0 && (

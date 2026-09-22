@@ -435,6 +435,7 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
                 </View>
               )}
             </View>
+        ) : null}
         </ScrollView>
       )}
 
