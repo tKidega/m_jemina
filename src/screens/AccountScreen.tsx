@@ -30,6 +30,7 @@ const MENU_ITEMS: MenuRow[] = [
   { icon: 'chat', label: 'Messages & Inbox', sub: 'Order updates & support replies', route: 'Messages' },
   { icon: 'rate-review', label: 'Ratings & Reviews', sub: 'Earn credits on reviews', route: 'MyReviews' },
   { icon: 'request-quote', label: 'Wholesale Inquiries & RFQs', sub: 'B2B corporate quotes', route: 'MyInquiries' },
+  { icon: 'edit-note', label: 'Surveys & Feedback', sub: 'Share feedback, earn credits', route: 'Surveys' },
   { icon: 'favorite', label: 'Wishlist & Coupons', sub: 'Saved products & promo codes', route: 'Wishlist' },
   { icon: 'manage-accounts', label: 'Settings & Security', sub: 'User data and privacy', route: 'AccountSettings' },
   { icon: 'support-agent', label: 'Help & Support', sub: 'Chatbot / FAQ', route: 'HelpCenter' },

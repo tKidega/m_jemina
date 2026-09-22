@@ -3,7 +3,6 @@ import { Animated, Linking, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, IconName } from './Icon';
 import { RouteName, TabName, useNavigation } from '../navigation/NavigationContext';
-import { useAuth } from '../state/AuthContext';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
@@ -24,17 +23,8 @@ const SHOP_LINKS: SidebarLink[] = [
   { label: 'Cart', icon: 'shopping-cart', tab: 'Cart' },
 ];
 
-const MY_ACCOUNT_LINKS: SidebarLink[] = [
-  { label: 'Profile', icon: 'person', tab: 'Profile' },
-  { label: 'Messages', icon: 'mail', route: 'Messages' },
-  { label: 'Track Orders', icon: 'track-changes', route: 'OrderTracking' },
-  { label: 'My Orders', icon: 'receipt-long', route: 'Orders' },
-  { label: 'Surveys', icon: 'edit-note', route: 'Surveys' },
-  { label: 'Vendor Actions', icon: 'storefront', route: 'VendorActions' },
-  { label: 'Address Book', icon: 'home', route: 'AddressBook' },
-];
-
 const ACCOUNT_LINKS: SidebarLink[] = [
+  { label: 'Surveys', icon: 'edit-note', route: 'Surveys' },
   { label: 'Help Center', icon: 'support-agent', route: 'HelpCenter' },
 ];
 
@@ -49,13 +39,10 @@ const LEGAL_LINKS: SidebarLink[] = [
   { label: 'Privacy Policy', icon: 'verified-user', href: `${SITE_BASE}/privacy-policy` },
 ];
 
-const MY_ACCOUNT_SECTION = { title: 'My Account', links: MY_ACCOUNT_LINKS };
-
 const DRAWER_WIDTH = 300;
 
 export function Sidebar() {
   const insets = useSafeAreaInsets();
-  const { isAuthenticated } = useAuth();
   const { sidebarOpen, closeSidebar, navigateFromSidebar, tab, route } = useNavigation();
   const translateX = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -63,14 +50,11 @@ export function Sidebar() {
   const sections = useMemo(() => {
     const base: { title: string; links: SidebarLink[] }[] = [];
     base.push({ title: 'Shop', links: SHOP_LINKS });
-    if (isAuthenticated) {
-      base.push(MY_ACCOUNT_SECTION);
-    }
     base.push({ title: 'Account', links: ACCOUNT_LINKS });
     base.push({ title: 'Company', links: COMPANY_LINKS });
     base.push({ title: 'Legal', links: LEGAL_LINKS });
     return base;
-  }, [isAuthenticated]);
+  }, []);
 
   useEffect(() => {
     Animated.parallel([
