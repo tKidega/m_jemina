@@ -26,12 +26,12 @@ interface MenuRow {
 }
 
 const MENU_ITEMS: MenuRow[] = [
-  { icon: 'receipt-long', label: 'Orders & Purchase History', route: 'Orders' },
+  { icon: 'receipt-long', label: 'Orders & Purchases', sub: 'Order and purchase history', route: 'Orders' },
   { icon: 'chat', label: 'Messages & Inbox', sub: 'Order updates & support replies', route: 'Messages' },
   { icon: 'rate-review', label: 'Ratings & Reviews', sub: 'Earn credits on reviews', route: 'MyReviews' },
   { icon: 'request-quote', label: 'Wholesale Inquiries & RFQs', sub: 'B2B corporate quotes', route: 'MyInquiries' },
   { icon: 'favorite', label: 'Wishlist & Coupons', sub: 'Saved products & promo codes', route: 'Wishlist' },
-  { icon: 'manage-accounts', label: 'Settings & Security', route: 'AccountSettings' },
+  { icon: 'manage-accounts', label: 'Settings & Security', sub: 'User data and privacy', route: 'AccountSettings' },
   { icon: 'support-agent', label: 'Help & Support', sub: 'Chatbot / FAQ', route: 'HelpCenter' },
 ];
 

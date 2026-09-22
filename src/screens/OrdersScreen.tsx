@@ -518,6 +518,7 @@ export function OrdersScreen() {
           </View>
         }
       />
+      <Text style={styles.ordersHelper}>Order and purchase history</Text>
       <View style={styles.filterSection}>
         <View style={styles.filterTopRow}>
           <Text style={styles.filterEyebrow}>PURCHASE ORDER HISTORY</Text>
@@ -624,6 +625,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.secondaryContainer,
     borderWidth: 1.5,
     borderColor: colors.primaryContainer,
+  },
+  ordersHelper: {
+    ...typography.bodySm,
+    color: colors.outline,
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.xs,
+    paddingBottom: 2,
   },
   filterSection: {
     backgroundColor: colors.surfaceContainerLowest,
