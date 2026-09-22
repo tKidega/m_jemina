@@ -418,7 +418,7 @@ export function HelpCenterScreen() {
             {FAQ_ITEMS.map((item, idx) => (
               <Pressable
                 key={idx}
-                style={styles.faqCard}
+                style={[styles.faqCard, idx === 0 && styles.faqFirst]}
                 onPress={() => setExpandedFaq(expandedFaq === idx ? null : idx)}
               >
                 <View style={styles.faqHeader}>
@@ -1081,6 +1081,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.md,
     marginBottom: spacing.sm,
+  },
+  faqFirst: {
+    marginTop: spacing.md,
   },
   faqHeader: {
     flexDirection: 'row',

@@ -15,6 +15,7 @@ import { AppHeader } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
 import { PinManageModal } from '../components/PinManageModal';
+import { SpinLoader } from '../components/Loader';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import {
@@ -271,7 +272,18 @@ export function VendorActionsScreen() {
       <View style={styles.root}>
         <AppHeader title="Trader Signup" showBack onBack={goBack} />
         <View style={styles.center}>
-          <Text style={styles.loadingText}>Loading trader signup...</Text>
+          <View style={styles.traderLoaderMark}>
+            <View style={styles.traderLoaderRing} />
+            <View style={styles.traderLoaderBadge}>
+              <Icon name="verified-user" size={30} color={colors.onPrimary} />
+            </View>
+          </View>
+          <Text style={styles.traderLoaderTitle}>JEMINA</Text>
+          <Text style={styles.traderLoaderSub}>TRADER SIGNUP</Text>
+          <View style={styles.traderLoaderSpinner}>
+            <SpinLoader color={colors.primary} />
+          </View>
+          <Text style={styles.traderLoaderHint}>Preparing your trader workspace...</Text>
         </View>
       </View>
     );
@@ -896,6 +908,52 @@ const styles = StyleSheet.create({
   loadingText: {
     ...typography.bodyMd,
     color: colors.onSurfaceVariant,
+  },
+  traderLoaderMark: {
+    width: 86,
+    height: 86,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  traderLoaderRing: {
+    position: 'absolute',
+    width: 86,
+    height: 86,
+    borderRadius: 43,
+    borderWidth: 3,
+    borderColor: `${colors.primary}33`,
+    borderLeftColor: colors.secondary,
+    transform: [{ rotate: '45deg' }],
+  },
+  traderLoaderBadge: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  traderLoaderTitle: {
+    ...typography.headlineLg,
+    color: colors.onSurface,
+    fontWeight: '800',
+    letterSpacing: 4,
+  },
+  traderLoaderSub: {
+    ...typography.labelMd,
+    color: colors.onSurfaceVariant,
+    letterSpacing: 2,
+    marginTop: 2,
+  },
+  traderLoaderSpinner: {
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  traderLoaderHint: {
+    ...typography.bodyMd,
+    color: colors.outline,
+    textAlign: 'center',
   },
   hero: {
     alignItems: 'center',
