@@ -21,6 +21,7 @@ import { ChangePasswordModal } from '../components/ChangePasswordModal';
 import { PinManageModal } from '../components/PinManageModal';
 import {
   apiGetProfile,
+  apiUpdateProfile,
   apiGetTwoFactorStatus,
   apiEnableTwoFactor,
   apiConfirmTwoFactor,
@@ -159,34 +160,49 @@ export function AccountSettingsScreen({
   const [lowBalanceAlerts, setLowBalanceAlerts] = useState(true);
   const prefsLoaded = useRef(false);
   const prefsKey = `@jemina/prefs/v1:${user?.id ?? 'anon'}`;
+  const prefsPushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const applyPrefs = useCallback((p: Record<string, boolean> | null | undefined) => {
+    if (!p || typeof p !== 'object') return;
+    if (typeof p.smsTracking === 'boolean') setSmsTracking(p.smsTracking);
+    if (typeof p.priceAlerts === 'boolean') setPriceAlerts(p.priceAlerts);
+    if (typeof p.pushNotifs === 'boolean') setPushNotifs(p.pushNotifs);
+    if (typeof p.emailOrders === 'boolean') setEmailOrders(p.emailOrders);
+    if (typeof p.payRefunds === 'boolean') setPayRefunds(p.payRefunds);
+    if (typeof p.securityAlerts === 'boolean') setSecurityAlerts(p.securityAlerts);
+    if (typeof p.promoDeals === 'boolean') setPromoDeals(p.promoDeals);
+    if (typeof p.lowBalanceAlerts === 'boolean') setLowBalanceAlerts(p.lowBalanceAlerts);
+  }, []);
+
+  // Hydrate: backend profile wins (cross-device), else the device cache.
   useEffect(() => {
     (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(prefsKey);
-        if (raw) {
-          const p = JSON.parse(raw) as Record<string, boolean>;
-          if (typeof p.smsTracking === 'boolean') setSmsTracking(p.smsTracking);
-          if (typeof p.priceAlerts === 'boolean') setPriceAlerts(p.priceAlerts);
-          if (typeof p.pushNotifs === 'boolean') setPushNotifs(p.pushNotifs);
-          if (typeof p.emailOrders === 'boolean') setEmailOrders(p.emailOrders);
-          if (typeof p.payRefunds === 'boolean') setPayRefunds(p.payRefunds);
-          if (typeof p.securityAlerts === 'boolean') setSecurityAlerts(p.securityAlerts);
-          if (typeof p.promoDeals === 'boolean') setPromoDeals(p.promoDeals);
-          if (typeof p.lowBalanceAlerts === 'boolean') setLowBalanceAlerts(p.lowBalanceAlerts);
-        }
-      } catch {}
+      let applied = false;
+      if (profile?.preferences && typeof profile.preferences === 'object') {
+        applyPrefs(profile.preferences as Record<string, boolean>);
+        applied = true;
+      }
+      if (!applied) {
+        try {
+          const raw = await AsyncStorage.getItem(prefsKey);
+          if (raw) { applyPrefs(JSON.parse(raw) as Record<string, boolean>); applied = true; }
+        } catch {}
+      }
       prefsLoaded.current = true;
     })();
-  }, [prefsKey]);
+  }, [profile?.preferences, prefsKey, applyPrefs]);
 
+  // Persist locally + push to backend (debounced) on every change.
   useEffect(() => {
     if (!prefsLoaded.current) return;
-    AsyncStorage.setItem(prefsKey, JSON.stringify({
-      smsTracking, priceAlerts, pushNotifs, emailOrders,
-      payRefunds, securityAlerts, promoDeals, lowBalanceAlerts,
-    })).catch(() => {});
-  }, [prefsKey, smsTracking, priceAlerts, pushNotifs, emailOrders, payRefunds, securityAlerts, promoDeals, lowBalanceAlerts]);
+    const prefs = { smsTracking, priceAlerts, pushNotifs, emailOrders, payRefunds, securityAlerts, promoDeals, lowBalanceAlerts };
+    AsyncStorage.setItem(prefsKey, JSON.stringify(prefs)).catch(() => {});
+    if (prefsPushTimer.current) clearTimeout(prefsPushTimer.current);
+    prefsPushTimer.current = setTimeout(() => {
+      if (token) apiUpdateProfile(token, { preferences: prefs }).catch(() => {});
+    }, 700);
+    return () => { if (prefsPushTimer.current) clearTimeout(prefsPushTimer.current); };
+  }, [token, prefsKey, smsTracking, priceAlerts, pushNotifs, emailOrders, payRefunds, securityAlerts, promoDeals, lowBalanceAlerts]);
 
   const loadProfile = useCallback(async () => {
     if (token) {

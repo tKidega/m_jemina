@@ -275,6 +275,7 @@ export interface ApiUser {
   sms_notifications?: boolean;
   marketing_emails?: boolean;
   security_notifications?: boolean;
+  preferences?: Record<string, unknown> | null;
   timezone?: string | null;
   email_verified_at?: string | null;
   created_at?: string | null;
