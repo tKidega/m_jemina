@@ -410,25 +410,31 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
 
           {/* Accepted payment methods */}
           {accepted.length > 0 ? (
-            <View style={styles.acceptedBox}>
+<View style={styles.acceptedBox}>
               <Text style={styles.acceptedTitle}>All accepted payment methods</Text>
               <Text style={styles.acceptedSub}>
-                Jemina accepts the methods below at checkout. Saving a payment rail makes checkout faster — your
+                Jemina accepts the methods below at checkout. Saving a payment rail makes checkout faster - your
                 default is pre-selected and your other saved rails stay one tap away.
               </Text>
-              {accepted.map(m => (
-                <View key={m.key} style={styles.acceptedRow}>
-                  <View style={styles.acceptedDot} />
-                  <View style={styles.acceptedInfo}>
-                    <Text style={styles.acceptedName}>{m.label}</Text>
-                    {m.gateways && m.gateways.length > 0 ? (
-                      <Text style={styles.acceptedMeta}>{m.gateways.join(', ')}</Text>
-                    ) : null}
+              {accepted.length > 0 ? (
+                accepted.map(m => (
+                  <View key={m.key} style={styles.acceptedRow}>
+                    <View style={styles.acceptedDot} />
+                    <View style={styles.acceptedInfo}>
+                      <Text style={styles.acceptedName}>{m.label}</Text>
+                      {m.gateways && m.gateways.length > 0 ? (
+                        <Text style={styles.acceptedMeta}>{m.gateways.join(', ')}</Text>
+                      ) : null}
+                    </View>
                   </View>
+                ))
+              ) : (
+                <View style={styles.acceptedEmpty}>
+                  <Icon name="credit-card-off" size={22} color={colors.outline} />
+                  <Text style={styles.acceptedEmptyText}>No system payment methods available right now.</Text>
                 </View>
-              ))}
+              )}
             </View>
-          ) : null}
         </ScrollView>
       )}
 
@@ -730,6 +736,8 @@ const styles = StyleSheet.create({
   acceptedInfo: { flex: 1 },
   acceptedName: { ...typography.bodyMd, color: colors.onSurface, fontWeight: '600' },
   acceptedMeta: { ...typography.bodySm, color: colors.outline, textTransform: 'capitalize' },
+  acceptedEmpty: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.md },
+  acceptedEmptyText: { ...typography.bodySm, color: colors.outline, textAlign: 'center' },
 
   /* Modal */
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },

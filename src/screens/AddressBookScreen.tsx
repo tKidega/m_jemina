@@ -52,7 +52,7 @@ const EMPTY_FORM: AddressForm = {
   is_default: false,
 };
 
-/* ─── Address Card ───────────────────────────────────── */
+/* â”€â”€â”€ Address Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function AddressCard({
   address,
@@ -118,7 +118,7 @@ function AddressCard({
   );
 }
 
-/* ─── Main Screen ────────────────────────────────────── */
+/* â”€â”€â”€ Main Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) {
   const { token, isAuthenticated } = useAuth();
@@ -328,7 +328,7 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
                       defaultAddress.zip_code,
                     ]
                       .filter(Boolean)
-                      .join(' · ') || 'Delivery Address'}
+                      .join(' Â· ') || 'Delivery Address'}
                   </Text>
                   {defaultAddress.phone ? (
                     <Text style={styles.logisticsPhone}>{defaultAddress.phone}</Text>
@@ -371,17 +371,11 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
                 ))}
               </>
             ) : (
-              <View style={styles.logisticsRow}>
-                <Icon name="warehouse" size={20} color={colors.primary} />
-                <View style={styles.logisticsInfo}>
-                  <Text style={styles.logisticsLabel}>Gulu Central Logistics Hub</Text>
-                  <Text style={styles.logisticsSub}>
-                    Owonzi Complex · Free Self-Pickup & Bulk Container Staging
-                  </Text>
-                </View>
+              <View style={styles.pickupEmpty}>
+                <Icon name="warehouse" size={22} color={colors.outline} />
+                <Text style={styles.pickupEmptyText}>No pickup hubs available right now.</Text>
               </View>
             )}
-          </View>
 
           {/* Other Addresses */}
           {otherAddresses.length > 0 && (
@@ -519,7 +513,7 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
   );
 }
 
-/* ─── Styles ─────────────────────────────────────────── */
+/* â”€â”€â”€ Styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
@@ -588,6 +582,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: spacing.xs,
   },
+  pickupEmpty: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.md },
+  pickupEmptyText: { ...typography.bodySm, color: colors.outline, textAlign: 'center' },
 
   /* Address Card */
   addressCard: {
