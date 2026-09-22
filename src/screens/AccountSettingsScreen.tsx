@@ -36,6 +36,7 @@ import { getDeviceModel } from '../lib/device';
 import { pickProfilePhoto } from '../lib/imagePicker';
 import { isBiometricAvailable, promptBiometric, biometryLabel } from '../lib/biometric';
 import type { BiometryType } from 'react-native-biometrics';
+import { EditProfileScreen } from './EditProfileScreen';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
@@ -126,6 +127,7 @@ export function AccountSettingsScreen({
 
   // Profile image modal
   const [showImageModal, setShowImageModal] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showPinManage, setShowPinManage] = useState(false);
 
@@ -450,17 +452,23 @@ export function AccountSettingsScreen({
           </Pressable>
         </View>
         <Sep />
-        <View style={styles.profileContacts}>
-          {email ? (
+        <View style={styles.profileContactsRow}>
+          <View style={styles.profileContacts}>
+            {email ? (
+              <View style={styles.contactRow}>
+                <Icon name="mail" size={16} color={colors.outline} />
+                <Text style={styles.contactText}>{email}</Text>
+              </View>
+            ) : null}
             <View style={styles.contactRow}>
-              <Icon name="mail" size={16} color={colors.outline} />
-              <Text style={styles.contactText}>{email}</Text>
+              <Icon name="smartphone" size={16} color={colors.outline} />
+              <Text style={styles.contactText}>{phone}</Text>
             </View>
-          ) : null}
-          <View style={styles.contactRow}>
-            <Icon name="smartphone" size={16} color={colors.outline} />
-            <Text style={styles.contactText}>{phone}</Text>
           </View>
+          <Pressable style={styles.editProfileLink} onPress={() => setShowEditProfile(true)} hitSlop={8}>
+            <Icon name="edit" size={15} color={colors.primary} />
+            <Text style={styles.editProfileLinkText}>Edit</Text>
+          </Pressable>
         </View>
       </View>
 
@@ -590,6 +598,22 @@ export function AccountSettingsScreen({
               <Pressable style={[styles.imageModalActionBtn, styles.imageModalActionSecondary]} onPress={() => setShowImageModal(false)}>
                 <Text style={[styles.imageModalActionText, { color: colors.onSurfaceVariant }]}>Close</Text>
               </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showEditProfile} transparent animationType="slide" onRequestClose={() => setShowEditProfile(false)}>
+        <View style={styles.editProfileOverlay}>
+          <View style={styles.editProfileSheet}>
+            <View style={styles.editProfileHeader}>
+              <Text style={styles.editProfileTitle}>Edit Profile</Text>
+              <Pressable onPress={() => { setShowEditProfile(false); if (token) loadProfile(); }} hitSlop={8}>
+                <Icon name="close" size={22} color={colors.outline} />
+              </Pressable>
+            </View>
+            <View style={styles.editProfileBody}>
+              <EditProfileScreen embedded />
             </View>
           </View>
         </View>
@@ -1314,7 +1338,57 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   profileContacts: {
+    flex: 1,
     marginTop: spacing.sm,
+  },
+  profileContactsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  editProfileLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: spacing.sm + 2,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    backgroundColor: colors.primaryContainer,
+  },
+  editProfileLinkText: {
+    ...typography.labelMd,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  editProfileOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  editProfileSheet: {
+    maxHeight: '90%',
+    backgroundColor: colors.surfaceContainerLowest,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    overflow: 'hidden',
+  },
+  editProfileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.surfaceContainerHigh,
+  },
+  editProfileTitle: {
+    ...typography.headlineSm,
+    color: colors.onSurface,
+    fontWeight: '700',
+  },
+  editProfileBody: {
+    maxHeight: 520,
   },
   contactRow: {
     flexDirection: 'row',
