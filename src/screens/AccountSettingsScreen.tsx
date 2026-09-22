@@ -121,7 +121,7 @@ export function AccountSettingsScreen({
 }: {
   initialTab?: SettingsTab;
 }) {
-  const { goBack, navigate } = useNavigation();
+  const { goBack } = useNavigation();
   const { user, token } = useAuth();
   const [tab, setTab] = useState<SettingsTab>(initialTab);
   const [profile, setProfile] = useState<ApiUser | null>(null);
@@ -784,7 +784,7 @@ function SecurityTab({
   biometricType,
   biometricSupported,
   onBiometric,
-  phone,
+  phone: _phone,
   email,
   sessions,
   deviceName,

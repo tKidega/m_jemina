@@ -33,8 +33,8 @@ export function Toast({ message, type = 'success', visible, onDone, duration = 2
     } else {
       Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }).start();
     }
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [visible, duration, onDone]);
+return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [visible, duration, onDone, opacity]);
 
   if (!visible) return null;
 
