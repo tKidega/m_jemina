@@ -1437,7 +1437,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   editProfileBody: {
-    maxHeight: 620,
+    height: 540,
   },
   contactRow: {
     flexDirection: 'row',
