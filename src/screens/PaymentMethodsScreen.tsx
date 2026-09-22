@@ -430,7 +430,7 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
                 ))
               ) : (
                 <View style={styles.acceptedEmpty}>
-                  <Icon name="credit-card-off" size={22} color={colors.outline} />
+                  <Icon name="credit-card" size={22} color={colors.outline} />
                   <Text style={styles.acceptedEmptyText}>No system payment methods available right now.</Text>
                 </View>
               )}
