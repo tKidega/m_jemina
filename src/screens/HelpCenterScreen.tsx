@@ -370,10 +370,6 @@ export function HelpCenterScreen() {
                   </Text>
                 </Pressable>
               </ScrollView>
-              <Pressable style={styles.newTicketBtn} onPress={openCreate}>
-                <Icon name="add-circle" size={16} color={colors.secondary} />
-                <Text style={styles.newTicketBtnText}>New Ticket</Text>
-              </Pressable>
             </View>
 
             {loading ? (
@@ -730,7 +726,7 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: colors.secondaryContainer,
+    backgroundColor: colors.statusSuccess,
     borderWidth: 2,
     borderColor: colors.surfaceContainerLowest,
   },
