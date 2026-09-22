@@ -109,7 +109,12 @@ function OrderCard({ order, token }: { order: ApiOrder; token?: string | null })
               <Icon name="content-copy" size={16} color={colors.outline} />
             </Pressable>
           </View>
-          <Text style={styles.orderDate}>{placedAt}</Text>
+          <Text numberOfLines={1} ellipsizeMode="tail" style={styles.orderDate}>
+            {placedAt} ·{' '}
+            {order.fulfilment === 'pickup'
+              ? (order.pickup_point ? `Pickup: ${order.pickup_point.name}` : 'Pickup: Jemina Hub')
+              : 'Delivery to address'}
+          </Text>
         </View>
         <View style={styles.chipStack}>
           <View style={[styles.statusChip, statusView.bg]}>
@@ -122,21 +127,6 @@ function OrderCard({ order, token }: { order: ApiOrder; token?: string | null })
             </Text>
           </View>
         </View>
-        {order.fulfilment === 'pickup' ? (
-          <View style={styles.fulfilRow}>
-            <Icon name="storefront" size={14} color={colors.secondary} />
-            <Text style={styles.fulfilText} numberOfLines={2}>
-              {order.pickup_point
-                ? `Pickup: ${order.pickup_point.name} — ${order.pickup_point.location}`
-                : 'Pickup at Jemina Hub'}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.fulfilRow}>
-            <Icon name="local-shipping" size={14} color={colors.secondary} />
-            <Text style={styles.fulfilText} numberOfLines={2}>Delivery to address</Text>
-          </View>
-        )}
       </View>
 
       {items && items.length > 0 ? (
@@ -156,7 +146,7 @@ function OrderCard({ order, token }: { order: ApiOrder; token?: string | null })
                 </View>
               )}
               <View style={styles.itemBody}>
-                <Text style={styles.itemName} numberOfLines={2}>{item.product_name}</Text>
+                <Text style={styles.itemName} numberOfLines={1} ellipsizeMode="tail">{item.product_name}</Text>
                 <View style={styles.itemMetaRow}>
                   <Text style={styles.itemQty}>Qty: <Text style={styles.itemQtyStrong}>{item.quantity} unit{item.quantity === 1 ? '' : 's'}</Text></Text>
                   <Text style={styles.itemTotal}>{formatUGX(item.total)}</Text>
@@ -770,17 +760,18 @@ const styles = StyleSheet.create({
     ...typography.bodySm,
     color: colors.outline,
     marginTop: 2,
+    flexShrink: 1,
   },
   chipStack: {
     alignItems: 'flex-end',
-    gap: 4,
+    gap: 2,
   },
   statusChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
+    paddingVertical: 1,
     borderRadius: radius.full,
     alignSelf: 'flex-start',
     flexShrink: 0,
@@ -816,12 +807,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingTop: spacing.xs,
     paddingBottom: spacing.sm,
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   itemRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
+    alignItems: 'center',
+    gap: 10,
   },
   itemRowDivider: {
     borderTopWidth: 1,
@@ -829,8 +820,8 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
   },
   itemImage: {
-    width: 56,
-    height: 56,
+    width: 44,
+    height: 44,
     borderRadius: radius.md,
     backgroundColor: colors.surfaceContainerLow,
     borderWidth: 1,

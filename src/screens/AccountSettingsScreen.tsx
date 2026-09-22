@@ -513,7 +513,7 @@ export function AccountSettingsScreen({
             </View>
           </View>
           <Pressable style={styles.editProfileLink} onPress={() => setShowEditProfile(true)} hitSlop={8}>
-            <Icon name="edit" size={15} color={colors.primary} />
+            <Icon name="edit" size={15} color={colors.onPrimary} />
             <Text style={styles.editProfileLinkText}>Edit</Text>
           </Pressable>
         </View>
@@ -1398,14 +1398,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     marginTop: spacing.sm + 2,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: radius.full,
-    backgroundColor: colors.primaryContainer,
+    backgroundColor: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.primary,
   },
   editProfileLinkText: {
     ...typography.labelMd,
-    color: colors.primary,
+    color: colors.onPrimary,
     fontWeight: '700',
   },
   editProfileOverlay: {
@@ -1435,7 +1437,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   editProfileBody: {
-    maxHeight: 520,
+    maxHeight: 620,
   },
   contactRow: {
     flexDirection: 'row',

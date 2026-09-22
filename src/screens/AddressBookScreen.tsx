@@ -52,7 +52,7 @@ const EMPTY_FORM: AddressForm = {
   is_default: false,
 };
 
-/* â”€â”€â”€ Address Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Address Card Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
 function AddressCard({
   address,
@@ -118,7 +118,7 @@ function AddressCard({
   );
 }
 
-/* â”€â”€â”€ Main Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Main Screen Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
 export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) {
   const { token, isAuthenticated } = useAuth();
@@ -328,7 +328,7 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
                       defaultAddress.zip_code,
                     ]
                       .filter(Boolean)
-                      .join(' Â· ') || 'Delivery Address'}
+                      .join(' Ã‚Â· ') || 'Delivery Address'}
                   </Text>
                   {defaultAddress.phone ? (
                     <Text style={styles.logisticsPhone}>{defaultAddress.phone}</Text>
@@ -350,33 +350,28 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
 
             <View style={styles.logisticsDivider} />
 
-            {/* Hub */}
-            {pickupHubs.length > 0 ? (
-              <>
-                <Text style={styles.pickupSectionLabel}>Available pickup hubs</Text>
-                {pickupHubs.map(hub => (
+          </View>
+            <View style={styles.pickupBox}>
+              <Text style={styles.pickupSectionLabel}>Available pickup hubs</Text>
+              {pickupHubs.length > 0 ? (
+                pickupHubs.map(hub => (
                   <View key={String(hub.id)} style={styles.logisticsRow}>
                     <Icon name="warehouse" size={20} color={colors.primary} />
                     <View style={styles.logisticsInfo}>
                       <Text style={styles.logisticsLabel}>{hub.name}</Text>
-                      <Text style={styles.logisticsSub}>
-                        {[hub.location, hub.city, hub.state].filter(Boolean).join(' · ') || 'Free self-pickup'}
-                      </Text>
-                      {hub.vendor_name ? (
-                        <Text style={styles.logisticsPhone}>{hub.vendor_name}</Text>
-                      ) : null}
+                      <Text style={styles.logisticsSub}>{[hub.location, hub.city, hub.state].filter(Boolean).join(' - ') || 'Free self-pickup'}</Text>
+                      {hub.vendor_name ? (<Text style={styles.logisticsPhone}>{hub.vendor_name}</Text>) : null}
                       {hub.phone ? <Text style={styles.logisticsPhone}>{hub.phone}</Text> : null}
                     </View>
                   </View>
-                ))}
-              </>
-            ) : (
-              <View style={styles.pickupEmpty}>
-                <Icon name="warehouse" size={22} color={colors.outline} />
-                <Text style={styles.pickupEmptyText}>No pickup hubs available right now.</Text>
-              </View>
-            )}
-          </View>
+                ))
+              ) : (
+                <View style={styles.pickupEmpty}>
+                  <Icon name="warehouse" size={22} color={colors.outline} />
+                  <Text style={styles.pickupEmptyText}>No pickup hubs available right now.</Text>
+                </View>
+              )}
+            </View>
 
           {/* Other Addresses */}
           {otherAddresses.length > 0 && (
@@ -514,7 +509,7 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
   );
 }
 
-/* â”€â”€â”€ Styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Styles Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
@@ -582,6 +577,14 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
     fontWeight: '700',
     marginBottom: spacing.xs,
+  },
+  pickupBox: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    padding: spacing.sm,
+    marginTop: spacing.sm,
   },
   pickupEmpty: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.md },
   pickupEmptyText: { ...typography.bodySm, color: colors.outline, textAlign: 'center' },
