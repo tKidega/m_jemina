@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Alert,
   Image,
@@ -156,6 +157,36 @@ export function AccountSettingsScreen({
   const [securityAlerts, setSecurityAlerts] = useState(true);
   const [promoDeals, setPromoDeals] = useState(false);
   const [lowBalanceAlerts, setLowBalanceAlerts] = useState(true);
+  const prefsLoaded = useRef(false);
+  const prefsKey = `@jemina/prefs/v1:${user?.id ?? 'anon'}`;
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(prefsKey);
+        if (raw) {
+          const p = JSON.parse(raw) as Record<string, boolean>;
+          if (typeof p.smsTracking === 'boolean') setSmsTracking(p.smsTracking);
+          if (typeof p.priceAlerts === 'boolean') setPriceAlerts(p.priceAlerts);
+          if (typeof p.pushNotifs === 'boolean') setPushNotifs(p.pushNotifs);
+          if (typeof p.emailOrders === 'boolean') setEmailOrders(p.emailOrders);
+          if (typeof p.payRefunds === 'boolean') setPayRefunds(p.payRefunds);
+          if (typeof p.securityAlerts === 'boolean') setSecurityAlerts(p.securityAlerts);
+          if (typeof p.promoDeals === 'boolean') setPromoDeals(p.promoDeals);
+          if (typeof p.lowBalanceAlerts === 'boolean') setLowBalanceAlerts(p.lowBalanceAlerts);
+        }
+      } catch {}
+      prefsLoaded.current = true;
+    })();
+  }, [prefsKey]);
+
+  useEffect(() => {
+    if (!prefsLoaded.current) return;
+    AsyncStorage.setItem(prefsKey, JSON.stringify({
+      smsTracking, priceAlerts, pushNotifs, emailOrders,
+      payRefunds, securityAlerts, promoDeals, lowBalanceAlerts,
+    })).catch(() => {});
+  }, [prefsKey, smsTracking, priceAlerts, pushNotifs, emailOrders, payRefunds, securityAlerts, promoDeals, lowBalanceAlerts]);
 
   const loadProfile = useCallback(async () => {
     if (token) {
