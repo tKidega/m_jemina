@@ -4,6 +4,7 @@ import { AppHeader } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
 import { useAuth } from '../state/AuthContext';
+import { AccountPendingError } from '../data/api';
 import { useNavigation } from '../navigation/NavigationContext';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -14,6 +15,7 @@ export function RegisterScreen() {
   const { goBack, navigate, finishAuthFlow } = useNavigation();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -30,6 +32,11 @@ export function RegisterScreen() {
       setError('Please enter a valid email address.');
       return;
     }
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (phoneDigits.length < 9) {
+      setError('Please enter a valid phone number.');
+      return;
+    }
     if (password.length < 6) {
       setError('Password must be at least 6 characters.');
       return;
@@ -40,9 +47,13 @@ export function RegisterScreen() {
     }
     setLoading(true);
     try {
-      await register(name, email, password);
+      await register(name, email, password, phone.trim());
       finishAuthFlow();
     } catch (e) {
+      if (e instanceof AccountPendingError) {
+        navigate('AccountPending', { email: e.email, deactivated: e.deactivated });
+        return;
+      }
       setError(e instanceof Error ? e.message : 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
@@ -103,6 +114,22 @@ export function RegisterScreen() {
                 autoCorrect={false}
               />
             </View>
+
+            <Text style={styles.label}>Phone Number</Text>
+            <View style={styles.inputWrap}>
+              <Icon name="call" size={20} color={colors.outline} />
+              <Text style={styles.dialPrefix}>+256</Text>
+              <TextInput
+                style={styles.input}
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="772 123 456"
+                placeholderTextColor={colors.outline}
+                keyboardType="phone-pad"
+                maxLength={15}
+              />
+            </View>
+            <Text style={styles.fieldHint}>Used for order updates and Mobile Money.</Text>
 
             <Text style={styles.label}>Password</Text>
             <View style={styles.inputWrap}>
@@ -235,6 +262,20 @@ const styles = StyleSheet.create({
     ...typography.bodyMd,
     color: colors.onSurface,
     paddingVertical: spacing.sm + 2,
+  },
+  dialPrefix: {
+    ...typography.labelMd,
+    color: colors.onSurface,
+    fontWeight: '700',
+    paddingRight: 6,
+    marginRight: 2,
+    borderRightWidth: 1,
+    borderRightColor: colors.outlineVariant,
+  },
+  fieldHint: {
+    ...typography.labelSm,
+    color: colors.outline,
+    marginTop: 4,
   },
   submitBtn: {
     marginTop: spacing.md,

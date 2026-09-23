@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Product } from '../components/ProductCard';
 import { useAuth } from './AuthContext';
 import {
@@ -10,6 +11,10 @@ import {
   apiUpdateCartItem,
 } from '../data/api';
 import type { ApiCartItem } from '../data/api';
+
+export type Fulfilment = 'delivery' | 'pickup';
+
+const FULFILMENT_STORAGE_KEY = '@jemina/fulfilment';
 
 export interface CartItem {
   product: Product;
@@ -31,7 +36,11 @@ interface CartContextValue {
   itemCount: number;
   subtotal: number;
   totalDeliveryFees: number;
+  totalShippingFees: number;
+  fulfilment: Fulfilment;
+  setFulfilment: (next: Fulfilment) => void;
   cartSource: 'server' | 'local';
+  loading: boolean;
   addItem: (product: Product, quantity?: number) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
@@ -79,9 +88,29 @@ function groupByVendor(items: CartItem[]): VendorGroup[] {
 }
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const { token } = useAuth();
+  const { token, isHydrated } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
   const [cartSource, setCartSource] = useState<'server' | 'local'>('local');
+  const [loading, setLoading] = useState(true);
+  const [fulfilment, setFulfilmentState] = useState<Fulfilment>('delivery');
+
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(FULFILMENT_STORAGE_KEY)
+      .then(raw => {
+        if (cancelled) return;
+        if (raw === 'pickup' || raw === 'delivery') setFulfilmentState(raw);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const setFulfilment = useCallback((next: Fulfilment) => {
+    setFulfilmentState(next);
+    AsyncStorage.setItem(FULFILMENT_STORAGE_KEY, next).catch(() => {});
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!token) {
@@ -99,12 +128,28 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [token]);
 
   useEffect(() => {
-    if (!token) {
-      setCartSource('local');
+    if (!isHydrated) {
       return;
     }
-    refresh().catch(() => {});
-  }, [token, refresh]);
+    if (!token) {
+      setItems([]);
+      setCartSource('local');
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    refresh()
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, isHydrated, refresh]);
 
   const addItem = useCallback(
     (product: Product, quantity = 1) => {
@@ -172,6 +217,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     () => vendorGroups.reduce((sum, g) => sum + g.deliveryFee, 0),
     [vendorGroups],
   );
+  const totalShippingFees = useMemo(
+    () => vendorGroups.reduce((sum, g) => sum + g.shippingFee, 0),
+    [vendorGroups],
+  );
 
   const value = useMemo(
     () => ({
@@ -180,14 +229,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       itemCount,
       subtotal,
       totalDeliveryFees,
+      totalShippingFees,
+      fulfilment,
+      setFulfilment,
       cartSource,
+      loading,
       addItem,
       removeItem,
       updateQuantity,
       clearCart,
       refresh,
     }),
-    [items, vendorGroups, itemCount, subtotal, totalDeliveryFees, cartSource, addItem, removeItem, updateQuantity, clearCart, refresh],
+    [items, vendorGroups, itemCount, subtotal, totalDeliveryFees, totalShippingFees, fulfilment, setFulfilment, cartSource, loading, addItem, removeItem, updateQuantity, clearCart, refresh],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

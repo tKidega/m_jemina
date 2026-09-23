@@ -1,6 +1,7 @@
 ﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
+  Linking,
   Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -48,6 +49,18 @@ const HERO_SLIDES: HeroSlide[] = images.heroBanners.map((image, i) => ({
 }));
 
 const PROMO_POPUP_INDEX_KEY = '@jemina/promoPopupIndex';
+const CONSENT_STORAGE_KEY = '@jemina/legalConsent/v1';
+const CONSENT_TOS_URL = 'https://jemi-na.com/terms-of-service';
+const CONSENT_PRIVACY_URL = 'https://jemi-na.com/privacy-policy';
+const CONSENT_COOKIES_URL = 'https://jemi-na.com/cookie-policy';
+
+interface LegalConsentRecord {
+  accepted: true;
+  tos: true;
+  privacy: true;
+  cookies: true;
+  acceptedAt: string;
+}
 
 const TRUST_INDICATORS = [
   { icon: 'local-shipping' as const, title: 'Shipping Options', subtitle: 'Flexible Shipping or transportation' },
@@ -205,6 +218,11 @@ export function HomeScreen() {
   const [promotions, setPromotions] = useState<ApiPromotion[]>([]);
   const [activeSeasonSlug, setActiveSeasonSlug] = useState<string | null>(null);
   const [b2bModalOpen, setB2bModalOpen] = useState(false);
+  const [consentChecked, setConsentChecked] = useState(false);
+  const [showConsent, setShowConsent] = useState(false);
+  const [consentTos, setConsentTos] = useState(false);
+  const [consentPrivacy, setConsentPrivacy] = useState(false);
+  const [consentCookies, setConsentCookies] = useState(false);
   const [activeBannerIndex, setActiveBannerIndex] = useState(0);
   const bannerScrollRef = useRef<ScrollView>(null);
   const { showPromo } = useNotification();
@@ -225,6 +243,62 @@ export function HomeScreen() {
   useEffect(() => {
     loadPromotions();
   }, [loadPromotions]);
+
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(CONSENT_STORAGE_KEY)
+      .then(raw => {
+        if (cancelled) return;
+        let accepted = false;
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw) as Partial<LegalConsentRecord>;
+            accepted =
+              parsed.accepted === true &&
+              parsed.tos === true &&
+              parsed.privacy === true &&
+              parsed.cookies === true;
+          } catch {
+            accepted = false;
+          }
+        }
+        if (!accepted) {
+          setShowConsent(true);
+        }
+        setConsentChecked(true);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setShowConsent(true);
+          setConsentChecked(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const consentAllChecked = consentTos && consentPrivacy && consentCookies;
+
+  const openConsentDoc = useCallback((url: string) => {
+    Linking.openURL(url).catch(() => {});
+  }, []);
+
+  const acceptConsent = useCallback(() => {
+    if (!consentAllChecked) return;
+    const record: LegalConsentRecord = {
+      accepted: true,
+      tos: true,
+      privacy: true,
+      cookies: true,
+      acceptedAt: new Date().toISOString(),
+    };
+    AsyncStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(record))
+      .catch(() => {})
+      .finally(() => {
+        setShowConsent(false);
+      });
+  }, [consentAllChecked]);
 
   const autoShowPopup = useCallback(
     (next: ApiPromotion[]): void => {
@@ -897,6 +971,162 @@ export function HomeScreen() {
                 <Icon name="arrow-forward" size={16} color={colors.onPrimary} />
               </Pressable>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Legal consent: ToS + Privacy + Cookies (one-time) */}
+      <Modal
+        visible={consentChecked && showConsent}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View style={styles.consentOverlay} pointerEvents="box-none">
+          <View style={styles.consentSheet}>
+            <View style={styles.consentBadge}>
+              <Icon name="gavel" size={26} color={colors.onPrimary} />
+            </View>
+            <Text style={styles.consentTitle}>Welcome to JEMINA</Text>
+            <Text style={styles.consentBody}>
+              Before you continue, please review and accept our legal terms. All three items are required.
+            </Text>
+
+            <Pressable
+              style={styles.consentRow}
+              onPress={() => setConsentTos(v => !v)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: consentTos }}
+            >
+              <Icon
+                name={consentTos ? 'check-box' : 'check-box-outline-blank'}
+                size={22}
+                color={consentTos ? colors.secondary : colors.outline}
+              />
+              <View style={styles.consentRowBody}>
+                <Text style={styles.consentRowText}>
+                  I agree to the{' '}
+                  <Text
+                    style={styles.consentLink}
+                    onPress={() => openConsentDoc(CONSENT_TOS_URL)}
+                    accessibilityRole="link"
+                    accessibilityLabel="Open Terms of Service"
+                  >
+                    Terms of Service
+                  </Text>
+                </Text>
+              </View>
+            </Pressable>
+            <Pressable
+              style={styles.consentViewBtn}
+              onPress={() => openConsentDoc(CONSENT_TOS_URL)}
+              hitSlop={6}
+              accessibilityRole="link"
+              accessibilityLabel="Read Terms of Service"
+            >
+              <Text style={styles.consentViewText}>Read Terms of Service</Text>
+              <Icon name="launch" size={14} color={colors.secondary} />
+            </Pressable>
+
+            <Pressable
+              style={styles.consentRow}
+              onPress={() => setConsentPrivacy(v => !v)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: consentPrivacy }}
+            >
+              <Icon
+                name={consentPrivacy ? 'check-box' : 'check-box-outline-blank'}
+                size={22}
+                color={consentPrivacy ? colors.secondary : colors.outline}
+              />
+              <View style={styles.consentRowBody}>
+                <Text style={styles.consentRowText}>
+                  I agree to the{' '}
+                  <Text
+                    style={styles.consentLink}
+                    onPress={() => openConsentDoc(CONSENT_PRIVACY_URL)}
+                    accessibilityRole="link"
+                    accessibilityLabel="Open Privacy Policy"
+                  >
+                    Privacy Policy
+                  </Text>
+                </Text>
+              </View>
+            </Pressable>
+            <Pressable
+              style={styles.consentViewBtn}
+              onPress={() => openConsentDoc(CONSENT_PRIVACY_URL)}
+              hitSlop={6}
+              accessibilityRole="link"
+              accessibilityLabel="Read Privacy Policy"
+            >
+              <Text style={styles.consentViewText}>Read Privacy Policy</Text>
+              <Icon name="launch" size={14} color={colors.secondary} />
+            </Pressable>
+
+            <Pressable
+              style={styles.consentRow}
+              onPress={() => setConsentCookies(v => !v)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: consentCookies }}
+            >
+              <Icon
+                name={consentCookies ? 'check-box' : 'check-box-outline-blank'}
+                size={22}
+                color={consentCookies ? colors.secondary : colors.outline}
+              />
+              <View style={styles.consentRowBody}>
+                <Text style={styles.consentRowText}>
+                  I accept{' '}
+                  <Text
+                    style={styles.consentLink}
+                    onPress={() => openConsentDoc(CONSENT_COOKIES_URL)}
+                    accessibilityRole="link"
+                    accessibilityLabel="Open Cookie Policy"
+                  >
+                    cookies
+                  </Text>{' '}
+                  used by the system for session, preferences and analytics
+                </Text>
+              </View>
+            </Pressable>
+            <Pressable
+              style={styles.consentViewBtn}
+              onPress={() => openConsentDoc(CONSENT_COOKIES_URL)}
+              hitSlop={6}
+              accessibilityRole="link"
+              accessibilityLabel="Read Cookie Policy"
+            >
+              <Text style={styles.consentViewText}>Read Cookie Policy</Text>
+              <Icon name="launch" size={14} color={colors.secondary} />
+            </Pressable>
+
+            <Pressable
+              style={[styles.consentAcceptBtn, !consentAllChecked && styles.consentAcceptBtnDisabled]}
+              onPress={acceptConsent}
+              disabled={!consentAllChecked}
+              accessibilityRole="button"
+              accessibilityLabel="Accept and continue"
+            >
+              <Text style={styles.consentAcceptText}>
+                {consentAllChecked ? 'Accept & Continue' : 'Check all three to continue'}
+              </Text>
+              <Icon name="arrow-forward" size={18} color={colors.onPrimary} />
+            </Pressable>
+            <Text style={styles.consentFooter}>You can review these documents anytime from the sidebar.</Text>
+            <View style={styles.consentFooterLinks}>
+              <Pressable onPress={() => openConsentDoc(CONSENT_TOS_URL)} hitSlop={6} accessibilityRole="link">
+                <Text style={styles.consentFooterLink}>Terms</Text>
+              </Pressable>
+              <Text style={styles.consentFooterDot}>•</Text>
+              <Pressable onPress={() => openConsentDoc(CONSENT_PRIVACY_URL)} hitSlop={6} accessibilityRole="link">
+                <Text style={styles.consentFooterLink}>Privacy</Text>
+              </Pressable>
+              <Text style={styles.consentFooterDot}>•</Text>
+              <Pressable onPress={() => openConsentDoc(CONSENT_COOKIES_URL)} hitSlop={6} accessibilityRole="link">
+                <Text style={styles.consentFooterLink}>Cookies</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1691,6 +1921,123 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     flex: 1,
     marginRight: spacing.sm,
+  },
+  consentOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(8,19,29,0.72)',
+  },
+  consentSheet: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.lg,
+    paddingBottom: spacing.xxl,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 8,
+  },
+  consentBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginBottom: spacing.sm,
+  },
+  consentTitle: {
+    ...typography.headlineMd,
+    color: colors.onSurface,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  consentBody: {
+    ...typography.bodySm,
+    color: colors.onSurfaceVariant,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+    lineHeight: 18,
+  },
+  consentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  consentRowBody: {
+    flex: 1,
+  },
+  consentRowText: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    lineHeight: 20,
+  },
+  consentLink: {
+    color: colors.secondary,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
+  consentViewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    marginLeft: 34,
+    marginBottom: spacing.xs,
+  },
+  consentViewText: {
+    ...typography.labelMd,
+    color: colors.secondary,
+    fontWeight: '700',
+  },
+  consentAcceptBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    height: 48,
+    borderRadius: radius.lg,
+    backgroundColor: colors.secondaryContainer,
+    marginTop: spacing.md,
+  },
+  consentAcceptBtnDisabled: {
+    opacity: 0.55,
+  },
+  consentAcceptText: {
+    ...typography.labelLg,
+    color: colors.onSecondary,
+    fontWeight: '700',
+  },
+  consentFooter: {
+    ...typography.labelSm,
+    color: colors.outline,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+  },
+  consentFooterLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: spacing.xs,
+  },
+  consentFooterLink: {
+    ...typography.labelMd,
+    color: colors.secondary,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
+  consentFooterDot: {
+    ...typography.labelSm,
+    color: colors.outline,
   },
   b2bStepRow: {
     flexDirection: 'row',

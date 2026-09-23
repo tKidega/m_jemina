@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput
 import { AppHeader } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
-import { apiResendTwoFactorCode } from '../data/api';
+import { apiResendTwoFactorCode, AccountPendingError } from '../data/api';
 import { subscribeToSecurityCode } from '../lib/notifications';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
@@ -21,7 +21,7 @@ function maskEmail(email: string): string {
 
 export function TwoFactorScreen() {
   const { completeTwoFactorLogin } = useAuth();
-  const { params, goBack, finishAuthFlow } = useNavigation();
+  const { params, goBack, navigate, finishAuthFlow } = useNavigation();
   const email = String(params?.email ?? '');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +62,10 @@ export function TwoFactorScreen() {
       await completeTwoFactorLogin(email, code);
       finishAuthFlow();
     } catch (e) {
+      if (e instanceof AccountPendingError) {
+        navigate('AccountPending', { email: e.email, deactivated: e.deactivated });
+        return;
+      }
       setError(e instanceof Error ? e.message : 'Verification failed. Please try again.');
     } finally {
       setLoading(false);

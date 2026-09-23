@@ -305,7 +305,24 @@ export interface TwoFactorChallenge {
   message: string;
 }
 
-export type LoginResult = AuthUserResult | TwoFactorChallenge;
+/** Server says the account exists but is not active yet (or was deactivated). */
+export interface AccountPendingResult {
+  account_pending: true;
+  account_deactivated?: boolean;
+  user: ApiUser;
+  token: string;
+  message?: string;
+}
+
+export type LoginResult = AuthUserResult | TwoFactorChallenge | AccountPendingResult;
+
+export function isAccountPending(result: LoginResult): result is AccountPendingResult {
+  return 'account_pending' in result && result.account_pending === true;
+}
+
+export function isTwoFactorChallenge(result: LoginResult): result is TwoFactorChallenge {
+  return 'two_factor_required' in result && result.two_factor_required === true;
+}
 
 export class TwoFactorRequiredError extends Error {
   readonly email: string;
@@ -316,6 +333,24 @@ export class TwoFactorRequiredError extends Error {
     this.name = 'TwoFactorRequiredError';
     this.email = email || '';
     this.resendAfter = resendAfter || 0;
+  }
+}
+
+/** Thrown after auth state is set when the account is pending activation. */
+export class AccountPendingError extends Error {
+  readonly email: string;
+  readonly deactivated: boolean;
+
+  constructor(email: string, message?: string, deactivated = false) {
+    super(
+      message ||
+        (deactivated
+          ? 'Your account has been deactivated. Please contact support.'
+          : 'Your account is pending activation. Please check your email.'),
+    );
+    this.name = 'AccountPendingError';
+    this.email = email || '';
+    this.deactivated = deactivated;
   }
 }
 
@@ -355,6 +390,8 @@ interface ApiEnvelope<T> {
   two_factor_required?: boolean;
   two_factor_email?: string;
   resend_after?: number;
+  account_pending?: boolean;
+  account_deactivated?: boolean;
 }
 
 type ApiMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -409,6 +446,16 @@ function toLoginResult(
       message: json.message ?? 'A verification code has been sent to your email.',
     };
   }
+  if (json.account_pending === true) {
+    const payload = json.data as AuthUserResult | undefined;
+    return {
+      account_pending: true,
+      account_deactivated: json.account_deactivated === true,
+      user: payload?.user as ApiUser,
+      token: payload?.token ?? '',
+      message: json.message,
+    };
+  }
   return json.data as AuthUserResult;
 }
 
@@ -417,6 +464,20 @@ export async function apiLogin(email: string, password: string): Promise<LoginRe
   const json = await request<AuthUserResult>('/auth/login', {
     method: 'POST',
     body: { email, password, device_name: deviceName },
+    allowFailed: true,
+  });
+  return toLoginResult(json);
+}
+
+/**
+ * Sign in with the account's 4-digit Trader PIN.
+ * `email` identifies the account (taken from the last email sign-in on device).
+ */
+export async function apiLoginWithPin(email: string, pin: string): Promise<LoginResult> {
+  const deviceName = await getDeviceModel();
+  const json = await request<AuthUserResult>('/auth/login', {
+    method: 'POST',
+    body: { email, pin, login_type: 'pin', device_name: deviceName },
     allowFailed: true,
   });
   return toLoginResult(json);
@@ -435,13 +496,14 @@ export async function apiGoogleLogin(idToken: string): Promise<LoginResult> {
 export async function apiVerifyTwoFactor(
   email: string,
   code: string,
-): Promise<AuthUserResult> {
+): Promise<LoginResult> {
   const deviceName = await getDeviceModel();
   const json = await request<AuthUserResult>('/auth/two-factor/verify', {
     method: 'POST',
     body: { email, code, device_name: deviceName },
+    allowFailed: true,
   });
-  return json.data as AuthUserResult;
+  return toLoginResult(json);
 }
 
 export async function apiResendTwoFactorCode(email: string): Promise<number> {
@@ -452,12 +514,47 @@ export async function apiResendTwoFactorCode(email: string): Promise<number> {
   return json.resend_after ?? 30;
 }
 
-export async function apiRegister(name: string, email: string, password: string): Promise<ApiUser> {
-  const json = await request<{ user: ApiUser }>('/auth/register', {
+export interface RegisterResult {
+  user: ApiUser;
+  token?: string;
+  accountPending: boolean;
+  message?: string;
+}
+
+export async function apiRegister(
+  name: string,
+  email: string,
+  password: string,
+  phone: string,
+): Promise<RegisterResult> {
+  const json = await request<{ user: ApiUser; token?: string }>('/auth/register', {
     method: 'POST',
-    body: { name, email, password, password_confirmation: password, role: 'customer' },
+    body: {
+      name,
+      email,
+      password,
+      password_confirmation: password,
+      role: 'customer',
+      phone,
+      dial_code: '+256',
+    },
   });
-  return (json.data as { user: ApiUser }).user;
+  const payload = json.data as { user: ApiUser; token?: string } | undefined;
+  return {
+    user: payload?.user as ApiUser,
+    token: payload?.token,
+    accountPending: json.account_pending === true,
+    message: json.message,
+  };
+}
+
+/** Resend the account-activation email (requires a pending session token). */
+export async function apiResendActivation(token: string): Promise<string> {
+  const json = await request<{ message?: string }>('/auth/activation/resend', {
+    method: 'POST',
+    token,
+  });
+  return json.message || 'Activation email resent. Please check your inbox.';
 }
 
 export async function apiLogout(token: string): Promise<void> {
@@ -741,6 +838,7 @@ export async function apiInitiatePayment(
     currency: string;
     order_id?: number;
     description?: string;
+    phone?: string;
     metadata?: Record<string, unknown>;
   },
 ): Promise<ApiPaymentResult> {
@@ -1246,7 +1344,18 @@ export interface ApiVendorJourney {
 
 export interface ApiVendorActionsStatus {
   journey: ApiVendorJourney;
-  vendor: { id: number; shop_name: string; shop_slug: string; is_active: boolean } | null;
+  vendor: {
+    id: number;
+    shop_name: string;
+    shop_slug: string;
+    shop_owner?: string | null;
+    shop_email?: string | null;
+    shop_phone?: string | null;
+    vendor_type?: string | null;
+    pay_method?: string | null;
+    package?: string | null;
+    is_active: boolean;
+  } | null;
 }
 
 export interface ApiAgreementSection {

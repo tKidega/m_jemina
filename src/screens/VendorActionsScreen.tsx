@@ -118,6 +118,7 @@ export function VendorActionsScreen() {
   const [agreementLoading, setAgreementLoading] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [registered, setRegistered] = useState(false);
+  const [submittedVendor, setSubmittedVendor] = useState<StoreForm | null>(null);
   const [form, setForm] = useState<StoreForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -243,10 +244,13 @@ export function VendorActionsScreen() {
         pay_method: form.pay_method,
         terms: form.terms,
       });
+      setSubmittedVendor({ ...form });
       setRegistered(true);
       setForm(EMPTY_FORM);
       setNewPin('');
       setConfirmPin('');
+      // Refresh journey/vendor payload so the success table shows server truth.
+      load(true).catch(() => {});
     } catch (e) {
       setFormError(e instanceof Error ? e.message : 'Failed to register your vendor account.');
     } finally {
@@ -322,10 +326,70 @@ export function VendorActionsScreen() {
   if (journey.has_vendor || registered) {
     const currentPlan = 'Starter';
     const upgradePlans = [
-      { key: 'professional', name: 'Pro', tagline: 'Up to 300 products · Sales analytics · Priority support', color: '#1a1f71' },
-      { key: 'corporate', name: 'Corporate', tagline: 'Multi-store · Bulk RFQs · Dedicated account manager', color: '#7c3aed' },
-      { key: 'enterprise', name: 'Enterprise', tagline: 'Unlimited listings · APIs · Custom logistics & escrow', color: '#059669' },
+      {
+        key: 'professional',
+        name: 'Pro',
+        tagline: 'Up to 300 products · Sales analytics · Priority support · Promo & advertisement tools in your dashboard',
+        color: '#1a1f71',
+      },
+      {
+        key: 'corporate',
+        name: 'Corporate',
+        tagline: 'Multi-store · Bulk RFQs · Dedicated account manager · Promo & advertisement features in your dashboard',
+        color: '#7c3aed',
+      },
+      {
+        key: 'enterprise',
+        name: 'Enterprise',
+        tagline: 'Unlimited listings · APIs · Custom logistics & escrow · Full promo & advertisement suite in your dashboard',
+        color: '#059669',
+      },
     ];
+
+    const v = status?.vendor;
+    const snap = submittedVendor;
+    const vendorTypeLabel = (raw?: string | null) => {
+      const key = (raw ?? snap?.vendor_type ?? 'local').toLowerCase();
+      return VENDOR_TYPES.find(t => t.value === key)?.label ?? (raw || snap?.vendor_type || 'Local');
+    };
+    const payMethods = (() => {
+      const rail = snap?.rail;
+      const method = v?.pay_method ?? snap?.pay_method;
+      const parts: string[] = [];
+      if (rail) parts.push(rail);
+      if (method && method !== 'Momo') parts.push(method === '$BTC' ? 'Bitcoin' : method);
+      else if (method === 'Momo' && !rail) parts.push('Mobile Money');
+      if (parts.length === 0) return 'Mobile Money (Momo)';
+      return parts.join(' · ');
+    })();
+
+    const detailRows: { label: string; value: string }[] = [
+      {
+        label: 'Shop Name',
+        value: v?.shop_name || snap?.shop_name || '—',
+      },
+      {
+        label: 'Owner Name',
+        value: v?.shop_owner || snap?.shop_owner || '—',
+      },
+      {
+        label: 'Shop Email',
+        value: v?.shop_email || snap?.shop_email || '—',
+      },
+      {
+        label: 'Shop Phone',
+        value: v?.shop_phone || snap?.shop_phone || '—',
+      },
+      {
+        label: 'Vendor Type',
+        value: vendorTypeLabel(v?.vendor_type),
+      },
+      {
+        label: 'Accepted Pay Methods',
+        value: payMethods,
+      },
+    ];
+
     return (
       <View style={styles.root}>
         <AppHeader title="Trader Signup" showBack onBack={goBack} />
@@ -341,8 +405,8 @@ export function VendorActionsScreen() {
             </View>
             <Text style={styles.successTitle}>Vendor Account Created</Text>
             <Text style={styles.successSub}>
-              {status?.vendor?.shop_name
-                ? `Your store "${status.vendor.shop_name}" is active on JEMINA and ready for review.`
+              {v?.shop_name || snap?.shop_name
+                ? `Your store "${v?.shop_name || snap?.shop_name}" is active on JEMINA and ready for review.`
                 : 'Your vendor account has been created successfully.'}
             </Text>
 
@@ -356,14 +420,73 @@ export function VendorActionsScreen() {
             </View>
           </View>
 
+          {/* Vendor account details — plain table */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionCardTitle}>Vendor Account Details</Text>
+            <Text style={styles.sectionCardSub}>
+              Information used to create this store. Keep it accurate for escrow &amp; payouts.
+            </Text>
+
+            <View style={styles.plainTable}>
+              <View style={styles.plainTableRow}>
+                <Text style={styles.plainTableLabel}>Shop Name</Text>
+                <Text style={styles.plainTableValue} numberOfLines={2}>
+                  {detailRows[0].value}
+                </Text>
+              </View>
+              <View style={styles.plainTableRow}>
+                <Text style={styles.plainTableLabel}>Owner Name</Text>
+                <Text style={styles.plainTableValue} numberOfLines={2}>
+                  {detailRows[1].value}
+                </Text>
+              </View>
+              <View style={styles.plainTableRow}>
+                <Text style={styles.plainTableLabel}>Shop Email</Text>
+                <Text style={styles.plainTableValue} numberOfLines={2}>
+                  {detailRows[2].value}
+                </Text>
+              </View>
+              <View style={styles.plainTableRow}>
+                <Text style={styles.plainTableLabel}>Shop Phone</Text>
+                <Text style={styles.plainTableValue} numberOfLines={2}>
+                  {detailRows[3].value}
+                </Text>
+              </View>
+              <View style={styles.plainTableRow}>
+                <Text style={styles.plainTableLabel}>Vendor Type</Text>
+                <Text style={styles.plainTableValue} numberOfLines={2}>
+                  {detailRows[4].value}
+                </Text>
+              </View>
+              <View style={styles.plainTableRow}>
+                <Text style={styles.plainTableLabel}>Accepted Pay Methods</Text>
+                <Text style={styles.plainTableValue} numberOfLines={2}>
+                  {detailRows[5].value}
+                </Text>
+              </View>
+            </View>
+          </View>
+
           {/* What happens next */}
           <View style={styles.sectionCard}>
             <Text style={styles.sectionCardTitle}>What happens next</Text>
             {[
-              { t: 'Vendor review', d: 'Our team reviews your store within 24–36 hours.' },
-              { t: 'Account upgrade', d: 'Your account is upgraded to vendor status and your dashboard unlocks.' },
-              { t: 'Escrow & trading', d: 'Your trade PIN and escrow wallet are ready for verified deals.' },
-              { t: 'Start trading', d: 'List products and accept orders once your store is approved.' },
+              {
+                t: 'Vendor review',
+                d: 'Our team reviews your store within 24–36 hours.',
+              },
+              {
+                t: 'Account upgrade',
+                d: 'Your account is upgraded to vendor status and your dashboard unlocks. After the upgrade you cannot use these vendor shop details to log in to the app, add items to cart, or complete any orders — sign in with your customer email and password (or Trader PIN) for shopping.',
+              },
+              {
+                t: 'Escrow & trading',
+                d: 'Your trade PIN and escrow wallet are ready for verified deals.',
+              },
+              {
+                t: 'Start trading',
+                d: 'List products and accept orders once your store is approved.',
+              },
             ].map((s, i) => (
               <View key={s.t} style={styles.nextRow}>
                 <View style={styles.nextDot}>
@@ -381,7 +504,8 @@ export function VendorActionsScreen() {
           <View style={styles.sectionCard}>
             <Text style={styles.sectionCardTitle}>Available upgrades</Text>
             <Text style={styles.sectionCardSub}>
-              Grow beyond Starter when your store is approved.
+              Grow beyond Starter when your store is approved. Pro, Corporate and Enterprise packages also unlock
+              promo and advertisement features in their dashboards.
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.upgradeRow}>
               {upgradePlans.map(plan => (
@@ -868,6 +992,36 @@ const styles = StyleSheet.create({
   },
   sectionCardTitle: { ...typography.headlineSm, color: colors.onSurface, fontWeight: '700' },
   sectionCardSub: { ...typography.bodySm, color: colors.onSurfaceVariant, marginTop: 4, lineHeight: 18 },
+  plainTable: {
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceContainerLowest,
+    overflow: 'hidden',
+  },
+  plainTableRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surfaceContainerHigh,
+    gap: spacing.sm,
+  },
+  plainTableLabel: {
+    ...typography.bodySm,
+    color: colors.onSurfaceVariant,
+    fontWeight: '600',
+    width: '42%',
+  },
+  plainTableValue: {
+    ...typography.bodySm,
+    color: colors.onSurface,
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'right',
+  },
   nextRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, marginTop: spacing.lg },
   nextDot: {
     width: 24,
@@ -892,7 +1046,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   planCardName: { ...typography.headlineSm, fontWeight: '700', marginBottom: 4 },
-  planCardTag: { ...typography.bodySm, color: colors.onSurfaceVariant, lineHeight: 18, minHeight: 54 },
+  planCardTag: { ...typography.bodySm, color: colors.onSurfaceVariant, lineHeight: 18, minHeight: 96 },
   planCta: {
     alignSelf: 'flex-start',
     borderRadius: radius.full,

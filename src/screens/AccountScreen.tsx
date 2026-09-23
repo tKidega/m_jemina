@@ -5,6 +5,7 @@ import { AppHeader, HeaderActions } from '../components/AppHeader';
 import { BottomNav } from '../components/BottomNav';
 import { Icon, IconName } from '../components/Icon';
 import { Button } from '../components/Button';
+import { BrandScreenLoader } from '../components/Loader';
 import { BuyCreditsModal } from '../components/BuyCreditsModal';
 import { useAuth } from '../state/AuthContext';
 import { useCart } from '../state/CartContext';
@@ -37,7 +38,7 @@ const MENU_ITEMS: MenuRow[] = [
 ];
 
 export function AccountScreen() {
-  const { user, token, isAuthenticated, logout } = useAuth();
+  const { user, token, isAuthenticated, isHydrated, logout } = useAuth();
   const { itemCount } = useCart();
   const { navigate } = useNavigation();
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
@@ -45,6 +46,7 @@ export function AccountScreen() {
   const [defaultAddress, setDefaultAddress] = useState<ApiAddress | null>(null);
   const [profile, setProfile] = useState<ApiUser | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
   const [subEmail, setSubEmail] = useState(user?.email ?? '');
   const [subscribed, setSubscribed] = useState(false);
   const [ordersCount, setOrdersCount] = useState(0);
@@ -94,6 +96,7 @@ export function AccountScreen() {
       setCreditBalance(null);
       setDefaultAddress(null);
       setProfile(null);
+      setDashboardLoading(false);
       return;
     }
     try {
@@ -127,11 +130,15 @@ export function AccountScreen() {
     } catch {
       setWishlistCount(0);
     }
+    setDashboardLoading(false);
   }, [isAuthenticated, token]);
 
   useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
     loadDashboard();
-  }, [loadDashboard]);
+  }, [isHydrated, loadDashboard]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -156,6 +163,21 @@ export function AccountScreen() {
     { label: 'Wishlist', value: String(wishlistCount) },
     { label: 'In Cart', value: String(itemCount) },
   ];
+
+  if (isHydrated && isAuthenticated && user && dashboardLoading && !refreshing) {
+    return (
+      <View style={styles.root}>
+        <AppHeader title="Account" right={<HeaderActions />} />
+        <BrandScreenLoader
+          title="My Account"
+          subtitle="Account Dashboard"
+          icon="account-circle"
+          hint="Loading your profile, wallet and orders..."
+        />
+        <BottomNav />
+      </View>
+    );
+  }
 
   if (!isAuthenticated || !user) {
     return (

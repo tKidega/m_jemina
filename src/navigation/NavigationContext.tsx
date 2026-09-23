@@ -8,6 +8,7 @@ export type RouteName =
   | 'Login'
   | 'TwoFactor'
   | 'Register'
+  | 'AccountPending'
   | 'Checkout'
   | 'Orders'
   | 'About'

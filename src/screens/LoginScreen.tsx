@@ -6,7 +6,7 @@ import { AppHeader } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
 import { useAuth } from '../state/AuthContext';
-import { TwoFactorRequiredError } from '../data/api';
+import { TwoFactorRequiredError, AccountPendingError } from '../data/api';
 import { useNavigation } from '../navigation/NavigationContext';
 import { isBiometricAvailable, promptBiometric, biometryLabel } from '../lib/biometric';
 import type { BiometryType } from 'react-native-biometrics';
@@ -23,14 +23,15 @@ GoogleSignin.configure({
   offlineAccess: false,
 });
 
-type IdMode = 'email' | 'phone';
+type IdMode = 'email' | 'pin';
 
 export function LoginScreen() {
-  const { login, loginWithGoogle } = useAuth();
+  const { login, loginWithPin, loginWithGoogle } = useAuth();
   const { goBack, navigate, finishAuthFlow } = useNavigation();
   const [idMode, setIdMode] = useState<IdMode>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [pin, setPin] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -44,8 +45,39 @@ export function LoginScreen() {
 
   const handleLogin = async () => {
     setError(null);
+
+    if (idMode === 'pin') {
+      if (pin.trim().length !== 4) {
+        setError('Enter your 4-digit Trader PIN.');
+        return;
+      }
+      setLoading(true);
+      try {
+        const remembered = (await AsyncStorage.getItem(REMEMBERED_EMAIL_KEY).catch(() => null))?.trim();
+        if (!remembered) {
+          setError('No saved email for PIN sign-in. Sign in with your email first, then use your PIN next time.');
+          return;
+        }
+        await loginWithPin(remembered, pin.trim());
+        finishAuthFlow();
+      } catch (e) {
+        if (e instanceof TwoFactorRequiredError) {
+          navigate('TwoFactor', { email: e.email, resendAfter: e.resendAfter });
+          return;
+        }
+        if (e instanceof AccountPendingError) {
+          navigate('AccountPending', { email: e.email, deactivated: e.deactivated });
+          return;
+        }
+        setError(e instanceof Error ? e.message : 'PIN sign-in failed. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     if (!email.trim() || !password) {
-      setError(idMode === 'email' ? 'Enter your email and password.' : 'Enter your trader ID and password.');
+      setError('Enter your email and password.');
       return;
     }
     setLoading(true);
@@ -56,6 +88,10 @@ export function LoginScreen() {
     } catch (e) {
       if (e instanceof TwoFactorRequiredError) {
         navigate('TwoFactor', { email: e.email, resendAfter: e.resendAfter });
+        return;
+      }
+      if (e instanceof AccountPendingError) {
+        navigate('AccountPending', { email: e.email, deactivated: e.deactivated });
         return;
       }
       setError(e instanceof Error ? e.message : 'Login failed. Please try again.');
@@ -78,6 +114,10 @@ export function LoginScreen() {
     } catch (e) {
       if (e instanceof TwoFactorRequiredError) {
         navigate('TwoFactor', { email: e.email, resendAfter: e.resendAfter });
+        return;
+      }
+      if (e instanceof AccountPendingError) {
+        navigate('AccountPending', { email: e.email, deactivated: e.deactivated });
         return;
       }
       setError(e instanceof Error ? e.message : 'Google sign-in failed. Please try again.');
@@ -131,56 +171,92 @@ export function LoginScreen() {
           ) : null}
 
           <View style={styles.form}>
-            {/* ID mode toggle */}
+            {/* Login method toggle */}
             <View style={styles.modeRow}>
-              {(['email', 'phone'] as IdMode[]).map(mode => (
-                <Pressable key={mode} style={[styles.modeChip, idMode === mode && styles.modeChipOn]} onPress={() => setIdMode(mode)}>
+              {(['email', 'pin'] as IdMode[]).map(mode => (
+                <Pressable
+                  key={mode}
+                  style={[styles.modeChip, idMode === mode && styles.modeChipOn]}
+                  onPress={() => {
+                    setIdMode(mode);
+                    setError(null);
+                  }}
+                >
                   <Text style={[styles.modeChipTxt, idMode === mode && styles.modeChipTxtOn]}>
-                    {mode === 'email' ? 'Email / Trader ID' : 'Phone / MoMo'}
+                    {mode === 'email' ? 'Email' : 'Trader PIN'}
                   </Text>
                 </Pressable>
               ))}
             </View>
 
-            <Text style={styles.label}>{idMode === 'email' ? 'Trader ID or Email' : 'Registered MoMo Number'}</Text>
-            <View style={styles.inputWrap}>
-              <Icon name="person" size={20} color={colors.outline} />
-              <TextInput
-                style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                placeholder={idMode === 'email' ? 'you@example.com' : '+256 7•• ••• •••'}
-                placeholderTextColor={colors.outline}
-                keyboardType={idMode === 'email' ? 'email-address' : 'phone-pad'}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
+            {idMode === 'email' ? (
+              <>
+                <Text style={styles.label}>Email Address</Text>
+                <View style={styles.inputWrap}>
+                  <Icon name="email" size={20} color={colors.outline} />
+                  <TextInput
+                    style={styles.input}
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholder="you@example.com"
+                    placeholderTextColor={colors.outline}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
 
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.inputWrap}>
-              <Icon name="lock" size={20} color={colors.outline} />
-              <TextInput
-                style={styles.input}
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Enter your password"
-                placeholderTextColor={colors.outline}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <Pressable onPress={() => setShowPassword(s => !s)} hitSlop={8}>
-                <Icon name={showPassword ? 'visibility-off' : 'visibility'} size={20} color={colors.outline} />
-              </Pressable>
-            </View>
+                <Text style={styles.label}>Password</Text>
+                <View style={styles.inputWrap}>
+                  <Icon name="lock" size={20} color={colors.outline} />
+                  <TextInput
+                    style={styles.input}
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="Enter your password"
+                    placeholderTextColor={colors.outline}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <Pressable onPress={() => setShowPassword(s => !s)} hitSlop={8}>
+                    <Icon name={showPassword ? 'visibility-off' : 'visibility'} size={20} color={colors.outline} />
+                  </Pressable>
+                </View>
 
-            <Pressable style={styles.forgotRow} onPress={() => setError(null)}>
-              <Text style={styles.forgotText}>Forgot Password?</Text>
-            </Pressable>
+                <Pressable style={styles.forgotRow} onPress={() => setError(null)}>
+                  <Text style={styles.forgotText}>Forgot Password?</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <Text style={styles.label}>Trader PIN</Text>
+                <View style={styles.inputWrap}>
+                  <Icon name="fingerprint" size={20} color={colors.outline} />
+                  <TextInput
+                    style={[styles.input, styles.pinInput]}
+                    value={pin}
+                    onChangeText={t => setPin(t.replace(/[^0-9]/g, '').slice(0, 4))}
+                    placeholder="••••"
+                    placeholderTextColor={colors.outline}
+                    keyboardType="number-pad"
+                    secureTextEntry
+                    maxLength={4}
+                    autoFocus
+                  />
+                </View>
+                <Text style={styles.pinHint}>Enter the 4-digit PIN you use for escrow &amp; Trade PIN actions.</Text>
+              </>
+            )}
 
             <Button
-              label={loading ? 'Signing in...' : 'Sign In to JEMINA'}
+              label={
+                loading
+                  ? 'Signing in...'
+                  : idMode === 'pin'
+                    ? 'Sign In with PIN'
+                    : 'Sign In to JEMINA'
+              }
               variant="primary"
               icon="arrow-forward"
               fullWidth
@@ -256,6 +332,8 @@ const styles = StyleSheet.create({
   label: { ...typography.labelMd, color: colors.onSurface, fontWeight: '700', marginBottom: spacing.xs + 2, marginTop: spacing.md },
   inputWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surfaceContainerLow, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.lg, paddingHorizontal: spacing.md },
   input: { flex: 1, ...typography.bodyMd, color: colors.onSurface, paddingVertical: spacing.sm + 2 },
+  pinInput: { letterSpacing: 8, textAlign: 'center', fontWeight: '700' },
+  pinHint: { ...typography.labelSm, color: colors.outline, marginTop: 6, textAlign: 'center' },
   forgotRow: { alignItems: 'flex-end', marginTop: spacing.sm },
   forgotText: { ...typography.labelMd, color: colors.secondary, fontWeight: '700' },
   submitBtn: { marginTop: spacing.md, paddingVertical: spacing.sm + 2 },

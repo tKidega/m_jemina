@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Icon } from './Icon';
 import { Button } from './Button';
@@ -17,6 +17,11 @@ const MAX_LEN = 4;
 const UNLOCK_TTL_MS = 10000;
 const unlocked: Record<string, number> = {};
 
+// Last known gate on/off per screen so remounts (tab switches) don't wait on
+// a network round-trip before the underlying screen can paint.
+const PIN_GATE_CACHE_TTL_MS = 5 * 60 * 1000;
+const gateCache: Record<string, { enabled: boolean; at: number }> = {};
+
 interface PinGateScreenProps {
   gateKey: string; // e.g. 'cart' | 'account'
   label: string; // e.g. 'Cart' | 'Account'
@@ -28,7 +33,8 @@ type Mode = 'pin' | 'otp' | 'newpin';
 export function PinProtectedScreen({ gateKey, label, children }: PinGateScreenProps) {
   const { token, isAuthenticated } = useAuth();
   const { switchTab } = useNavigation();
-  const [checking, setChecking] = useState(isAuthenticated && !!token);
+  // Children always render; `checking` only delays the PIN modal, never the screen.
+  const [checking, setChecking] = useState(false);
   const [required, setRequired] = useState(false);
   const [entered, setEntered] = useState('');
   const [err, setErr] = useState('');
@@ -51,32 +57,58 @@ export function PinProtectedScreen({ gateKey, label, children }: PinGateScreenPr
     return !!until && Date.now() < until;
   };
 
-  const check = useCallback(async () => {
-    if (!token || !isAuthenticated) {
-      setChecking(false);
-      return;
-    }
-    if (isUnlocked(gateKey)) {
-      setRequired(false);
-      setChecking(false);
-      return;
-    }
-    try {
-      const s = await apiGetPinStatus(token).catch(() => null);
-      const gateOn = !!s?.pin_gate_enabled && !!s?.pin_set;
-      setRequired(gateOn);
-      if (!gateOn) unlocked[gateKey] = Date.now() + UNLOCK_TTL_MS;
-    } catch {
-      setRequired(false);
-    } finally {
-      setChecking(false);
-    }
-  }, [token, isAuthenticated, gateKey]);
-
   useEffect(() => {
-    setChecking(isAuthenticated && !!token);
-    check();
-  }, [check, isAuthenticated, token]);
+    let cancelled = false;
+
+    const applyGate = (enabled: boolean, cache: boolean) => {
+      if (cancelled) return;
+      if (cache) {
+        gateCache[gateKey] = { enabled, at: Date.now() };
+      }
+      if (!enabled) {
+        unlocked[gateKey] = Date.now() + UNLOCK_TTL_MS;
+      }
+      setRequired(enabled);
+      setChecking(false);
+    };
+
+    if (!token || !isAuthenticated || isUnlocked(gateKey)) {
+      setRequired(false);
+      setChecking(false);
+      return;
+    }
+
+    const cached = gateCache[gateKey];
+    if (cached && Date.now() - cached.at < PIN_GATE_CACHE_TTL_MS) {
+      // Instant paint path — show/hide modal from cache, refresh in background.
+      setRequired(cached.enabled);
+      setChecking(false);
+    } else {
+      // No usable cache: children (loader) already visible; only the modal waits.
+      setChecking(true);
+    }
+
+    let active = true;
+    apiGetPinStatus(token)
+      .then(s => {
+        if (!active || cancelled) return;
+        applyGate(!!s?.pin_gate_enabled && !!s?.pin_set, true);
+      })
+      .catch(() => {
+        if (!active || cancelled) return;
+        // Fail open on network errors only if we had no cache (matches old catch).
+        if (!cached) {
+          applyGate(false, false);
+        } else {
+          setChecking(false);
+        }
+      });
+
+    return () => {
+      active = false;
+      cancelled = true;
+    };
+  }, [token, isAuthenticated, gateKey]);
 
   const press = (d: string) => {
     if (entered.length < MAX_LEN) setEntered(p => p + d);
@@ -170,14 +202,12 @@ export function PinProtectedScreen({ gateKey, label, children }: PinGateScreenPr
     setConfirmPin('');
   };
 
-  if (checking) {
-    return null;
-  }
-
+  // Always render children immediately (no blank flash while the PIN status
+  // request is in flight). The gate only appears as a modal once the check finishes.
   return (
     <>
       {children}
-      <Modal visible={required} transparent animationType="fade" onRequestClose={() => {}}>
+      <Modal visible={!checking && required} transparent animationType="fade" onRequestClose={() => {}}>
         <View style={s.overlay}>
           <View style={s.card}>
             <View style={s.iconWrap}>

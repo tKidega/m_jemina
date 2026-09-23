@@ -1,9 +1,10 @@
-﻿import React, { useCallback, useState } from 'react';
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
 import { BottomNav } from '../components/BottomNav';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
+import { BrandScreenLoader } from '../components/Loader';
 import { useCart } from '../state/CartContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { formatUGX } from '../components/ProductCard';
@@ -12,6 +13,7 @@ import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
 
 const PLATFORM_ESCROW_FEE = 1500;
+const LOADER_MIN_MS = 500;
 
 function vendorHubLabel(name: string): string {
   if (/solar|power/i.test(name)) return 'Direct Gulu Depot';
@@ -26,10 +28,24 @@ function vendorIcon(name: string, idx: number): 'storefront' | 'solar-power' | '
 }
 
 export function CartScreen() {
-  const { items, vendorGroups, itemCount, subtotal, totalDeliveryFees, updateQuantity, removeItem, clearCart, refresh } = useCart();
+  const { items, vendorGroups, itemCount, subtotal, totalDeliveryFees, totalShippingFees, fulfilment, setFulfilment, loading, updateQuantity, removeItem, clearCart, refresh } = useCart();
   const { navigate } = useNavigation();
   const [refreshing, setRefreshing] = useState(false);
-  const [hubPickup, setHubPickup] = useState(false);
+  // Always show the branded loader when the Cart tab opens — cart context may
+  // already have finished loading in the background, which made the old
+  // `loading`-only gate skip the loader entirely.
+  const [booting, setBooting] = useState(true);
+  const mountedAt = useRef(Date.now());
+  const hubPickup = fulfilment === 'pickup';
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+    const wait = Math.max(0, LOADER_MIN_MS - (Date.now() - mountedAt.current));
+    const timer = setTimeout(() => setBooting(false), wait);
+    return () => clearTimeout(timer);
+  }, [loading]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -40,9 +56,26 @@ export function CartScreen() {
     }
   }, [refresh]);
 
-  const totalShippingFees = vendorGroups.reduce((sum, g) => sum + g.shippingFee, 0);
   const effectiveDeliveryFees = hubPickup ? 0 : totalDeliveryFees;
   const cartTotal = subtotal + totalShippingFees + effectiveDeliveryFees + PLATFORM_ESCROW_FEE;
+
+  if (booting || (loading && !refreshing)) {
+    return (
+      <View style={styles.root}>
+        <AppHeader
+          title="Cart"
+          titleStyle={styles.headerTitle}
+        />
+        <BrandScreenLoader
+          title="Your Cart"
+          subtitle="Shopping Cart"
+          icon="shopping-cart"
+          hint="Loading your cart and fees..."
+        />
+        <BottomNav />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>
@@ -89,6 +122,30 @@ export function CartScreen() {
               </Pressable>
             </View>
 
+            {/* Fulfilment: Delivery vs Self Pickup */}
+            <View style={styles.toggleWrap}>
+              <View style={styles.toggleBg}>
+                <Pressable
+                  style={[styles.toggleBtn, !hubPickup && styles.toggleBtnActive]}
+                  onPress={() => setFulfilment('delivery')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delivery to address"
+                >
+                  <Icon name="local-shipping" size={16} color={!hubPickup ? colors.secondary : colors.outline} />
+                  <Text style={[styles.toggleText, !hubPickup && styles.toggleTextActive]}>Delivery</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.toggleBtn, hubPickup && styles.toggleBtnActive]}
+                  onPress={() => setFulfilment('pickup')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Self pickup at Gulu Hub"
+                >
+                  <Icon name="storefront" size={16} color={hubPickup ? colors.secondary : colors.outline} />
+                  <Text style={[styles.toggleText, hubPickup && styles.toggleTextActive]}>Self Pickup</Text>
+                </Pressable>
+              </View>
+            </View>
+
             {/* Hub pickup incentive */}
             <View style={styles.pickupBanner}>
               <Icon name="local-shipping" size={18} color={colors.secondary} />
@@ -99,9 +156,15 @@ export function CartScreen() {
                 <Text style={styles.pickupDesc}>
                   Switch to free self-pickup at the Gulu Central Hub (Owonzi Complex).
                 </Text>
-                <Pressable style={styles.pickupToggle} onPress={() => setHubPickup(v => !v)} hitSlop={6}>
+                <Pressable
+                  style={styles.pickupToggle}
+                  onPress={() => setFulfilment(hubPickup ? 'delivery' : 'pickup')}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={hubPickup ? 'Switch back to delivery' : 'Switch to Gulu Hub Pickup'}
+                >
                   <Icon name={hubPickup ? 'check-box' : 'check-box-outline-blank'} size={16} color={hubPickup ? colors.primaryContainer : colors.outline} />
-                  <Text style={styles.pickupToggleText}>Switch to Gulu Hub Pickup</Text>
+                  <Text style={styles.pickupToggleText}>{hubPickup ? 'Self Pickup selected' : 'Switch to Gulu Hub Pickup'}</Text>
                 </Pressable>
               </View>
             </View>
@@ -188,12 +251,10 @@ export function CartScreen() {
                   <Text style={styles.summaryLabel}>Items Subtotal ({itemCount} items, {vendorGroups.length} {vendorGroups.length === 1 ? 'vendor' : 'vendors'})</Text>
                   <Text style={styles.summaryValue}>{formatUGX(subtotal)}</Text>
                 </View>
-                {totalShippingFees > 0 ? (
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Shipping (Vendor → JEMINA Hub)</Text>
-                    <Text style={styles.summaryValue}>{formatUGX(totalShippingFees)}</Text>
-                  </View>
-                ) : null}
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Shipping (Vendor → JEMINA Hub)</Text>
+                  <Text style={styles.summaryValue}>{formatUGX(totalShippingFees)}</Text>
+                </View>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Delivery (Hub → You){hubPickup ? ' — Self Pickup' : ''}</Text>
                   <Text style={[styles.summaryValue, hubPickup && styles.summaryFree]}>{hubPickup ? 'FREE' : formatUGX(effectiveDeliveryFees)}</Text>
@@ -231,7 +292,7 @@ export function CartScreen() {
 
           {/* Sticky checkout trigger */}
           <View style={styles.stickyBar}>
-            <Pressable style={styles.checkoutBtn} onPress={() => navigate('Checkout', { hubPickup })}>
+            <Pressable style={styles.checkoutBtn} onPress={() => navigate('Checkout')}>
               <Text style={styles.checkoutBtnText}>Proceed to Checkout ({formatUGX(cartTotal)})</Text>
               <Icon name="arrow-forward" size={20} color={colors.onSecondary} />
             </Pressable>
@@ -299,6 +360,40 @@ const styles = StyleSheet.create({
     ...typography.labelMd,
     color: colors.secondary,
     fontWeight: '700',
+  },
+  toggleWrap: {
+    marginBottom: 0,
+  },
+  toggleBg: {
+    flexDirection: 'row',
+    backgroundColor: colors.surfaceContainer,
+    borderRadius: radius.lg,
+    padding: 3,
+  },
+  toggleBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: radius.lg - 2,
+  },
+  toggleBtnActive: {
+    backgroundColor: colors.surfaceContainerLowest,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  toggleText: {
+    ...typography.labelMd,
+    color: colors.outline,
+  },
+  toggleTextActive: {
+    color: colors.primary,
+    fontWeight: '600',
   },
   pickupBanner: {
     flexDirection: 'row',

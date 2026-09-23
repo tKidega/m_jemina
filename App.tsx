@@ -26,6 +26,7 @@ import { CartScreen } from './src/screens/CartScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { TwoFactorScreen } from './src/screens/TwoFactorScreen';
 import { RegisterScreen } from './src/screens/RegisterScreen';
+import { AccountPendingScreen } from './src/screens/AccountPendingScreen';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { CheckoutScreen } from './src/screens/CheckoutScreen';
 import { OrdersScreen } from './src/screens/OrdersScreen';
@@ -154,6 +155,9 @@ function Router() {
   }
   if (route === 'Register') {
     return <RegisterScreen />;
+  }
+  if (route === 'AccountPending') {
+    return <AccountPendingScreen />;
   }
   if (tab === 'Cart') {
     return (

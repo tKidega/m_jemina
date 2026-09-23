@@ -55,11 +55,13 @@ export function OrderConfirmationScreen() {
   const [fetchedOrder, setFetchedOrder] = useState<OrderConfirmationParams | null>(null);
   const [fetching, setFetching] = useState(false);
 
-  const order = (params as OrderConfirmationParams | undefined) ?? fetchedOrder;
+  // Full confirmation payload from Checkout → use it. Partial { orderId } only → fetch.
+  const fullParams = params as Partial<OrderConfirmationParams> | undefined;
+  const hasFullParams = !!(fullParams && fullParams.orderNumber && Array.isArray(fullParams.items));
+  const order = hasFullParams ? (fullParams as OrderConfirmationParams) : fetchedOrder;
 
-  // If only orderId is passed (from Payment screen), fetch order details
   useEffect(() => {
-    if (!order && params?.orderId && token) {
+    if (!hasFullParams && !fetchedOrder && params?.orderId && token) {
       setFetching(true);
       apiGetOrder(token, Number(params.orderId))
         .then(o => {
@@ -84,7 +86,7 @@ export function OrderConfirmationScreen() {
         .catch(() => {})
         .finally(() => setFetching(false));
     }
-  }, [order, params?.orderId, token]);
+  }, [hasFullParams, fetchedOrder, params?.orderId, token]);
 
   useEffect(() => {
     if (token && order?.paymentMethod === 'credit') {
@@ -191,9 +193,20 @@ export function OrderConfirmationScreen() {
           ) : null}
           <View style={styles.summaryDivider} />
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total Paid</Text>
+            <Text style={styles.totalLabel}>
+              {order.paymentMethod === 'cod'
+                ? 'Total Due on Delivery'
+                : order.paymentMethod === 'credit'
+                  ? 'Total Paid'
+                  : 'Total Payable'}
+            </Text>
             <Text style={styles.totalValue}>{formatUGX(order.totals.total)}</Text>
           </View>
+          {order.paymentMethod !== 'cod' && order.paymentMethod !== 'credit' ? (
+            <Text style={styles.payMethodNote}>
+              Payment is completed on the next screen. If you left it unfinished, open Orders and retry payment.
+            </Text>
+          ) : null}
         </View>
 
         {/* Payment method card */}

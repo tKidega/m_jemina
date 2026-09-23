@@ -1,7 +1,21 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { apiGetUser, apiGoogleLogin, apiLogin, apiLogout, apiRegister, apiVerifyTwoFactor, subscribeUnauthorized, UnauthorizedError, TwoFactorRequiredError } from '../data/api';
-import type { ApiUser, LoginResult, TwoFactorChallenge } from '../data/api';
+import {
+  apiGetUser,
+  apiGoogleLogin,
+  apiLogin,
+  apiLoginWithPin,
+  apiLogout,
+  apiRegister,
+  apiVerifyTwoFactor,
+  subscribeUnauthorized,
+  UnauthorizedError,
+  TwoFactorRequiredError,
+  AccountPendingError,
+  isAccountPending,
+  isTwoFactorChallenge,
+} from '../data/api';
+import type { ApiUser } from '../data/api';
 import { clearDeviceToken, removeDeviceTokenFromServer, syncDeviceToken } from '../lib/notifications';
 
 export interface User {
@@ -19,9 +33,10 @@ interface AuthContextValue {  user: User | null;
   isAuthenticated: boolean;
   isHydrated: boolean;
   login: (email: string, password: string) => Promise<User>;
+  loginWithPin: (email: string, pin: string) => Promise<User>;
   loginWithGoogle: (idToken: string) => Promise<User>;
   completeTwoFactorLogin: (email: string, code: string) => Promise<User>;
-  register: (name: string, email: string, password: string) => Promise<User>;
+  register: (name: string, email: string, password: string, phone: string) => Promise<User>;
   logout: () => void;
   expireSession: () => void;
   updateUser: (user: User) => void;
@@ -63,10 +78,6 @@ function apiUserToUser(api: ApiUser): User {
     role: api.role === 'vendor' ? 'vendor' : 'customer',
     createdAt: api.created_at ?? new Date().toISOString(),
   };
-}
-
-function isTwoFactorChallenge(result: LoginResult): result is TwoFactorChallenge {
-  return 'two_factor_required' in result && result.two_factor_required === true;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -171,12 +182,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (isTwoFactorChallenge(result)) {
         throw new TwoFactorRequiredError(result.email, result.resendAfter, result.message);
       }
+      if (isAccountPending(result)) {
+        const account = apiUserToUser(result.user);
+        setUser(account);
+        setToken(result.token);
+        setAuthMode('live');
+        throw new AccountPendingError(result.user.email, result.message, result.account_deactivated === true);
+      }
       const account = apiUserToUser(result.user);
       setUser(account);
       setToken(result.token);
       setAuthMode('live');
       return account;
     } catch (liveError) {
+      if (
+        liveError instanceof AccountPendingError ||
+        liveError instanceof TwoFactorRequiredError
+      ) {
+        throw liveError;
+      }
       await delay(400);
       const isNetworkFailure =
         liveError instanceof TypeError ||
@@ -200,10 +224,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const loginWithPin = useCallback(async (email: string, pin: string) => {
+    const normalized = email.trim().toLowerCase();
+    const result = await apiLoginWithPin(normalized, pin.trim());
+    if (isTwoFactorChallenge(result)) {
+      throw new TwoFactorRequiredError(result.email, result.resendAfter, result.message);
+    }
+    if (isAccountPending(result)) {
+      const account = apiUserToUser(result.user);
+      setUser(account);
+      setToken(result.token);
+      setAuthMode('live');
+      throw new AccountPendingError(result.user.email, result.message, result.account_deactivated === true);
+    }
+    const account = apiUserToUser(result.user);
+    setUser(account);
+    setToken(result.token);
+    setAuthMode('live');
+    return account;
+  }, []);
+
   const loginWithGoogle = useCallback(async (idToken: string) => {
     const result = await apiGoogleLogin(idToken);
     if (isTwoFactorChallenge(result)) {
       throw new TwoFactorRequiredError(result.email, result.resendAfter, result.message);
+    }
+    if (isAccountPending(result)) {
+      const account = apiUserToUser(result.user);
+      setUser(account);
+      setToken(result.token);
+      setAuthMode('live');
+      throw new AccountPendingError(result.user.email, result.message, result.account_deactivated === true);
     }
     const account = apiUserToUser(result.user);
     setUser(account);
@@ -213,28 +264,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const completeTwoFactorLogin = useCallback(async (email: string, code: string) => {
-    const { user: apiUser, token: apiToken } = await apiVerifyTwoFactor(
-      email.trim().toLowerCase(),
-      code.trim(),
-    );
-    const account = apiUserToUser(apiUser);
+    const result = await apiVerifyTwoFactor(email.trim().toLowerCase(), code.trim());
+    if (isTwoFactorChallenge(result)) {
+      throw new TwoFactorRequiredError(result.email, result.resendAfter, result.message);
+    }
+    if (isAccountPending(result)) {
+      const account = apiUserToUser(result.user);
+      setUser(account);
+      setToken(result.token);
+      setAuthMode('live');
+      throw new AccountPendingError(result.user.email, result.message, result.account_deactivated === true);
+    }
+    const account = apiUserToUser(result.user);
     setUser(account);
-    setToken(apiToken);
+    setToken(result.token);
     setAuthMode('live');
     return account;
   }, []);
 
-  const register = useCallback(async (name: string, email: string, password: string) => {
+  const register = useCallback(async (name: string, email: string, password: string, phone: string) => {
     const normalized = email.trim().toLowerCase();
     try {
-      const apiUser = await apiRegister(name.trim(), normalized, password);
-      const account = apiUserToUser(apiUser);
+      const result = await apiRegister(name.trim(), normalized, password, phone.trim());
+      const account = apiUserToUser(result.user);
       setUser(account);
-      setToken(null);
+      setToken(result.token ?? null);
       setAuthMode('live');
+      if (result.accountPending) {
+        throw new AccountPendingError(result.user?.email ?? normalized, result.message, false);
+      }
       return account;
     } catch (liveError) {
+      if (liveError instanceof AccountPendingError) {
+        throw liveError;
+      }
       await delay(400);
+      const isNetworkFailure =
+        liveError instanceof TypeError ||
+        /network request failed|failed to fetch|net::|timed out|timeout|no connection|offline/i.test(
+          liveError instanceof Error ? liveError.message : '',
+        );
+      if (!isNetworkFailure) {
+        throw liveError;
+      }
       if (registeredUsers.has(normalized)) {
         throw new Error(
           liveError instanceof Error ? liveError.message : 'An account with this email already exists.',
@@ -247,6 +319,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         id: String(registeredUsers.size + 1),
         name: name.trim(),
         email: normalized,
+        phone: phone.trim() || undefined,
         role: 'customer',
         createdAt: new Date().toISOString(),
       };
@@ -281,6 +354,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: user !== null,
       isHydrated,
       login,
+      loginWithPin,
       loginWithGoogle,
       completeTwoFactorLogin,
       register,
@@ -288,7 +362,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       expireSession,
       updateUser,
     }),
-    [user, token, authMode, isHydrated, login, loginWithGoogle, completeTwoFactorLogin, register, logout, expireSession, updateUser],
+    [user, token, authMode, isHydrated, login, loginWithPin, loginWithGoogle, completeTwoFactorLogin, register, logout, expireSession, updateUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

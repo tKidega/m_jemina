@@ -54,8 +54,6 @@ const PICKUP_POINTS_FALLBACK: PickupPoint[] = [
   },
 ];
 
-type Fulfilment = 'pickup' | 'delivery';
-
 function providerLabel(provider: string): string {
   const p = provider.toLowerCase();
   if (p === 'mtn') return 'MTN Mobile Money';
@@ -74,12 +72,9 @@ function gatewayForSavedMethod(method: ApiPaymentMethod): string {
 }
 
 export function CheckoutScreen() {
-  const { items, vendorGroups, subtotal, totalDeliveryFees, clearCart } = useCart();
+  const { items, vendorGroups, subtotal, totalDeliveryFees, totalShippingFees, fulfilment, setFulfilment, clearCart } = useCart();
   const { token, user, authMode } = useAuth();
-  const { goBack, navigate, params } = useNavigation();
-  const hubPickup = params?.hubPickup === true;
-
-  const [fulfilment, setFulfilment] = useState<Fulfilment>(hubPickup ? 'pickup' : 'delivery');
+  const { goBack, navigate } = useNavigation();
   const [defaultAddress, setDefaultAddress] = useState<ApiAddress | null>(null);
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodKey>('cod');
@@ -118,8 +113,6 @@ export function CheckoutScreen() {
   useEffect(() => {
     loadPickupPoints();
   }, [loadPickupPoints]);
-
-  const totalShippingFees = vendorGroups.reduce((sum, g) => sum + g.shippingFee, 0);
 
   const loadAll = useCallback(async () => {
     if (!token) {
@@ -342,8 +335,12 @@ export function CheckoutScreen() {
             : null,
         fulfilment,
       });
-      clearCart();
+      // COD / credit settle immediately — clear cart now.
+      // Gateway payments (MoMo/card/etc.) keep the cart until payment is
+      // initiated successfully on the Payment screen, so an abandoned or
+      // failed charge does not strand the user with an empty cart and no money taken.
       if (paymentMethod === 'credit' || paymentMethod === 'cod') {
+        clearCart();
         navigate('OrderConfirmation', {
           orderId: order.id,
           orderNumber: order.order_number,
@@ -370,6 +367,7 @@ export function CheckoutScreen() {
           fulfilment,
           totals,
           vendorGroupCount: vendorGroups.length,
+          clearCartOnPay: true,
         });
       }
     } catch (e) {
@@ -438,13 +436,9 @@ export function CheckoutScreen() {
             <View style={styles.toggleBg}>
               <Pressable
                 style={[styles.toggleBtn, fulfilment === 'delivery' && styles.toggleBtnActive]}
-                onPress={() => {
-                  if (!defaultAddress && fulfilment !== 'delivery') {
-                    navigate('AddressBook');
-                    return;
-                  }
-                  setFulfilment('delivery');
-                }}
+                onPress={() => setFulfilment('delivery')}
+                accessibilityRole="button"
+                accessibilityLabel="Deliver to address"
               >
                 <Icon name="local-shipping" size={16} color={fulfilment === 'delivery' ? colors.secondary : colors.outline} />
                 <Text style={[styles.toggleText, fulfilment === 'delivery' && styles.toggleTextActive]}>Deliver to Address</Text>
@@ -452,6 +446,8 @@ export function CheckoutScreen() {
               <Pressable
                 style={[styles.toggleBtn, fulfilment === 'pickup' && styles.toggleBtnActive]}
                 onPress={() => setFulfilment('pickup')}
+                accessibilityRole="button"
+                accessibilityLabel="Pickup at Gulu Hub"
               >
                 <Icon name="storefront" size={16} color={fulfilment === 'pickup' ? colors.secondary : colors.outline} />
                 <Text style={[styles.toggleText, fulfilment === 'pickup' && styles.toggleTextActive]}>Gulu Pickup Hub</Text>
@@ -628,12 +624,10 @@ export function CheckoutScreen() {
               <Text style={styles.summaryLabel}>Items Subtotal</Text>
               <Text style={styles.summaryValue}>{formatUGX(totals.subtotal)}</Text>
             </View>
-            {totals.shipping > 0 ? (
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Shipping (Vendor → Hub)</Text>
-                <Text style={styles.summaryValue}>{formatUGX(totals.shipping)}</Text>
-              </View>
-            ) : null}
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Shipping (Vendor → Hub)</Text>
+              <Text style={styles.summaryValue}>{formatUGX(totals.shipping)}</Text>
+            </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Delivery (Hub → You){fulfilment === 'pickup' ? ' — Self Pickup' : ''}</Text>
               <Text style={[styles.summaryValue, fulfilment === 'pickup' && styles.discountValue]}>{fulfilment === 'pickup' ? 'FREE' : formatUGX(totals.delivery)}</Text>

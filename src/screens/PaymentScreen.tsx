@@ -4,6 +4,7 @@ import { AppHeader } from '../components/AppHeader';
 import { Icon, IconName } from '../components/Icon';
 import { Button } from '../components/Button';
 import { useAuth } from '../state/AuthContext';
+import { useCart } from '../state/CartContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { apiInitiatePayment, apiGetPaymentStatus, ApiPaymentResult, ApiPaymentStatus } from '../data/api';
 import { formatUGX } from '../components/ProductCard';
@@ -26,21 +27,51 @@ const GATEWAY_TO_API: Record<string, string> = {
   bitcoin: 'bitcoin',
 };
 
+/** Poll every 5s; after this many misses, surface a timeout (90s). */
+const MAX_POLL_MISSES = 18;
+
+const PAID_STATUSES = new Set(['completed', 'succeeded', 'successful', 'success', 'paid']);
+const FAILED_STATUSES = new Set(['failed', 'cancelled', 'canceled', 'expired', 'declined']);
+
+function isPaidStatus(s?: ApiPaymentStatus | null): boolean {
+  if (!s) return false;
+  return PAID_STATUSES.has(String(s.status || '').toLowerCase())
+    || PAID_STATUSES.has(String(s.gateway_status || '').toLowerCase());
+}
+
+function isFailedStatus(s?: ApiPaymentStatus | null): boolean {
+  if (!s) return false;
+  return FAILED_STATUSES.has(String(s.status || '').toLowerCase())
+    || FAILED_STATUSES.has(String(s.gateway_status || '').toLowerCase());
+}
+
 export function PaymentScreen() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const { clearCart } = useCart();
   const { params, navigate, goBack } = useNavigation();
   const gateway = (params?.gateway as string | undefined) ?? 'stripe';
   const amount = Number(params?.amount ?? 0);
   const orderId = params?.orderId != null ? Number(params.orderId) : undefined;
+  const shouldClearCart = params?.clearCartOnPay === true;
 
   const [result, setResult] = useState<ApiPaymentResult | null>(null);
   const [status, setStatus] = useState<ApiPaymentStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollMisses = useRef(0);
+  const clearedRef = useRef(false);
 
   const info = GATEWAY_LABELS[gateway] ?? GATEWAY_LABELS.stripe;
+
+  const markPaidAndClear = useCallback(() => {
+    if (shouldClearCart && !clearedRef.current) {
+      clearedRef.current = true;
+      clearCart();
+    }
+  }, [shouldClearCart, clearCart]);
 
   const initiate = useCallback(async () => {
     if (!token) {
@@ -49,22 +80,34 @@ export function PaymentScreen() {
       return;
     }
     setError(null);
+    setTimedOut(false);
+    pollMisses.current = 0;
     setLoading(true);
+    setStatus(null);
     try {
+      const apiGateway = GATEWAY_TO_API[gateway] ?? gateway;
+      const phone =
+        (apiGateway === 'mtn_mobile_money' || gateway === 'mtn' || gateway === 'mtn_mobile_money')
+          ? user?.phone
+          : undefined;
       const res = await apiInitiatePayment(token, {
-        gateway: GATEWAY_TO_API[gateway] ?? gateway,
+        gateway: apiGateway,
         amount,
         currency: info.currency,
         order_id: orderId,
         description: `Order payment on JEMINA Marketplace`,
+        phone,
+        metadata: orderId != null ? { type: 'order_payment', order_id: orderId } : undefined,
       });
       setResult(res);
+      // Charge request accepted — items now live on the unpaid order.
+      markPaidAndClear();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to initiate payment. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [token, gateway, amount, orderId, info.currency]);
+  }, [token, gateway, amount, orderId, info.currency, user?.phone, markPaidAndClear]);
 
   useEffect(() => {
     initiate();
@@ -76,15 +119,30 @@ export function PaymentScreen() {
     }
     pollTimer.current = setInterval(() => {
       apiGetPaymentStatus(token, result.transaction_id as string)
-        .then(s => setStatus(s))
-        .catch(() => {});
+        .then(s => {
+          setStatus(s);
+          pollMisses.current = 0;
+          if (isPaidStatus(s)) {
+            markPaidAndClear();
+            if (pollTimer.current) clearInterval(pollTimer.current);
+          } else if (isFailedStatus(s)) {
+            if (pollTimer.current) clearInterval(pollTimer.current);
+          }
+        })
+        .catch(() => {
+          pollMisses.current += 1;
+          if (pollMisses.current >= MAX_POLL_MISSES) {
+            setTimedOut(true);
+            if (pollTimer.current) clearInterval(pollTimer.current);
+          }
+        });
     }, 5000);
     return () => {
       if (pollTimer.current) {
         clearInterval(pollTimer.current);
       }
     };
-  }, [result, token]);
+  }, [result, token, markPaidAndClear]);
 
   const checkStatus = async () => {
     if (!result?.transaction_id || !token) {
@@ -94,6 +152,9 @@ export function PaymentScreen() {
     try {
       const s = await apiGetPaymentStatus(token, result.transaction_id as string);
       setStatus(s);
+      if (isPaidStatus(s)) {
+        markPaidAndClear();
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not check payment status.');
     } finally {
@@ -109,7 +170,9 @@ export function PaymentScreen() {
   };
 
   const paymentLink = result?.gateway_data?.payment_link as string | undefined;
-  const paid = status?.status === 'completed' || status?.gateway_status === 'completed' || status?.gateway_status === 'succeeded';
+  const paid = isPaidStatus(status);
+  const failed = isFailedStatus(status);
+  const showTimeout = timedOut && !paid && !failed;
 
   return (
     <View style={styles.root}>
@@ -168,8 +231,35 @@ export function PaymentScreen() {
             <Icon name="error-outline" size={26} color={colors.error} />
             <Text style={[styles.statusTitle, styles.errorTitle]}>Payment not initiated</Text>
             <Text style={[styles.statusSub, styles.errorText]}>{error}</Text>
-            <Button label="Retry" variant="primary" fullWidth onPress={initiate} style={styles.actionBtn} />
-            <Button label="Go to My Orders" variant="outline" fullWidth onPress={() => navigate('OrderConfirmation', { orderId })} />
+            <Button label="Retry Payment" variant="primary" fullWidth onPress={initiate} style={styles.actionBtn} />
+            <Button
+              label="Go to My Orders"
+              variant="outline"
+              fullWidth
+              onPress={() => navigate('Orders')}
+            />
+          </View>
+        ) : showTimeout ? (
+          <View style={[styles.statusCard, styles.errorCard]}>
+            <Icon name="schedule" size={26} color={colors.error} />
+            <Text style={[styles.statusTitle, styles.errorTitle]}>Payment not completed</Text>
+            <Text style={[styles.statusSub, styles.errorText]}>
+              We did not receive a confirmation from {info.label}. No money was taken from your account.
+              Your order is reserved but still unpaid — retry payment or open Orders to finish later.
+            </Text>
+            <Button label="Retry Payment" variant="primary" fullWidth onPress={initiate} style={styles.actionBtn} />
+            <Button label="Check Status Again" variant="outline" fullWidth onPress={checkStatus} style={styles.actionBtn} />
+            <Button label="Go to My Orders" variant="ghost" fullWidth onPress={() => navigate('Orders')} />
+          </View>
+        ) : failed ? (
+          <View style={[styles.statusCard, styles.errorCard]}>
+            <Icon name="error-outline" size={26} color={colors.error} />
+            <Text style={[styles.statusTitle, styles.errorTitle]}>Payment failed</Text>
+            <Text style={[styles.statusSub, styles.errorText]}>
+              {info.label} declined or cancelled this payment. No money was taken. You can retry or open Orders.
+            </Text>
+            <Button label="Retry Payment" variant="primary" fullWidth onPress={initiate} style={styles.actionBtn} />
+            <Button label="Go to My Orders" variant="outline" fullWidth onPress={() => navigate('Orders')} />
           </View>
         ) : result ? (
           <>
@@ -184,7 +274,9 @@ export function PaymentScreen() {
                   ? 'Your payment has been confirmed and is locked in escrow. We\'re now processing your order.'
                   : paymentLink
                     ? 'Complete your payment securely with your chosen gateway to release this order for dispatch.'
-                    : 'Your payment is being processed. We\'ll update your order once confirmed.'}
+                    : gateway === 'mtn' || gateway === 'mtn_mobile_money'
+                      ? 'Check your phone for the MTN MoMo prompt and enter your PIN to approve. This screen updates automatically.'
+                      : 'Your payment is being processed. We\'ll update your order once confirmed.'}
               </Text>
             </View>
 
@@ -250,7 +342,7 @@ export function PaymentScreen() {
               onPress={checkStatus}
               style={styles.actionBtn}
             />
-            <Button label="Go to My Orders" variant="ghost" fullWidth onPress={() => navigate('OrderConfirmation', { orderId })} />
+            <Button label="Go to My Orders" variant="ghost" fullWidth onPress={() => navigate('Orders')} />
           </>
         ) : null}
 

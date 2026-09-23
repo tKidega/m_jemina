@@ -220,3 +220,92 @@ export function PulseDot({ color }: { color?: string }) {
     />
   );
 }
+
+/* ─── Branded Full-Screen Loader (Cart / Account) ──── */
+
+export function BrandScreenLoader({
+  title,
+  subtitle,
+  hint,
+  icon = 'verified-user',
+}: {
+  title: string;
+  subtitle?: string;
+  hint?: string;
+  icon?: IconName;
+}) {
+  return (
+    <View style={brandStyles.root}>
+      <View style={brandStyles.mark}>
+        <View style={brandStyles.ring} />
+        <View style={brandStyles.badge}>
+          <Icon name={icon} size={30} color={colors.onPrimary} />
+        </View>
+      </View>
+      <Text style={brandStyles.title}>JEMINA</Text>
+      <Text style={brandStyles.subtitle}>{subtitle ?? title}</Text>
+      <View style={brandStyles.spinner}>
+        <SpinLoader color={colors.primary} />
+      </View>
+      {hint ? <Text style={brandStyles.hint}>{hint}</Text> : null}
+    </View>
+  );
+}
+
+const brandStyles = StyleSheet.create({
+  root: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background,
+    paddingHorizontal: spacing.xl,
+  },
+  mark: {
+    width: 86,
+    height: 86,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  ring: {
+    position: 'absolute',
+    width: 86,
+    height: 86,
+    borderRadius: 43,
+    borderWidth: 3,
+    borderColor: `${colors.primary}33`,
+    borderLeftColor: colors.secondary,
+    transform: [{ rotate: '45deg' }],
+  },
+  badge: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: {
+    ...typography.headlineLg,
+    color: colors.onSurface,
+    fontWeight: '800',
+    letterSpacing: 4,
+  },
+  subtitle: {
+    ...typography.labelMd,
+    color: colors.onSurfaceVariant,
+    letterSpacing: 2,
+    marginTop: 2,
+    textTransform: 'uppercase',
+    textAlign: 'center',
+  },
+  spinner: {
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  hint: {
+    ...typography.bodyMd,
+    color: colors.outline,
+    textAlign: 'center',
+  },
+});
