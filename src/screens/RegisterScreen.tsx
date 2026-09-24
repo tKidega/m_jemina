@@ -12,7 +12,7 @@ import { spacing, radius } from '../theme/spacing';
 
 export function RegisterScreen() {
   const { register } = useAuth();
-  const { goBack, navigate, finishAuthFlow } = useNavigation();
+  const { goBack, navigate, switchTab } = useNavigation();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -48,7 +48,7 @@ export function RegisterScreen() {
     setLoading(true);
     try {
       await register(name, email, password, phone.trim());
-      finishAuthFlow();
+      switchTab('Profile');
     } catch (e) {
       if (e instanceof AccountPendingError) {
         navigate('AccountPending', { email: e.email, deactivated: e.deactivated });

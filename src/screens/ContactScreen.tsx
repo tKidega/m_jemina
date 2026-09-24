@@ -16,6 +16,7 @@ import { SectionHeader } from '../components/SectionHeader';
 import { Button } from '../components/Button';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
+import { apiSendContactMessage } from '../data/api';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
@@ -32,7 +33,7 @@ const BUSINESS_HOURS = [
 ];
 
 export function ContactScreen() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, token } = useAuth();
   const { goBack } = useNavigation();
   const [form, setForm] = useState({
     name: user?.name ?? '',
@@ -42,6 +43,7 @@ export function ContactScreen() {
   });
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
 
   const setField = (key: keyof typeof form) => (value: string) => {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -55,7 +57,7 @@ export function ContactScreen() {
     Linking.openURL(target).catch(() => setError('Could not open your mail or phone app.'));
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     setError(null);
     if (!form.name.trim()) {
       setError('Please enter your name.');
@@ -77,12 +79,24 @@ export function ContactScreen() {
       setError('Please enter your message.');
       return;
     }
-    const subject = encodeURIComponent(form.subject);
-    const body = encodeURIComponent(`${form.message}\n\nâ€” ${form.name}\n${form.email}`);
-    Linking.openURL(`mailto:support@jemi-na.com?subject=${subject}&body=${body}`).catch(() =>
-      setError('Could not open your mail app. Please email support@jemi-na.com directly.'),
-    );
-    setSent(true);
+    setSending(true);
+    try {
+      await apiSendContactMessage(
+        {
+          name: form.name.trim(),
+          email: form.email.trim(),
+          subject: form.subject.trim(),
+          message: form.message.trim(),
+        },
+        token,
+      );
+      setSent(true);
+      setForm(prev => ({ ...prev, subject: '', message: '' }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not send your message. Please try again.');
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -149,7 +163,7 @@ export function ContactScreen() {
               <View style={styles.successBox}>
                 <Icon name="check-circle" size={22} color={colors.statusSuccess} />
                 <Text style={styles.successText}>
-                  Your message has been prepared. Please send it from your mail app.
+                  Your message has been sent! We will get back to you soon.
                 </Text>
               </View>
             ) : null}
@@ -208,7 +222,14 @@ export function ContactScreen() {
               />
             </View>
 
-            <Button label="Send Message" variant="primary" fullWidth onPress={handleSend} style={styles.sendBtn} />
+            <Button
+              label={sending ? 'Sending...' : 'Send Message'}
+              variant="primary"
+              fullWidth
+              onPress={handleSend}
+              disabled={sending}
+              style={styles.sendBtn}
+            />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

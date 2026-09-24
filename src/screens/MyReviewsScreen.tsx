@@ -7,7 +7,7 @@ import { EmptyState } from '../components/EmptyState';
 import { SectionLoader } from '../components/Loader';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { apiGetMyReviews, apiGetOrders, ApiMyReview, ApiOrderItem } from '../data/api';
+import { absoluteUrl, apiGetMyReviews, apiGetOrders, ApiMyReview, ApiOrder, ApiOrderItem } from '../data/api';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
@@ -37,6 +37,45 @@ interface PendingItem {
   deliveredAt?: string;
 }
 
+const SUCCESS_STATUSES = 'completed,delivered';
+
+function buildLists(reviewList: ApiMyReview[], orders: ApiOrder[]) {
+  const reviewedIds = new Set(reviewList.map(r => String(r.product.id)));
+  const isDelivered = (o: { status: string }) => {
+    const s = o.status.toLowerCase();
+    return s === 'delivered' || s === 'completed';
+  };
+  const items = orders
+    .filter(isDelivered)
+    .flatMap(o =>
+      (o.items ?? []).map((it: ApiOrderItem) => ({
+        productId: Number(it.product_id),
+        productName: it.product_name,
+        image: absoluteUrl(it.product_image),
+        orderNumber: o.order_number,
+        deliveredAt: o.delivered_at ?? o.created_at,
+      })),
+    );
+  const seen = new Set<number>();
+  const pendingList = items.filter(
+    it => !reviewedIds.has(String(it.productId)) && !seen.has(it.productId) && seen.add(it.productId),
+  );
+
+  // Reviewed tab = user's reviews for products from successfully completed/delivered orders.
+  const orderedProductIds = new Set(items.map(it => String(it.productId)));
+  const reviewedList = reviewList.filter(r => orderedProductIds.has(String(r.product.id)));
+
+  return { pendingList, reviewedList };
+}
+
+async function fetchLists(token: string) {
+  const [reviewList, orders] = await Promise.all([
+    apiGetMyReviews(token),
+    apiGetOrders(token, SUCCESS_STATUSES).catch(() => []),
+  ]);
+  return buildLists(reviewList, orders);
+}
+
 export function MyReviewsScreen() {
   const { token, isAuthenticated } = useAuth();
   const { navigate, goBack } = useNavigation();
@@ -57,33 +96,9 @@ export function MyReviewsScreen() {
     setLoading(true);
     setError(null);
     try {
-      const [reviewList, orders] = await Promise.all([
-        apiGetMyReviews(token),
-        apiGetOrders(token).catch(() => []),
-      ]);
-      setReviews(reviewList);
-
-      // Live "To Review" list = items from delivered/completed orders excluding already-reviewed products.
-      const reviewedIds = new Set(reviewList.map(r => String(r.product.id)));
-      const isDelivered = (o: { status: string }) => {
-        const s = o.status.toLowerCase();
-        return s === 'delivered' || s === 'completed';
-      };
-      const items = orders
-        .filter(isDelivered)
-        .flatMap(o =>
-          (o.items ?? []).map((it: ApiOrderItem) => ({
-            productId: Number(it.product_id),
-            productName: it.product_name,
-            image: it.product_image ?? undefined,
-            orderNumber: o.order_number,
-            deliveredAt: o.delivered_at ?? o.created_at,
-          })),
-        );
-      const seen = new Set<number>();
-      setPending(
-        items.filter(it => !reviewedIds.has(String(it.productId)) && !seen.has(it.productId) && seen.add(it.productId)),
-      );
+      const { pendingList, reviewedList } = await fetchLists(token);
+      setPending(pendingList);
+      setReviews(reviewedList);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load your reviews.');
     } finally {
@@ -96,31 +111,9 @@ export function MyReviewsScreen() {
     setRefreshing(true);
     setError(null);
     try {
-      const [reviewList, orders] = await Promise.all([
-        apiGetMyReviews(token),
-        apiGetOrders(token).catch(() => []),
-      ]);
-      setReviews(reviewList);
-      const reviewedIds = new Set(reviewList.map(r => String(r.product.id)));
-      const isDelivered = (o: { status: string }) => {
-        const s = o.status.toLowerCase();
-        return s === 'delivered' || s === 'completed';
-      };
-      const items = orders
-        .filter(isDelivered)
-        .flatMap(o =>
-          (o.items ?? []).map((it: ApiOrderItem) => ({
-            productId: Number(it.product_id),
-            productName: it.product_name,
-            image: it.product_image ?? undefined,
-            orderNumber: o.order_number,
-            deliveredAt: o.delivered_at ?? o.created_at,
-          })),
-        );
-      const seen = new Set<number>();
-      setPending(
-        items.filter(it => !reviewedIds.has(String(it.productId)) && !seen.has(it.productId) && seen.add(it.productId)),
-      );
+      const { pendingList, reviewedList } = await fetchLists(token);
+      setPending(pendingList);
+      setReviews(reviewedList);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load your reviews.');
     } finally {
@@ -247,7 +240,7 @@ export function MyReviewsScreen() {
                 >
                   <View style={styles.imageWrap}>
                     {review.product.images?.[0] ? (
-                      <Image source={{ uri: review.product.images[0] }} style={styles.image} resizeMode="cover" />
+                      <Image source={{ uri: absoluteUrl(review.product.images[0]) }} style={styles.image} resizeMode="cover" />
                     ) : (
                       <View style={[styles.image, styles.imagePlaceholder]}>
                         <Icon name="store" size={24} color={colors.outlineVariant} />

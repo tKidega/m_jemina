@@ -21,7 +21,7 @@ function maskEmail(email: string): string {
 
 export function TwoFactorScreen() {
   const { completeTwoFactorLogin } = useAuth();
-  const { params, goBack, navigate, finishAuthFlow } = useNavigation();
+  const { params, goBack, navigate, switchTab } = useNavigation();
   const email = String(params?.email ?? '');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +60,7 @@ export function TwoFactorScreen() {
     setLoading(true);
     try {
       await completeTwoFactorLogin(email, code);
-      finishAuthFlow();
+      switchTab('Profile');
     } catch (e) {
       if (e instanceof AccountPendingError) {
         navigate('AccountPending', { email: e.email, deactivated: e.deactivated });

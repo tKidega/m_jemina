@@ -22,6 +22,7 @@ export function AccountPendingScreen() {
   const [resending, setResending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [noticeKind, setNoticeKind] = useState<'success' | 'error'>('success');
+  const [browseOpen, setBrowseOpen] = useState(false);
 
   const email =
     (typeof params?.email === 'string' && params.email) ||
@@ -98,7 +99,13 @@ export function AccountPendingScreen() {
             <Icon name="chevron-right" size={18} color={colors.outline} />
           </Pressable>
 
-          <Button label="Sign Out" variant="outline" fullWidth onPress={handleSignOut} style={styles.spacerBtn} />
+          <Button
+            label="Sign Out"
+            variant="outline"
+            fullWidth
+            onPress={handleSignOut}
+            style={{ marginTop: spacing.md, borderColor: colors.statusFlash, borderWidth: 1.5 }}
+          />
         </ScrollView>
         <BottomNav />
       </View>
@@ -155,16 +162,78 @@ export function AccountPendingScreen() {
 
         <Text style={styles.sectionLabel}>WHILE YOU WAIT</Text>
 
-        <Pressable style={styles.actionRow} onPress={() => navigate('Marketplace')}>
-          <View style={[styles.actionIcon, { backgroundColor: '#fdf6ee' }]}>
-            <Icon name="storefront" size={18} color={colors.secondary} />
-          </View>
-          <View style={styles.actionBody}>
-            <Text style={styles.actionTitle}>Browse the Marketplace</Text>
-            <Text style={styles.actionSub}>Explore products while you wait</Text>
-          </View>
-          <Icon name="chevron-right" size={18} color={colors.outline} />
-        </Pressable>
+        {/* Browse the Marketplace — expandable */}
+        <View style={styles.actionCard}>
+          <Pressable
+            style={styles.actionRowBare}
+            onPress={() => setBrowseOpen(o => !o)}
+            accessibilityRole="button"
+            accessibilityLabel={browseOpen ? 'Collapse marketplace options' : 'Expand marketplace options'}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: '#fdf6ee' }]}>
+              <Icon name="storefront" size={18} color={colors.secondary} />
+            </View>
+            <View style={styles.actionBody}>
+              <Text style={styles.actionTitle}>Browse the Marketplace</Text>
+              <Text style={styles.actionSub}>Explore products while you wait</Text>
+            </View>
+            <Icon
+              name={browseOpen ? 'keyboard-arrow-up' : 'expand-more'}
+              size={22}
+              color={colors.secondary}
+            />
+          </Pressable>
+
+          {browseOpen ? (
+            <View style={styles.dropdown}>
+              <Text style={styles.dropdownHint}>
+                While you wait you can: browse products, view product details, make corporate
+                inquiries, and add products to your wishlist.
+              </Text>
+              {[
+                {
+                  key: 'products',
+                  icon: 'shopping-bag' as const,
+                  title: 'Browse products',
+                  sub: 'Search categories, deals and featured stock',
+                  onPress: () => navigate('Marketplace'),
+                },
+                {
+                  key: 'details',
+                  icon: 'info' as const,
+                  title: 'View product details',
+                  sub: 'Specs, pricing, stock and vendor info',
+                  onPress: () => navigate('Marketplace'),
+                },
+                {
+                  key: 'inquiry',
+                  icon: 'request-quote' as const,
+                  title: 'Corporate inquiries',
+                  sub: 'Request bulk quotes (B2B RFQs)',
+                  onPress: () => navigate('MyInquiries'),
+                },
+                {
+                  key: 'wishlist',
+                  icon: 'favorite-border' as const,
+                  title: 'Wishlist',
+                  sub: 'Save products for after activation',
+                  onPress: () => navigate('Wishlist'),
+                },
+              ].map(item => (
+                <Pressable key={item.key} style={styles.dropdownItem} onPress={item.onPress}>
+                  <View style={styles.dropdownIcon}>
+                    <Icon name={item.icon} size={16} color={colors.secondary} />
+                  </View>
+                  <View style={styles.actionBody}>
+                    <Text style={styles.dropdownTitle}>{item.title}</Text>
+                    <Text style={styles.dropdownSub}>{item.sub}</Text>
+                  </View>
+                  <Icon name="chevron-right" size={16} color={colors.outline} />
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+        </View>
 
         <Pressable style={styles.actionRow} onPress={() => navigate('HelpCenter')}>
           <View style={[styles.actionIcon, { backgroundColor: '#f0f4f8' }]}>
@@ -198,8 +267,9 @@ export function AccountPendingScreen() {
           </Pressable>
         </View>
 
-        <Pressable style={styles.signOut} onPress={handleSignOut} hitSlop={6}>
-          <Text style={styles.signOutText}>Sign out</Text>
+        <Pressable style={styles.signOut} onPress={handleSignOut} hitSlop={6} accessibilityRole="button">
+          <Icon name="logout" size={18} color={colors.statusFlash} />
+          <Text style={styles.signOutText}>Sign Out</Text>
         </Pressable>
       </ScrollView>
       <BottomNav />
@@ -401,16 +471,82 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   signOut: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.md,
-    marginTop: spacing.xs,
+    justifyContent: 'center',
+    gap: 8,
+    width: '100%',
+    height: 46,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.statusFlash,
+    backgroundColor: colors.surfaceContainerLowest,
+    marginTop: spacing.sm,
   },
   signOutText: {
+    ...typography.labelLg,
+    color: colors.statusFlash,
+    fontWeight: '700',
+  },
+  actionCard: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+  },
+  actionRowBare: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.sm + 2,
+  },
+  dropdown: {
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceContainerHigh,
+    backgroundColor: colors.surfaceContainerLow,
+    paddingHorizontal: spacing.sm + 2,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+    gap: 6,
+  },
+  dropdownHint: {
+    ...typography.labelSm,
+    color: colors.onSurfaceVariant,
+    lineHeight: 17,
+    marginBottom: 4,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+  },
+  dropdownIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.sm,
+    backgroundColor: '#fdf6ee',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dropdownTitle: {
     ...typography.labelMd,
+    color: colors.onSurface,
+    fontWeight: '700',
+  },
+  dropdownSub: {
+    ...typography.labelSm,
     color: colors.outline,
-    fontWeight: '600',
+    marginTop: 1,
   },
   spacerBtn: {
     marginTop: spacing.md,
+    borderColor: colors.statusFlash,
+    borderWidth: 1.5,
   },
 });

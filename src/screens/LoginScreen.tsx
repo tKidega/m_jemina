@@ -27,7 +27,7 @@ type IdMode = 'email' | 'pin';
 
 export function LoginScreen() {
   const { login, loginWithPin, loginWithGoogle } = useAuth();
-  const { goBack, navigate, finishAuthFlow } = useNavigation();
+  const { goBack, navigate, switchTab } = useNavigation();
   const [idMode, setIdMode] = useState<IdMode>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -46,6 +46,11 @@ export function LoginScreen() {
   const handleLogin = async () => {
     setError(null);
 
+    // Active account → Account tab; inactive → AccountPending (via AccountPendingError).
+    const goAfterLogin = () => {
+      switchTab('Profile');
+    };
+
     if (idMode === 'pin') {
       if (pin.trim().length !== 4) {
         setError('Enter your 4-digit Trader PIN.');
@@ -59,7 +64,7 @@ export function LoginScreen() {
           return;
         }
         await loginWithPin(remembered, pin.trim());
-        finishAuthFlow();
+        goAfterLogin();
       } catch (e) {
         if (e instanceof TwoFactorRequiredError) {
           navigate('TwoFactor', { email: e.email, resendAfter: e.resendAfter });
@@ -84,7 +89,7 @@ export function LoginScreen() {
     try {
       await login(email.trim(), password);
       AsyncStorage.setItem(REMEMBERED_EMAIL_KEY, email.trim()).catch(() => {});
-      finishAuthFlow();
+      goAfterLogin();
     } catch (e) {
       if (e instanceof TwoFactorRequiredError) {
         navigate('TwoFactor', { email: e.email, resendAfter: e.resendAfter });
@@ -110,7 +115,7 @@ export function LoginScreen() {
       const idToken = userInfo.data?.idToken;
       if (!idToken) throw new Error('Google sign-in did not return an authentication token.');
       await loginWithGoogle(idToken);
-      finishAuthFlow();
+      switchTab('Profile');
     } catch (e) {
       if (e instanceof TwoFactorRequiredError) {
         navigate('TwoFactor', { email: e.email, resendAfter: e.resendAfter });

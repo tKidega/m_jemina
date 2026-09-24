@@ -344,20 +344,30 @@ export function HelpCenterScreen() {
         {activeTab === 'tickets' && (
           <View style={styles.tabSection}>
             <View style={styles.filterRow}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filterChips}
+              >
                 <Pressable
                   style={[styles.filterChip, ticketFilter === 'all' && styles.filterChipActive]}
                   onPress={() => setTicketFilter('all')}
                 >
-                  <Text style={[styles.filterChipText, ticketFilter === 'all' && styles.filterChipTextActive]}>
-                    All Tickets ({tickets.length})
+                  <Text
+                    style={[styles.filterChipText, ticketFilter === 'all' && styles.filterChipTextActive]}
+                    numberOfLines={1}
+                  >
+                    All ({tickets.length})
                   </Text>
                 </Pressable>
                 <Pressable
                   style={[styles.filterChip, ticketFilter === 'needs_reply' && styles.filterChipActive]}
                   onPress={() => setTicketFilter('needs_reply')}
                 >
-                  <Text style={[styles.filterChipText, ticketFilter === 'needs_reply' && styles.filterChipTextActive]}>
+                  <Text
+                    style={[styles.filterChipText, ticketFilter === 'needs_reply' && styles.filterChipTextActive]}
+                    numberOfLines={1}
+                  >
                     Needs Reply ({openCount})
                   </Text>
                 </Pressable>
@@ -365,7 +375,10 @@ export function HelpCenterScreen() {
                   style={[styles.filterChip, ticketFilter === 'resolved' && styles.filterChipActive]}
                   onPress={() => setTicketFilter('resolved')}
                 >
-                  <Text style={[styles.filterChipText, ticketFilter === 'resolved' && styles.filterChipTextActive]}>
+                  <Text
+                    style={[styles.filterChipText, ticketFilter === 'resolved' && styles.filterChipTextActive]}
+                    numberOfLines={1}
+                  >
                     Resolved ({resolvedCount})
                   </Text>
                 </Pressable>
@@ -410,6 +423,9 @@ export function HelpCenterScreen() {
                 onSend={message => apiChatAsk(token, message, conversationId)}
               />
             </View>
+            <Text style={styles.chatHint}>
+              Conversation scrolls as it grows — swipe up to read earlier messages.
+            </Text>
           </View>
         )}
 
@@ -664,11 +680,18 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   chatContainer: {
-    height: 360,
+    height: 520,
     borderRadius: radius.lg,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.borderLight,
+    backgroundColor: colors.surfaceContainerLowest,
+  },
+  chatHint: {
+    ...typography.labelSm,
+    color: colors.outline,
+    textAlign: 'center',
+    marginTop: spacing.xs,
   },
   center: {
     alignItems: 'center',
@@ -693,16 +716,15 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.98 }],
   },
 
-  /* Hero Card */
+  /* Hero Card — same content width as tabs (parent padding only) */
   heroCard: {
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
     borderColor: `${colors.outlineVariant}66`,
     borderRadius: radius.lg,
-    marginHorizontal: spacing.sm + 2,
     marginTop: spacing.sm,
-    padding: spacing.sm + 2,
-    gap: spacing.sm,
+    padding: spacing.md,
+    gap: spacing.sm + 2,
   },
   heroTop: {
     flexDirection: 'row',
@@ -843,12 +865,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  /* Tabs */
+  /* Tabs — match hero width (parent padding only) */
   tabsRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: `${colors.outlineVariant}4d`,
-    paddingHorizontal: spacing.md,
+    marginTop: spacing.sm,
   },
   tab: {
     flex: 1,
@@ -869,26 +891,26 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  /* Filter Row */
+  /* Filter Row — chips stay on one line (horizontal scroll if needed) */
   filterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
-    gap: spacing.sm,
   },
   filterChips: {
-    gap: spacing.sm,
-    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   filterChip: {
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
     borderColor: `${colors.outlineVariant}80`,
     borderRadius: radius.full,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.sm + 2,
     paddingVertical: 6,
+    flexShrink: 0,
   },
   filterChipActive: {
     backgroundColor: colors.primaryContainer,

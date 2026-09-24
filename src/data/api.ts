@@ -283,6 +283,7 @@ export interface ApiUser {
   password_changed_at?: string | null;
   pin_gate_enabled?: boolean;
   jemina_pin_set?: boolean;
+  status?: boolean;
 }
 
 export interface ApiCartItem {
@@ -815,14 +816,24 @@ export async function apiCreateOrder(
   return (json.data as { order: ApiOrder }).order;
 }
 
-export async function apiGetOrders(token: string): Promise<ApiOrder[]> {
-  const json = await request<OrdersResponse>('/orders', { token });
+export async function apiGetOrders(token: string, status?: string): Promise<ApiOrder[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+  const json = await request<OrdersResponse>(`/orders${qs}`, { token });
   return (json.data as OrdersResponse).orders ?? [];
 }
 
 export async function apiGetOrder(token: string, id: number): Promise<ApiOrder> {
   const json = await request<{ order: ApiOrder }>(`/orders/${id}`, { token });
   return (json.data as { order: ApiOrder }).order;
+}
+
+/** Cancel a pending order (e.g. payment failed/cancelled) and restore stock server-side. */
+export async function apiCancelOrder(token: string, id: number, reason: string): Promise<void> {
+  await request(`/orders/${id}/cancel`, {
+    method: 'PUT',
+    token,
+    body: { reason },
+  });
 }
 
 export interface ApiPaymentResult {
@@ -1528,6 +1539,18 @@ export async function apiMarkMessageRead(token: string, id: number): Promise<voi
   await request(`/messages/${id}/read`, { method: 'PUT', token });
 }
 
+export async function apiSendContactMessage(
+  payload: { name: string; email: string; subject: string; message: string },
+  token?: string | null,
+): Promise<string> {
+  const json = await request('/contact', {
+    method: 'POST',
+    token: token ?? undefined,
+    body: payload,
+  });
+  return json.message ?? 'Your message has been sent successfully! We will get back to you soon.';
+}
+
 // ---------------------------------------------------------------------------
 // Chatbot / Chat API
 // ---------------------------------------------------------------------------
@@ -1912,4 +1935,21 @@ export interface ApiPickupPoint {
 export async function apiGetPickupPoints(): Promise<ApiPickupPoint[]> {
   const data = await getJson<{ data: { pickup_points: ApiPickupPoint[] } }>('/pickup-points');
   return data?.data?.pickup_points ?? [];
+}
+
+// ---------------------------------------------------------------------------
+// Homepage hero banners API (public — mirrors site 5-slot system)
+// ---------------------------------------------------------------------------
+
+export interface ApiHeroBanner {
+  id: number;
+  title: string | null;
+  slot: number;
+  status: boolean;
+  image_url: string;
+}
+
+export async function apiGetHeroBanners(): Promise<ApiHeroBanner[]> {
+  const json = await getJson<{ success: boolean; data: { slides: ApiHeroBanner[] } }>('/banners/home');
+  return json?.data?.slides ?? [];
 }

@@ -25,6 +25,7 @@ export interface User {
   phone?: string;
   role: 'customer' | 'vendor';
   createdAt: string;
+  status?: boolean;
 }
 
 interface AuthContextValue {  user: User | null;
@@ -77,7 +78,16 @@ function apiUserToUser(api: ApiUser): User {
     phone: api.phone ?? undefined,
     role: api.role === 'vendor' ? 'vendor' : 'customer',
     createdAt: api.created_at ?? new Date().toISOString(),
+    status: typeof api.status === 'boolean' ? api.status : true,
   };
+}
+
+/** After mapping a live session, inactive accounts must go to AccountPending. */
+function assertActiveOrThrow(account: User, message?: string, deactivated = false): User {
+  if (account.status === false) {
+    throw new AccountPendingError(account.email, message, deactivated);
+  }
+  return account;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -184,12 +194,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       if (isAccountPending(result)) {
         const account = apiUserToUser(result.user);
+        account.status = false;
         setUser(account);
         setToken(result.token);
         setAuthMode('live');
         throw new AccountPendingError(result.user.email, result.message, result.account_deactivated === true);
       }
-      const account = apiUserToUser(result.user);
+      const account = assertActiveOrThrow(apiUserToUser(result.user), undefined, false);
       setUser(account);
       setToken(result.token);
       setAuthMode('live');
@@ -232,12 +243,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     if (isAccountPending(result)) {
       const account = apiUserToUser(result.user);
+      account.status = false;
       setUser(account);
       setToken(result.token);
       setAuthMode('live');
       throw new AccountPendingError(result.user.email, result.message, result.account_deactivated === true);
     }
-    const account = apiUserToUser(result.user);
+    const account = assertActiveOrThrow(apiUserToUser(result.user), undefined, false);
     setUser(account);
     setToken(result.token);
     setAuthMode('live');
@@ -251,12 +263,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     if (isAccountPending(result)) {
       const account = apiUserToUser(result.user);
+      account.status = false;
       setUser(account);
       setToken(result.token);
       setAuthMode('live');
       throw new AccountPendingError(result.user.email, result.message, result.account_deactivated === true);
     }
-    const account = apiUserToUser(result.user);
+    const account = assertActiveOrThrow(apiUserToUser(result.user), undefined, false);
     setUser(account);
     setToken(result.token);
     setAuthMode('live');
@@ -270,12 +283,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     if (isAccountPending(result)) {
       const account = apiUserToUser(result.user);
+      account.status = false;
       setUser(account);
       setToken(result.token);
       setAuthMode('live');
       throw new AccountPendingError(result.user.email, result.message, result.account_deactivated === true);
     }
-    const account = apiUserToUser(result.user);
+    const account = assertActiveOrThrow(apiUserToUser(result.user), undefined, false);
     setUser(account);
     setToken(result.token);
     setAuthMode('live');

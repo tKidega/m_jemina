@@ -336,9 +336,9 @@ export function CheckoutScreen() {
         fulfilment,
       });
       // COD / credit settle immediately — clear cart now.
-      // Gateway payments (MoMo/card/etc.) keep the cart until payment is
-      // initiated successfully on the Payment screen, so an abandoned or
-      // failed charge does not strand the user with an empty cart and no money taken.
+      // Gateway payments keep the cart until PaymentScreen confirms the charge
+      // is paid; a failed/cancelled charge leaves the cart untouched and the
+      // unpaid order is cancelled server-side (apiCancelOrder).
       if (paymentMethod === 'credit' || paymentMethod === 'cod') {
         clearCart();
         navigate('OrderConfirmation', {

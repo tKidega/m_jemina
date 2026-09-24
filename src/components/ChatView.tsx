@@ -132,7 +132,8 @@ export function ChatView({ assistantName, greeting, onSend, onNotifyVendor }: Ch
         style={styles.scroll}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
+        nestedScrollEnabled
         onContentSizeChange={scrollToEnd}
       >
         {messages.map(m => (
@@ -216,14 +217,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingHorizontal: 4,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
   },
   row: {
     flexDirection: 'row',
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
     alignItems: 'flex-end',
-    gap: spacing.sm,
+    gap: 6,
   },
   rowUser: {
     justifyContent: 'flex-end',
@@ -300,7 +302,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.borderLight,

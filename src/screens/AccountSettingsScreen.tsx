@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
@@ -136,6 +137,11 @@ export function AccountSettingsScreen({
   // Security state
   const [twoFa, setTwoFa] = useState(false);
   const [twoFaLoading, setTwoFaLoading] = useState(false);
+  // Android-compatible 2FA flows (Alert.prompt is iOS-only)
+  const [twoFaFlow, setTwoFaFlow] = useState<'none' | 'disable' | 'enable'>('none');
+  const [twoFaInput, setTwoFaInput] = useState('');
+  const [twoFaHint, setTwoFaHint] = useState('');
+  const [twoFaError, setTwoFaError] = useState<string | null>(null);
   const [biometric, setBiometric] = useState(false);
   const [biometricType, setBiometricType] = useState<BiometryType | null>(null);
   const [biometricSupported, setBiometricSupported] = useState(false);
@@ -256,86 +262,80 @@ export function AccountSettingsScreen({
     setRefreshing(false);
   }, [loadProfile, loadSecurityData]);
 
-  const handleToggle2FA = useCallback(async () => {
-    if (!token) return;
+  const handleToggle2FA = useCallback(() => {
+    if (!token || twoFaLoading) return;
+    setTwoFaError(null);
+    setTwoFaInput('');
     if (twoFa) {
-      // Disable 2FA — requires password
-      Alert.prompt(
-        'Disable 2FA',
-        'Enter your password to disable two-factor authentication.',
-        async (password) => {
-          if (!password) return;
-          setTwoFaLoading(true);
-          try {
-            await apiDisableTwoFactor(token, password);
-            setTwoFa(false);
-            Alert.alert('2FA Disabled', 'Two-factor authentication has been turned off.');
-          } catch (e) {
-            Alert.alert('Error', e instanceof Error ? e.message : 'Failed to disable 2FA.');
-          } finally {
-            setTwoFaLoading(false);
-          }
-        },
-        'secure-text',
-      );
-    } else {
-      // Enable 2FA — email OTP confirmation
+      // Disable — ask for password in a cross-platform modal
+      setTwoFaHint('Enter your account password to turn off two-factor authentication.');
+      setTwoFaFlow('disable');
+      return;
+    }
+    // Enable — send OTP, then ask for the code
+    setTwoFaLoading(true);
+    apiEnableTwoFactor(token)
+      .then(setup => {
+        setTwoFaHint(
+          setup.email
+            ? `Enter the 6-digit code emailed to ${setup.email}.`
+            : 'Enter the 6-digit code emailed to you.',
+        );
+        setTwoFaFlow('enable');
+      })
+      .catch(e => {
+        Alert.alert('Error', e instanceof Error ? e.message : 'Failed to start 2FA setup.');
+      })
+      .finally(() => setTwoFaLoading(false));
+  }, [token, twoFa, twoFaLoading]);
+
+  const closeTwoFaFlow = () => {
+    setTwoFaFlow('none');
+    setTwoFaInput('');
+    setTwoFaError(null);
+  };
+
+  const submitTwoFaFlow = async () => {
+    if (!token) return;
+    setTwoFaError(null);
+    if (twoFaFlow === 'disable') {
+      if (!twoFaInput.trim()) {
+        setTwoFaError('Enter your password.');
+        return;
+      }
       setTwoFaLoading(true);
       try {
-        const setup = await apiEnableTwoFactor(token);
-        Alert.prompt(
-          'Enable 2FA',
-          setup.email
-            ? `Enter the 6-digit code emailed to ${setup.email} to turn on two-factor authentication.`
-            : 'Enter the 6-digit code emailed to you to confirm two-factor setup.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Resend Code',
-              onPress: async () => {
-                try {
-                  await apiEnableTwoFactor(token);
-                  Alert.alert('Code sent', 'A new verification code has been emailed to you.');
-                } catch (e) {
-                  Alert.alert('Error', e instanceof Error ? e.message : 'Could not resend the code.');
-                }
-              },
-            },
-            {
-              text: 'I got the code',
-              onPress: () => {
-                Alert.prompt(
-                  'Verify 2FA Code',
-                  'Enter the 6-digit code you received by email.',
-                  async (code) => {
-                    if (!code || code.length !== 6) {
-                      Alert.alert('Error', 'Please enter a valid 6-digit code.');
-                      return;
-                    }
-                    try {
-                      const recoveryCodes = await apiConfirmTwoFactor(token, code);
-                      setTwoFa(true);
-                      Alert.alert(
-                        '2FA Enabled',
-                        `Recovery codes (save these):\n${recoveryCodes.join('\n')}`,
-                      );
-                    } catch (e) {
-                      Alert.alert('Error', e instanceof Error ? e.message : 'Invalid code.');
-                    }
-                  },
-                  'plain-text',
-                );
-              },
-            },
-          ],
-        );
+        await apiDisableTwoFactor(token, twoFaInput.trim());
+        setTwoFa(false);
+        closeTwoFaFlow();
+        Alert.alert('2FA Disabled', 'Two-factor authentication has been turned off.');
       } catch (e) {
-        Alert.alert('Error', e instanceof Error ? e.message : 'Failed to start 2FA setup.');
+        setTwoFaError(e instanceof Error ? e.message : 'Failed to disable 2FA.');
       } finally {
         setTwoFaLoading(false);
       }
+      return;
     }
-  }, [token, twoFa]);
+    // enable: verify 6-digit code
+    if (twoFaInput.trim().length !== 6) {
+      setTwoFaError('Please enter a valid 6-digit code.');
+      return;
+    }
+    setTwoFaLoading(true);
+    try {
+      const recoveryCodes = await apiConfirmTwoFactor(token, twoFaInput.trim());
+      setTwoFa(true);
+      closeTwoFaFlow();
+      Alert.alert(
+        '2FA Enabled',
+        `Recovery codes (save these):\n${recoveryCodes.join('\n')}`,
+      );
+    } catch (e) {
+      setTwoFaError(e instanceof Error ? e.message : 'Invalid code.');
+    } finally {
+      setTwoFaLoading(false);
+    }
+  };
 
   const handleToggleBiometric = useCallback(async () => {
     if (!biometricSupported) {
@@ -661,6 +661,73 @@ export function AccountSettingsScreen({
             </View>
             <View style={styles.editProfileBody}>
               <EditProfileScreen embedded />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 2FA enable/disable modal (works on Android — Alert.prompt is iOS-only) */}
+      <Modal visible={twoFaFlow !== 'none'} transparent animationType="slide" onRequestClose={closeTwoFaFlow}>
+        <View style={styles.imageModalOverlay}>
+          <View style={styles.imageModalSheet}>
+            <View style={styles.imageModalHeader}>
+              <Text style={styles.imageModalTitle}>
+                {twoFaFlow === 'disable' ? 'Disable 2FA' : 'Enable 2FA'}
+              </Text>
+              <Pressable onPress={closeTwoFaFlow} hitSlop={8}>
+                <Icon name="close" size={22} color={colors.onSurface} />
+              </Pressable>
+            </View>
+            <View style={{ padding: spacing.md, gap: spacing.sm }}>
+              <Text style={styles.twoFaHint}>{twoFaHint}</Text>
+              <TextInput
+                style={styles.twoFaInput}
+                value={twoFaInput}
+                onChangeText={t =>
+                  setTwoFaInput(twoFaFlow === 'enable' ? t.replace(/[^0-9]/g, '').slice(0, 6) : t)
+                }
+                placeholder={twoFaFlow === 'disable' ? 'Account password' : '6-digit code'}
+                placeholderTextColor={colors.outline}
+                secureTextEntry={twoFaFlow === 'disable'}
+                keyboardType={twoFaFlow === 'enable' ? 'number-pad' : 'default'}
+                autoFocus
+                maxLength={twoFaFlow === 'enable' ? 6 : 64}
+              />
+              {twoFaError ? <Text style={styles.twoFaError}>{twoFaError}</Text> : null}
+              <View style={styles.twoFaActions}>
+                <Pressable style={styles.twoFaCancelBtn} onPress={closeTwoFaFlow}>
+                  <Text style={styles.twoFaCancelText}>Cancel</Text>
+                </Pressable>
+                {twoFaFlow === 'enable' ? (
+                  <Pressable
+                    style={styles.twoFaResendBtn}
+                    onPress={async () => {
+                      if (!token) return;
+                      try {
+                        await apiEnableTwoFactor(token);
+                        Alert.alert('Code sent', 'A new verification code has been emailed to you.');
+                      } catch (e) {
+                        Alert.alert('Error', e instanceof Error ? e.message : 'Could not resend the code.');
+                      }
+                    }}
+                  >
+                    <Text style={styles.twoFaResendText}>Resend</Text>
+                  </Pressable>
+                ) : null}
+                <Pressable
+                  style={[styles.twoFaConfirmBtn, twoFaLoading && { opacity: 0.6 }]}
+                  onPress={submitTwoFaFlow}
+                  disabled={twoFaLoading}
+                >
+                  <Text style={styles.twoFaConfirmText}>
+                    {twoFaLoading
+                      ? 'Please wait…'
+                      : twoFaFlow === 'disable'
+                        ? 'Disable 2FA'
+                        : 'Verify & Enable'}
+                  </Text>
+                </Pressable>
+              </View>
             </View>
           </View>
         </View>
@@ -2044,5 +2111,73 @@ const styles = StyleSheet.create({
     ...typography.bodyMd,
     color: colors.onSurface,
     fontWeight: '500',
+  },
+
+  /* 2FA enable/disable modal */
+  twoFaHint: {
+    ...typography.bodySm,
+    color: colors.onSurfaceVariant,
+    lineHeight: 18,
+  },
+  twoFaInput: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    letterSpacing: 2,
+  },
+  twoFaError: {
+    ...typography.labelSm,
+    color: colors.error,
+  },
+  twoFaActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  twoFaCancelBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+  },
+  twoFaCancelText: {
+    ...typography.labelMd,
+    color: colors.onSurfaceVariant,
+    fontWeight: '700',
+  },
+  twoFaResendBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.secondary,
+  },
+  twoFaResendText: {
+    ...typography.labelMd,
+    color: colors.secondary,
+    fontWeight: '700',
+  },
+  twoFaConfirmBtn: {
+    flex: 1.4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.lg,
+    backgroundColor: colors.secondaryContainer,
+  },
+  twoFaConfirmText: {
+    ...typography.labelMd,
+    color: colors.onSecondary,
+    fontWeight: '700',
   },
 });

@@ -33,6 +33,7 @@ import { spacing, radius } from '../theme/spacing';
 import { images } from '../data/images';
 import {
   absoluteUrl,
+  apiGetHeroBanners,
   apiGetPromotions,
   apiGetVendors,
   apiTrackPromotionClick,
@@ -225,10 +226,34 @@ export function HomeScreen() {
   const [consentCookies, setConsentCookies] = useState(false);
   const [activeBannerIndex, setActiveBannerIndex] = useState(0);
   const bannerScrollRef = useRef<ScrollView>(null);
+  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>(HERO_SLIDES);
   const { showPromo } = useNotification();
   const countdown = useFlashCountdown();
   const seasonalTabs = useMemo(() => buildSeasonalTabs(products, new Date()), [products]);
   const activeSeasonalTab = seasonalTabs.find(t => t.slug === activeSeasonSlug) ?? seasonalTabs[0] ?? null;
+
+  const loadHeroSlides = useCallback(async () => {
+    try {
+      const banners = await apiGetHeroBanners();
+      if (banners.length > 0) {
+        setHeroSlides(
+          banners.map(b => ({
+            id: `hero-${b.id}`,
+            image: b.image_url,
+            title: b.title ?? undefined,
+          })),
+        );
+      } else {
+        setHeroSlides(HERO_SLIDES);
+      }
+    } catch {
+      setHeroSlides(HERO_SLIDES);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadHeroSlides();
+  }, [loadHeroSlides]);
 
   const loadPromotions = useCallback(async () => {
     try {
@@ -505,9 +530,16 @@ export function HomeScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
         }
       >
-        {/* Hero carousel */}
+        {/* Hero carousel — website #headercarousel parity: full-bleed crossfade */}
         <View style={styles.heroSection}>
-          <HeroCarousel slides={HERO_SLIDES} showDots />
+          <HeroCarousel
+            slides={heroSlides}
+            showDots
+            transition="fade"
+            fullBleed
+            aspectRatio={16 / 9}
+            resizeMode="cover"
+          />
         </View>
 
         {/* Explore sectors */}

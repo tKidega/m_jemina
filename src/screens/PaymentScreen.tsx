@@ -6,7 +6,7 @@ import { Button } from '../components/Button';
 import { useAuth } from '../state/AuthContext';
 import { useCart } from '../state/CartContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { apiInitiatePayment, apiGetPaymentStatus, ApiPaymentResult, ApiPaymentStatus } from '../data/api';
+import { apiInitiatePayment, apiGetPaymentStatus, apiCancelOrder, ApiPaymentResult, ApiPaymentStatus } from '../data/api';
 import { formatUGX } from '../components/ProductCard';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -73,6 +73,15 @@ export function PaymentScreen() {
     }
   }, [shouldClearCart, clearCart]);
 
+  const cancelRefOrder = useCallback(async (reason: string) => {
+    if (!token || orderId == null) return;
+    try {
+      await apiCancelOrder(token, orderId, reason);
+    } catch {
+      // Best-effort — order may already be cancelled or paid.
+    }
+  }, [token, orderId]);
+
   const initiate = useCallback(async () => {
     if (!token) {
       setError('You need to be signed in to pay.');
@@ -100,14 +109,14 @@ export function PaymentScreen() {
         metadata: orderId != null ? { type: 'order_payment', order_id: orderId } : undefined,
       });
       setResult(res);
-      // Charge request accepted — items now live on the unpaid order.
-      markPaidAndClear();
+      // Do NOT clear cart here — cart is cleared only when payment is confirmed paid.
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to initiate payment. Please try again.');
+      // Charge never started — leave the unpaid order and cart intact so Retry can work.
     } finally {
       setLoading(false);
     }
-  }, [token, gateway, amount, orderId, info.currency, user?.phone, markPaidAndClear]);
+  }, [token, gateway, amount, orderId, info.currency, user?.phone]);
 
   useEffect(() => {
     initiate();
@@ -119,7 +128,7 @@ export function PaymentScreen() {
     }
     pollTimer.current = setInterval(() => {
       apiGetPaymentStatus(token, result.transaction_id as string)
-        .then(s => {
+        .then(async s => {
           setStatus(s);
           pollMisses.current = 0;
           if (isPaidStatus(s)) {
@@ -127,6 +136,7 @@ export function PaymentScreen() {
             if (pollTimer.current) clearInterval(pollTimer.current);
           } else if (isFailedStatus(s)) {
             if (pollTimer.current) clearInterval(pollTimer.current);
+            await cancelRefOrder('Payment failed or cancelled at gateway');
           }
         })
         .catch(() => {
@@ -142,7 +152,7 @@ export function PaymentScreen() {
         clearInterval(pollTimer.current);
       }
     };
-  }, [result, token, markPaidAndClear]);
+  }, [result, token, markPaidAndClear, cancelRefOrder]);
 
   const checkStatus = async () => {
     if (!result?.transaction_id || !token) {
@@ -154,6 +164,8 @@ export function PaymentScreen() {
       setStatus(s);
       if (isPaidStatus(s)) {
         markPaidAndClear();
+      } else if (isFailedStatus(s)) {
+        await cancelRefOrder('Payment failed or cancelled at gateway');
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not check payment status.');
@@ -256,9 +268,16 @@ export function PaymentScreen() {
             <Icon name="error-outline" size={26} color={colors.error} />
             <Text style={[styles.statusTitle, styles.errorTitle]}>Payment failed</Text>
             <Text style={[styles.statusSub, styles.errorText]}>
-              {info.label} declined or cancelled this payment. No money was taken. You can retry or open Orders.
+              {info.label} declined or cancelled this payment. No money was taken. Your cart is unchanged —
+              place the order again from Checkout to retry.
             </Text>
-            <Button label="Retry Payment" variant="primary" fullWidth onPress={initiate} style={styles.actionBtn} />
+            <Button
+              label="Back to Checkout"
+              variant="primary"
+              fullWidth
+              onPress={() => navigate('Checkout')}
+              style={styles.actionBtn}
+            />
             <Button label="Go to My Orders" variant="outline" fullWidth onPress={() => navigate('Orders')} />
           </View>
         ) : result ? (

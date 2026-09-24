@@ -54,6 +54,13 @@ export function AccountScreen() {
 
   const newsletterKeyFor = (id: string) => `@jemina/newsletter/v1:${id}`;
 
+  // Inactive sessions must never land on the full Account dashboard.
+  useEffect(() => {
+    if (isHydrated && isAuthenticated && user && user.status === false) {
+      navigate('AccountPending', { email: user.email, deactivated: false });
+    }
+  }, [isHydrated, isAuthenticated, user, navigate]);
+
   useEffect(() => {
     if (!user) {
       setSubscribed(false);
@@ -194,6 +201,23 @@ export function AccountScreen() {
           <Button label="Sign In" variant="primary" fullWidth onPress={() => navigate('Login')} style={styles.signInBtn} />
           <Button label="Create an Account" variant="outline" fullWidth onPress={() => navigate('Register')} />
         </View>
+        <BottomNav />
+      </View>
+    );
+  }
+
+  // Hard guard: never render the dashboard for an inactive account
+  // (covers race where the redirect effect has not committed yet).
+  if (user.status === false) {
+    return (
+      <View style={styles.root}>
+        <AppHeader title="Account" right={<HeaderActions />} />
+        <BrandScreenLoader
+          title="Account Status"
+          subtitle="Checking activation"
+          icon="verified-user"
+          hint="Redirecting to account activation..."
+        />
         <BottomNav />
       </View>
     );

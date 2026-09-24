@@ -400,6 +400,10 @@ export function VendorActionsScreen() {
         >
           {/* Success hero */}
           <View style={styles.successHero}>
+            <View style={styles.shieldRow}>
+              <Icon name="verified-user" size={14} color={colors.statusSuccess} />
+              <Text style={styles.bouBadge}>BOU ESCROW PROTECTED</Text>
+            </View>
             <View style={styles.successIconWrap}>
               <Icon name="check-circle" size={44} color={colors.statusSuccess} />
             </View>
@@ -477,7 +481,13 @@ export function VendorActionsScreen() {
               },
               {
                 t: 'Account upgrade',
-                d: 'Your account is upgraded to vendor status and your dashboard unlocks. After the upgrade you cannot use these vendor shop details to log in to the app, add items to cart, or complete any orders — sign in with your customer email and password (or Trader PIN) for shopping.',
+                d: 'Your account is upgraded to vendor status and your vendor dashboard unlocks. Key impacts:',
+                bullets: [
+                  'You can no longer use the registered shop email to log into the mobile app — app sign-in is for customer accounts only (your personal email + password or Trader PIN).',
+                  'You cannot use this vendor session to add items to cart or complete shopper orders in the app.',
+                  'Configure your vendor store catalogue, products, and shop settings on the JEMINA website dashboard (not in the app).',
+                  'Escrow, payouts, and store management are handled from the website vendor dashboard.',
+                ],
               },
               {
                 t: 'Escrow & trading',
@@ -485,7 +495,7 @@ export function VendorActionsScreen() {
               },
               {
                 t: 'Start trading',
-                d: 'List products and accept orders once your store is approved.',
+                d: 'List products and accept orders once your store is approved — manage the catalogue on the website.',
               },
             ].map((s, i) => (
               <View key={s.t} style={styles.nextRow}>
@@ -495,6 +505,12 @@ export function VendorActionsScreen() {
                 <View style={styles.nextBody}>
                   <Text style={styles.nextTitle}>{s.t}</Text>
                   <Text style={styles.nextDesc}>{s.d}</Text>
+                  {s.bullets?.map(b => (
+                    <View key={b} style={styles.nextBulletRow}>
+                      <Text style={styles.nextBulletDot}>•</Text>
+                      <Text style={styles.nextBulletText}>{b}</Text>
+                    </View>
+                  ))}
                 </View>
               </View>
             ))}
@@ -1036,6 +1052,25 @@ const styles = StyleSheet.create({
   nextBody: { flex: 1 },
   nextTitle: { ...typography.labelMd, color: colors.onSurface, fontWeight: '700' },
   nextDesc: { ...typography.bodySm, color: colors.onSurfaceVariant, marginTop: 2, lineHeight: 18 },
+  nextBulletRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: 6,
+    paddingLeft: 2,
+  },
+  nextBulletDot: {
+    ...typography.bodySm,
+    color: colors.secondary,
+    fontWeight: '800',
+    lineHeight: 18,
+  },
+  nextBulletText: {
+    ...typography.bodySm,
+    color: colors.onSurfaceVariant,
+    flex: 1,
+    lineHeight: 18,
+  },
   upgradeRow: { gap: spacing.sm, paddingTop: spacing.md },
   planCard: {
     width: 200,
