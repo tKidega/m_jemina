@@ -433,8 +433,8 @@ export function AccountSettingsScreen({
     .slice(0, 2)
     .join('')
     .toUpperCase();
-  const phone = user?.phone ?? '+256 772 491 802';
-  const email = user?.email ?? '';
+  const phone = profile?.phone || user?.phone || 'Phone not set';
+  const email = profile?.email || user?.email || '';
   const roleLabel = profile?.role
     ? profile.role.charAt(0).toUpperCase() + profile.role.slice(1)
     : user?.role
@@ -755,7 +755,7 @@ function ProfileTab({ profile, user }: { profile: ApiUser | null; user: any }) {
   const fields = [
     { label: 'Full Name', value: p.name ?? '—', icon: 'person' as IconName },
     { label: 'Email', value: p.email ?? '—', icon: 'mail' as IconName },
-    { label: 'Phone', value: p.phone ?? '—', icon: 'smartphone' as IconName },
+    { label: 'Phone', value: p.phone || 'Phone not set', icon: 'smartphone' as IconName },
     { label: 'Role', value: (p.role ?? 'customer').charAt(0).toUpperCase() + (p.role ?? 'customer').slice(1), icon: 'badge' as IconName },
     { label: 'Date of Birth', value: p.date_of_birth ?? '—', icon: 'event' as IconName },
     { label: 'Gender', value: p.gender ?? '—', icon: 'person-outline' as IconName },

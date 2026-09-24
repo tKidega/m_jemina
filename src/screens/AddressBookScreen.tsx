@@ -328,7 +328,7 @@ export function AddressBookScreen({ embedded = false }: { embedded?: boolean }) 
                       defaultAddress.zip_code,
                     ]
                       .filter(Boolean)
-                      .join(' ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ') || 'Delivery Address'}
+                      .join(' · ') || 'Delivery Address'}
                   </Text>
                   {defaultAddress.phone ? (
                     <Text style={styles.logisticsPhone}>{defaultAddress.phone}</Text>

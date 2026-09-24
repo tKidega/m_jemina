@@ -1,5 +1,5 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
@@ -7,7 +7,7 @@ import { EmptyState } from '../components/EmptyState';
 import { SectionLoader } from '../components/Loader';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { absoluteUrl, apiGetMyReviews, apiGetOrders, ApiMyReview, ApiOrder, ApiOrderItem } from '../data/api';
+import { absoluteUrl, apiAddReview, apiGetMyReviews, apiGetOrders, ApiMyReview, ApiOrder, ApiOrderItem } from '../data/api';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
@@ -85,6 +85,13 @@ export function MyReviewsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewTarget, setReviewTarget] = useState<PendingItem | null>(null);
+  const [modalRating, setModalRating] = useState(0);
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalComment, setModalComment] = useState('');
+  const [modalSubmitting, setModalSubmitting] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token) {
@@ -136,14 +143,66 @@ export function MyReviewsScreen() {
   const openProduct = (id: number) =>
     navigate('ProductDetails', { product: { id: String(id), category: 'Product', title: '', price: '', priceValue: 0, image: '' } });
 
+  const openReviewModal = (item: PendingItem) => {
+    setReviewTarget(item);
+    setModalRating(0);
+    setModalTitle('');
+    setModalComment('');
+    setModalError(null);
+    setModalSubmitting(false);
+    setShowReviewModal(true);
+  };
+
+  const closeReviewModal = () => {
+    if (modalSubmitting) return;
+    setShowReviewModal(false);
+    setReviewTarget(null);
+  };
+
+  const submitModalReview = useCallback(async () => {
+    if (!token || !reviewTarget) return;
+    if (modalRating === 0) {
+      setModalError('Please select a star rating.');
+      return;
+    }
+    if (!modalComment.trim()) {
+      setModalError('Please write a short comment.');
+      return;
+    }
+    setModalSubmitting(true);
+    setModalError(null);
+    try {
+      await apiAddReview(token, reviewTarget.productId, {
+        rating: modalRating,
+        comment: modalComment.trim(),
+        title: modalTitle.trim() || undefined,
+      });
+      setShowReviewModal(false);
+      setReviewTarget(null);
+      setModalRating(0);
+      setModalTitle('');
+      setModalComment('');
+      await load();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Could not submit your review.';
+      if (message.toLowerCase().includes('already reviewed')) {
+        setModalError('You have already reviewed this product.');
+      } else {
+        setModalError(message);
+      }
+    } finally {
+      setModalSubmitting(false);
+    }
+  }, [token, reviewTarget, modalRating, modalTitle, modalComment, load]);
+
   if (!isAuthenticated) {
     return (
       <View style={styles.root}>
-        <AppHeader title="Product Reviews" showBack onBack={goBack} />
+        <AppHeader title="Ratings & Reviews" showBack onBack={goBack} />
         <EmptyState
           icon="star-border"
           title="Sign in to see your ratings"
-          subtitle="Rate and review delivered products to earn review credits."
+          subtitle="Rate and review delivered products to earn up to 1000 credits."
           actionLabel="Sign In"
           onAction={() => navigate('Login')}
         />
@@ -153,14 +212,14 @@ export function MyReviewsScreen() {
 
   return (
     <View style={styles.root}>
-      <AppHeader title="Product Reviews" showBack onBack={goBack} />
+      <AppHeader title="Ratings & Reviews" showBack onBack={goBack} />
 
       {/* Credit incentive banner */}
       <View style={styles.incentive}>
         <Icon name="verified" size={18} color={colors.statusSuccess} />
         <Text style={styles.incentiveText}>
-          Share quality feedback on delivered orders to earn <Text style={styles.incentiveBold}>+250 J-Credits</Text> toward
-          your next escrow settlement.
+          Share quality feedback on delivered orders to earn{' '}
+          <Text style={styles.incentiveBold}>1000 Credits</Text> on every review.
         </Text>
       </View>
 
@@ -225,9 +284,9 @@ export function MyReviewsScreen() {
                     {item.orderNumber ? <Text style={styles.metaText}>Order {item.orderNumber}</Text> : null}
                     {item.deliveredAt ? <Text style={styles.metaText}>Delivered {formatDate(item.deliveredAt)}</Text> : null}
                     <StarRow rating={0} />
-                    <Text style={styles.unratedText}>Unrated â€” tap to review quality & purity</Text>
+                    <Text style={styles.unratedText}>Unrated - tap to rate quality and purity</Text>
                     <View style={styles.reviewBtnWrap}>
-                      <Button label="Write Review (+50 Credits)" variant="primary" icon="rate-review" onPress={() => openProduct(item.productId)} />
+                      <Button label="Write Review (+1000 Credits)" variant="primary" icon="rate-review" onPress={() => openReviewModal(item)} />
                     </View>
                   </View>
                 </Pressable>
@@ -262,11 +321,98 @@ export function MyReviewsScreen() {
           <View style={styles.trust}>
             <Icon name="gavel" size={16} color={colors.outline} />
             <Text style={styles.trustTxt}>
-              All commodity ratings are cryptographically mapped to Bank of Uganda Regulatory Sandbox escrow settlements.
+              All ratings are tied to verified purchases and help other buyers choose with confidence.
             </Text>
           </View>
         </ScrollView>
       )}
+
+      {/* Write Review modal */}
+      <Modal visible={showReviewModal} animationType="slide" transparent onRequestClose={closeReviewModal}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Write a Review</Text>
+              <Pressable onPress={closeReviewModal} hitSlop={8} disabled={modalSubmitting}>
+                <Icon name="close" size={24} color={colors.onSurface} />
+              </Pressable>
+            </View>
+
+            {reviewTarget ? (
+              <>
+                <View style={styles.modalProductRow}>
+                  {reviewTarget.image ? (
+                    <Image source={{ uri: reviewTarget.image }} style={styles.modalProductImage} resizeMode="cover" />
+                  ) : (
+                    <View style={[styles.modalProductImage, styles.imagePlaceholder]}>
+                      <Icon name="store" size={20} color={colors.outlineVariant} />
+                    </View>
+                  )}
+                  <View style={styles.modalProductInfo}>
+                    <Text style={styles.modalProductName} numberOfLines={2}>{reviewTarget.productName}</Text>
+                    {reviewTarget.orderNumber ? (
+                      <Text style={styles.modalProductMeta}>Order {reviewTarget.orderNumber}</Text>
+                    ) : null}
+                  </View>
+                </View>
+
+                <Text style={styles.modalLabel}>Your rating</Text>
+                <View style={styles.modalStars}>
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <Pressable key={n} onPress={() => setModalRating(n)} hitSlop={6} disabled={modalSubmitting}>
+                      <Icon
+                        name={modalRating >= n ? 'star' : 'star-border'}
+                        size={36}
+                        color={colors.secondary}
+                      />
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={styles.modalReward}>Earn 1000 Credits when you submit</Text>
+
+                <Text style={styles.modalLabel}>Title</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={modalTitle}
+                  onChangeText={setModalTitle}
+                  placeholder="Sum it up in a few words"
+                  placeholderTextColor={colors.outline}
+                  maxLength={80}
+                  editable={!modalSubmitting}
+                />
+
+                <Text style={styles.modalLabel}>Review</Text>
+                <TextInput
+                  style={[styles.modalInput, styles.modalTextarea]}
+                  value={modalComment}
+                  onChangeText={setModalComment}
+                  placeholder="What did you like or dislike about quality and purity?"
+                  placeholderTextColor={colors.outline}
+                  multiline
+                  textAlignVertical="top"
+                  maxLength={1000}
+                  editable={!modalSubmitting}
+                />
+
+                {modalError ? <Text style={styles.modalError}>{modalError}</Text> : null}
+
+                <Button
+                  label={modalSubmitting ? 'Submitting...' : 'Submit Review (+1000 Credits)'}
+                  variant="primary"
+                  fullWidth
+                  icon="rate-review"
+                  onPress={submitModalReview}
+                  disabled={modalSubmitting}
+                  style={styles.modalSubmit}
+                />
+              </>
+            ) : null}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -305,4 +451,53 @@ const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   trust: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start', padding: spacing.md },
   trustTxt: { ...typography.labelSm, color: colors.outline, flex: 1, lineHeight: 16 },
+
+  /* Review modal */
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalSheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.md,
+    paddingBottom: spacing.xxl,
+    maxHeight: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  modalTitle: { ...typography.headlineMd, color: colors.onSurface, fontWeight: '700' },
+  modalProductRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'center',
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.lg,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  modalProductImage: { width: 48, height: 48, borderRadius: radius.md, overflow: 'hidden', backgroundColor: colors.surfaceContainerHigh },
+  modalProductInfo: { flex: 1, minWidth: 0 },
+  modalProductName: { ...typography.bodyMd, color: colors.onSurface, fontWeight: '700' },
+  modalProductMeta: { ...typography.labelSm, color: colors.outline, marginTop: 2 },
+  modalLabel: { ...typography.labelLg, color: colors.onSurface, marginTop: spacing.sm, marginBottom: spacing.xs },
+  modalStars: { flexDirection: 'row', gap: spacing.sm },
+  modalReward: { ...typography.labelSm, color: colors.statusSuccess, marginTop: spacing.xs, fontWeight: '600' },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHighest,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    color: colors.onSurface,
+    backgroundColor: colors.surfaceContainerLowest,
+    ...typography.bodyMd,
+  },
+  modalTextarea: { minHeight: 110, paddingTop: spacing.sm },
+  modalError: { ...typography.bodyMd, color: colors.error, marginTop: spacing.sm },
+  modalSubmit: { marginTop: spacing.md },
 });
