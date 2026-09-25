@@ -798,3 +798,22 @@ payload extended with `pickup_point`/`fulfilment` (backend ignores for now); Tot
 **New Icons:** `smart_toy`, `crisis-alert`, `chat_apps_script`, `reply`, `add_card`, `qr_code_scanner`, `percent`.
 
 **Verification:** `tsc --noEmit` + `eslint` — 0 errors. APK built + installed on both devices (phone `0794415254003308` + emulator `emulator-5554`).
+
+### Session (2026-09-26) — Inquiry chat thread, mark-complete, invoice view; backend deployed
+
+**Backend (site repo `C:\xampp\htdocs\dev\jemina`, commit `56eccb7`, pushed + deployed to VPS):**
+- New `corporate_inquiry_messages` table (migration `2026_09_26_000000_...`) + `CorporateInquiryMessage` model; `CorporateInquiry` gains `messages()` (hasMany ordered by created_at) and `invoice()` (hasOne latestOfMany).
+- `ApiInquiryController::index` enriched: `inquiry_message`, `subject_name`, `delivery_location`, `expected_delivery`, `replies_count`, `latest_reply`, `messages[]` (thread only — original inquiry message excluded), `invoice` summary.
+- New endpoints (owner-checked, inside v1 auth group): `POST /inquiries/{id}/replies` (201, returns message), `POST /inquiries/{id}/complete` (sets `status='completed'`, `delivery_completed=true`+at), `GET /inquiries/{id}/invoice` (full invoice for owner).
+- `VendorController::vendorRespondToInquiry` now appends a vendor thread row (try/catch + Log::warning).
+- VPS: `git pull` + `php artisan migrate --force` (table created, 116ms) + `view:clear`. Verified via route:list + local smoke script (thread create, complete + rollback).
+
+**Mobile (repo `m_jemina`, 4 commits pushed: `21a8c09` returns/reorder, `ef351c7` reviews fixes, `6700561` inquiry chat/invoice, `9b8b4ab` hero/credits style):**
+- Cut-off sheet fix: `chatSheet`/`detailsSheet` got definite heights (`85%`/`80%`) + `overflow:hidden` (same pattern as AccountSettings `editProfileSheet`) — inner ScrollView now bounded and scrolls.
+- `MyInquiriesScreen`: full thread rendering (customer right / vendor left bubbles with quoted-price tag), real send via `apiReplyToInquiry`, Mark-as-Complete via `apiCompleteInquiry` (flips status locally + closes modals), input locked when `completed|cancelled`; details modal gains Supplier Replies list + invoice card → `InquiryInvoice`; STATUS_CONFIG now covers `quoted/responded/confirmed/in_transit/cancelled`; negotiation filter includes quoted/confirmed; duplicate `pressed:` style key removed; `cancel` icon → `error-outline` (not in IconName).
+- New `InquiryInvoiceScreen` (full-screen: AppHeader showBack, loading/error states, hero amount+status badge, parties, line items, payment, notes, escrow footer, pull-to-refresh via `apiGetInquiryInvoice`); route `'InquiryInvoice'` added to NavigationContext + App.tsx; `shield-check` icon → `verified-user`.
+- `api.ts`: `ApiInquiryThreadMessage`, `ApiInquiryInvoice`, `messages?`/`invoice?`/`subject_name?`/`expected_delivery?` on `ApiInquiryResult`, + `apiReplyToInquiry`/`apiCompleteInquiry`/`apiGetInquiryInvoice`.
+
+**Note:** DB has only inquiry #1 (user 7, pending); `corporate_invoices` empty → invoice card/empty-state only appears once a vendor creates an invoice.
+
+**Verification:** `npx tsc --noEmit` + eslint on changed files — 0 errors. `php -l` clean. APK `assembleRelease` BUILD SUCCESSFUL (5m29s), installed + relaunched on phone `0794415254003308` and emulator `emulator-5554` (PIDs confirmed running).
