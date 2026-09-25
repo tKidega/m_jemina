@@ -4,10 +4,20 @@ import { AppHeader } from '../components/AppHeader';
 import { EmptyState } from '../components/EmptyState';
 import { Icon } from '../components/Icon';
 import { SectionLoader } from '../components/Loader';
+import { ReturnItemModal } from '../components/ReturnItemModal';
 import { useAuth } from '../state/AuthContext';
 import { useCart } from '../state/CartContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { apiGetOrder, apiGetOrders, ApiOrder, absoluteUrl } from '../data/api';
+import {
+  apiGetOrder,
+  apiGetOrders,
+  apiMarkItemReceived,
+  apiProductToProduct,
+  fetchProductDetail,
+  absoluteUrl,
+  ApiOrder,
+  ApiOrderItem,
+} from '../data/api';
 import { formatUGX } from '../components/ProductCard';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -52,16 +62,39 @@ function formatDateTime(value?: string | null): string {
   });
 }
 
+function paymentMethodLabel(method?: string | null): string {
+  if (!method) {
+    return '';
+  }
+  const map: Record<string, string> = {
+    cod: 'Cash on Delivery',
+    credit: 'JEMINA Credits',
+    bitcoin: 'Bitcoin',
+    mtn_mobile_money: 'MTN Mobile Money',
+    airtel_money: 'Airtel Money',
+    momo: 'Mobile Money',
+    card: 'Card',
+    visa: 'Visa',
+    stripe: 'Stripe',
+    flutterwave: 'Flutterwave',
+    bank_transfer: 'Bank Transfer',
+  };
+  const key = method.toLowerCase();
+  return map[key] ?? method.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 function OrderCard({ order, token }: { order: ApiOrder; token?: string | null }) {
-  const { navigate } = useNavigation();
+  const { navigate, switchTab } = useNavigation();
+  const { addItem } = useCart();
   const [detail, setDetail] = useState<ApiOrder | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
+  const [returnItem, setReturnItem] = useState<ApiOrderItem | null>(null);
 
   useEffect(() => {
     let active = true;
-    if (token && !order.items) {
+    if (token && (!order.items || !order.payment_method)) {
       setLoadingDetail(true);
       apiGetOrder(token, order.id)
         .then(d => {
@@ -98,6 +131,63 @@ function OrderCard({ order, token }: { order: ApiOrder; token?: string | null })
   };
 
   const onTrack = () => navigate('OrderTracking', { orderId: order.id });
+
+  const refreshDetail = useCallback(() => {
+    if (!token) {
+      return;
+    }
+    apiGetOrder(token, order.id)
+      .then(d => setDetail(d))
+      .catch(() => {});
+  }, [token, order.id]);
+
+  const onConfirmReceipt = (item: ApiOrderItem) => {
+    const itemId = item.id;
+    if (!token || !itemId) {
+      return;
+    }
+    Alert.alert(
+      'Confirm Receipt',
+      `Confirm that you received "${item.product_name}"?`,
+      [
+        { text: 'Not Yet', style: 'cancel' },
+        {
+          text: 'Confirm',
+          onPress: async () => {
+            try {
+              await apiMarkItemReceived(token, order.id, itemId);
+              refreshDetail();
+              Alert.alert('Receipt Confirmed', 'You can now return this item within 24 hours.');
+            } catch (e) {
+              Alert.alert('Could Not Confirm', e instanceof Error ? e.message : 'Please try again.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const onReorderAll = async () => {
+    const reorderable = (items ?? []).filter(i => i.can_reorder && (i.stock_quantity ?? 0) > 0);
+    if (reorderable.length === 0) {
+      navigate('Marketplace');
+      return;
+    }
+    try {
+      for (const item of reorderable) {
+        const api = await fetchProductDetail(item.product_id);
+        addItem(apiProductToProduct(api), item.quantity || 1);
+      }
+      Alert.alert('Added to Cart', `${reorderable.length} item${reorderable.length === 1 ? '' : 's'} added to your cart.`, [
+        { text: 'Keep Shopping', style: 'cancel' },
+        { text: 'View Cart', onPress: () => switchTab('Cart') },
+      ]);
+    } catch (e) {
+      Alert.alert('Reorder Failed', e instanceof Error ? e.message : 'Could not add items to your cart.');
+    }
+  };
+
+  const openReturn = (item: ApiOrderItem) => setReturnItem(item);
 
   return (
     <View style={styles.orderCard}>
@@ -156,6 +246,39 @@ function OrderCard({ order, token }: { order: ApiOrder; token?: string | null })
                 ) : item.tracking && item.tracking.tracking_number ? (
                   <Text style={styles.itemNote} numberOfLines={1}>TN: {item.tracking.tracking_number}</Text>
                 ) : null}
+                {isDelivered(status) && (item.can_confirm_receipt || item.can_return) ? (
+                  <View style={styles.itemActions}>
+                    {item.can_confirm_receipt ? (
+                      <Pressable
+                        style={[styles.itemActionBtn, styles.itemActionPrimary]}
+                        onPress={() => onConfirmReceipt(item)}
+                      >
+                        <Icon name="check-circle" size={13} color={colors.onPrimary} />
+                        <Text style={styles.itemActionPrimaryText}>Confirm Receipt</Text>
+                      </Pressable>
+                    ) : null}
+                    {item.can_return ? (
+                      <Pressable
+                        style={[styles.itemActionBtn, styles.itemActionReturn]}
+                        onPress={() => openReturn(item)}
+                      >
+                        <Icon name="assignment" size={13} color={colors.primaryContainer} />
+                        <Text style={styles.itemActionReturnText}>Return · 24h</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ) : null}
+                {isDelivered(status) && !item.can_return && item.return_deadline ? (
+                  <Text style={styles.itemReturnNote}>
+                    {item.return_status && item.return_status !== 'completed'
+                      ? `Return ${item.return_status.replace(/_/g, ' ')}`
+                      : item.return_window_open
+                        ? item.can_confirm_receipt
+                          ? 'Confirm receipt to start a return'
+                          : 'Return in progress'
+                        : 'Return window expired'}
+                  </Text>
+                ) : null}
               </View>
             </View>
           ))}
@@ -203,6 +326,17 @@ function OrderCard({ order, token }: { order: ApiOrder; token?: string | null })
         </Modal>
       ) : null}
 
+      {returnItem && token ? (
+        <ReturnItemModal
+          visible
+          token={token}
+          orderId={order.id}
+          item={returnItem}
+          onClose={() => setReturnItem(null)}
+          onSubmitted={refreshDetail}
+        />
+      ) : null}
+
       <View style={styles.actionsRow}>
         {!isCancelled(status) && !isDelivered(status) ? (
           <>
@@ -217,10 +351,17 @@ function OrderCard({ order, token }: { order: ApiOrder; token?: string | null })
           </>
         ) : (
           <>
-            <Pressable style={[styles.actionBtn, styles.actionPrimary]} onPress={() => navigate('Marketplace')}>
-              <Icon name="replay" size={18} color={colors.onPrimary} />
-              <Text style={styles.actionPrimaryText}>Reorder</Text>
-            </Pressable>
+            {isCancelled(status) ? (
+              <Pressable style={[styles.actionBtn, styles.actionPrimary]} onPress={() => navigate('Marketplace')}>
+                <Icon name="replay" size={18} color={colors.onPrimary} />
+                <Text style={styles.actionPrimaryText}>Reorder</Text>
+              </Pressable>
+            ) : (items ?? []).some(i => i.can_reorder && (i.stock_quantity ?? 0) > 0) ? (
+              <Pressable style={[styles.actionBtn, styles.actionPrimary]} onPress={onReorderAll}>
+                <Icon name="replay" size={18} color={colors.onPrimary} />
+                <Text style={styles.actionPrimaryText}>Reorder</Text>
+              </Pressable>
+            ) : null}
             {isDelivered(status) ? (
               <Pressable style={[styles.actionBtn, styles.actionNeutral]} onPress={() => navigate('MyReviews')}>
                 <Icon name="rate-review" size={18} color={colors.onSurface} />
@@ -242,8 +383,12 @@ function OrderCard({ order, token }: { order: ApiOrder; token?: string | null })
 function InvoiceSection({ order }: { order: ApiOrder }) {
   const shipping = order.shipping_amount ?? 0;
   const tax = order.tax_amount ?? 0;
-  const subtotal = Math.max((order.total_amount ?? 0) - shipping - tax, 0);
+  const discount = order.discount_amount ?? 0;
+  const subtotal = order.subtotal != null
+    ? order.subtotal
+    : Math.max((order.total_amount ?? 0) - shipping - tax + discount, 0);
   const paid = order.payment_status?.toLowerCase() === 'paid';
+  const payMethod = paymentMethodLabel(order.payment_method);
 
   // Group items by vendor
   const vendorGroups = useMemo(() => {
@@ -296,10 +441,10 @@ function InvoiceSection({ order }: { order: ApiOrder }) {
             </Text>
           </View>
         </View>
-        {order.payment_method ? (
+        {payMethod ? (
           <View style={styles.invoiceInfoRow}>
-            <Text style={styles.invoiceInfoLabel}>Payment Method</Text>
-            <Text style={styles.invoiceInfoValue}>{order.payment_method}</Text>
+            <Text style={styles.invoiceInfoLabel}>Pay Method</Text>
+            <Text style={styles.invoiceInfoValue} numberOfLines={1}>{payMethod}</Text>
           </View>
         ) : null}
       </View>
@@ -326,7 +471,7 @@ function InvoiceSection({ order }: { order: ApiOrder }) {
               {group.items.map((item, idx) => (
                 <View key={idx} style={[styles.tableRow, idx % 2 === 0 && styles.tableRowAlt]}>
                   <View style={[styles.tableCell, { flex: 2 }]}>
-                    <Text style={styles.tableCellText} numberOfLines={2}>{item.product_name}</Text>
+                    <Text style={styles.tableCellText} numberOfLines={1} ellipsizeMode="tail">{item.product_name}</Text>
                     {item.sku ? <Text style={styles.tableCellSku}>SKU: {item.sku}</Text> : null}
                   </View>
                   <Text style={[styles.tableCellText, { flex: 0.6, textAlign: 'center' }]}>{item.quantity}</Text>
@@ -365,6 +510,14 @@ function InvoiceSection({ order }: { order: ApiOrder }) {
           <View style={styles.invoicePriceRow}>
             <Text style={styles.invoicePriceLabel}>Taxes & Charges</Text>
             <Text style={styles.invoicePriceValue}>{formatUGX(tax)}</Text>
+          </View>
+        ) : null}
+        {discount > 0 ? (
+          <View style={styles.invoicePriceRow}>
+            <Text style={styles.invoiceDiscountLabel}>
+              Voucher{order.voucher_code ? ` (${order.voucher_code})` : ''}
+            </Text>
+            <Text style={styles.invoiceDiscountValue}>-{formatUGX(discount)}</Text>
           </View>
         ) : null}
         <View style={styles.invoiceTotalDivider} />
@@ -865,6 +1018,45 @@ const styles = StyleSheet.create({
     color: colors.outline,
     marginTop: 2,
   },
+  itemActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  itemActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  itemActionPrimary: {
+    backgroundColor: colors.primaryContainer,
+    borderColor: colors.primaryContainer,
+  },
+  itemActionPrimaryText: {
+    ...typography.labelSm,
+    color: colors.onPrimary,
+    fontWeight: '700',
+  },
+  itemActionReturn: {
+    backgroundColor: colors.surfaceContainerLow,
+    borderColor: colors.secondary,
+  },
+  itemActionReturnText: {
+    ...typography.labelSm,
+    color: colors.secondary,
+    fontWeight: '700',
+  },
+  itemReturnNote: {
+    ...typography.labelSm,
+    color: colors.onSurfaceVariant,
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
   breakdown: {
     marginHorizontal: spacing.sm,
     marginBottom: spacing.sm,
@@ -1104,6 +1296,16 @@ const styles = StyleSheet.create({
     ...typography.bodySm,
     color: colors.onSurface,
     fontWeight: '600',
+  },
+  invoiceDiscountLabel: {
+    ...typography.bodySm,
+    color: colors.statusSuccess,
+    fontWeight: '600',
+  },
+  invoiceDiscountValue: {
+    ...typography.bodySm,
+    color: colors.statusSuccess,
+    fontWeight: '700',
   },
   invoiceTotalDivider: {
     height: 1,

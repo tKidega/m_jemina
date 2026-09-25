@@ -16,9 +16,20 @@ import { Button } from '../components/Button';
 import { EmptyState } from '../components/EmptyState';
 import { Icon } from '../components/Icon';
 import { SectionLoader } from '../components/Loader';
+import { ReturnItemModal } from '../components/ReturnItemModal';
 import { useAuth } from '../state/AuthContext';
+import { useCart } from '../state/CartContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { apiGetOrder, apiGetOrders, ApiOrder, ApiTrackingInfo } from '../data/api';
+import {
+  apiGetOrder,
+  apiGetOrders,
+  apiMarkItemReceived,
+  apiProductToProduct,
+  fetchProductDetail,
+  ApiOrder,
+  ApiOrderItem,
+  ApiTrackingInfo,
+} from '../data/api';
 import { formatUGX } from '../components/ProductCard';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -179,7 +190,8 @@ function OrderTrackingCard({ order, onPress }: { order: ApiOrder; onPress: () =>
 
 export function OrderTrackingScreen() {
   const { token, isAuthenticated } = useAuth();
-  const { goBack, navigate, params } = useNavigation();
+  const { goBack, navigate, params, switchTab } = useNavigation();
+  const { addItem } = useCart();
   const [orders, setOrders] = useState<ApiOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -187,6 +199,7 @@ export function OrderTrackingScreen() {
   const [query, setQuery] = useState('');
   const [activeOrder, setActiveOrder] = useState<ApiOrder | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [returnItem, setReturnItem] = useState<ApiOrderItem | null>(null);
 
   const pendingOrderId = useMemo<number | null>(() => {
     const v = params?.orderId;
@@ -314,6 +327,46 @@ export function OrderTrackingScreen() {
     }
   }, [token, activeOrder]);
 
+  const onConfirmReceipt = (item: ApiOrderItem) => {
+    const itemId = item.id;
+    if (!token || !itemId || !activeOrder) {
+      return;
+    }
+    Alert.alert(
+      'Confirm Receipt',
+      `Confirm that you received "${item.product_name}"?`,
+      [
+        { text: 'Not Yet', style: 'cancel' },
+        {
+          text: 'Confirm',
+          onPress: async () => {
+            try {
+              await apiMarkItemReceived(token, activeOrder.id, itemId);
+              refreshDetail();
+              Alert.alert('Receipt Confirmed', 'You can now return this item within 24 hours.');
+            } catch (e) {
+              Alert.alert('Could Not Confirm', e instanceof Error ? e.message : 'Please try again.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const onReorderItem = async (item: ApiOrderItem) => {
+    try {
+      const api = await fetchProductDetail(item.product_id);
+      const product = apiProductToProduct(api);
+      addItem(product, item.quantity || 1);
+      Alert.alert('Added to Cart', `"${product.title}" was added to your cart.`, [
+        { text: 'Keep Shopping', style: 'cancel' },
+        { text: 'View Cart', onPress: () => switchTab('Cart') },
+      ]);
+    } catch (e) {
+      Alert.alert('Reorder Failed', e instanceof Error ? e.message : 'Could not add this item to your cart.');
+    }
+  };
+
   if (!isAuthenticated || !token) {
     return (
       <View style={styles.root}>
@@ -352,7 +405,22 @@ export function OrderTrackingScreen() {
             <Text style={styles.detailOrderNumber}>{activeOrder.order_number}</Text>
             {detailLoading ? <Text style={styles.detailLoading}>Refreshing tracking...</Text> : null}
           </View>
-          <TrackingOverview order={activeOrder} />
+          <TrackingOverview
+            order={activeOrder}
+            onConfirmReceipt={onConfirmReceipt}
+            onStartReturn={setReturnItem}
+            onReorder={onReorderItem}
+          />
+          {token ? (
+            <ReturnItemModal
+              visible={!!returnItem}
+              token={token}
+              orderId={activeOrder.id}
+              item={returnItem}
+              onClose={() => setReturnItem(null)}
+              onSubmitted={refreshDetail}
+            />
+          ) : null}
         </ScrollView>
         <View style={styles.bottomBar}>
           <Pressable
@@ -431,7 +499,17 @@ export function OrderTrackingScreen() {
   );
 }
 
-function TrackingOverview({ order }: { order: ApiOrder }) {
+function TrackingOverview({
+  order,
+  onConfirmReceipt,
+  onStartReturn,
+  onReorder,
+}: {
+  order: ApiOrder;
+  onConfirmReceipt: (item: ApiOrderItem) => void;
+  onStartReturn: (item: ApiOrderItem) => void;
+  onReorder: (item: ApiOrderItem) => void;
+}) {
   const tracking = primaryTracking(order.items);
   const delivered = Boolean(order.delivered_at);
   const statusText = (tracking?.status && tracking.status.toLowerCase() !== 'none' ? tracking.status : order.status).toUpperCase();
@@ -461,6 +539,16 @@ function TrackingOverview({ order }: { order: ApiOrder }) {
   const shipping = order.shipping_amount ?? 0;
   const tax = order.tax_amount ?? 0;
   const subtotal = Math.max((order.total_amount ?? 0) - shipping - tax, 0);
+
+  const confirmableItem = items.find(i => i.can_confirm_receipt);
+  const returnableItem = items.find(i => i.can_return);
+  const reorderableItem = items.find(i => i.can_reorder && (i.stock_quantity ?? 0) > 0);
+  const nextDeadline = items
+    .filter(i => i.can_return && i.return_deadline)
+    .map(i => i.return_deadline as string)
+    .sort()[0];
+  const hasActiveReturn = items.some(i => i.return_status && i.return_status !== 'completed');
+  const anyReturnDeadline = items.some(i => i.return_deadline);
 
   return (
     <View style={styles.detailStack}>
@@ -500,6 +588,55 @@ function TrackingOverview({ order }: { order: ApiOrder }) {
           ) : null}
         </View>
       </View>
+
+      {delivered ? (
+        <View style={[styles.returnBanner, returnableItem ? styles.returnBannerOpen : styles.returnBannerMuted]}>
+          <View style={styles.returnBannerIcon}>
+            <Icon
+              name={returnableItem ? 'assignment' : reorderableItem ? 'replay' : 'event-available'}
+              size={20}
+              color={returnableItem ? colors.onPrimary : colors.onSurfaceVariant}
+            />
+          </View>
+          <View style={styles.returnBannerBody}>
+            <Text style={styles.returnBannerTitle}>
+              {returnableItem
+                ? 'Return Window Open · 24h'
+                : confirmableItem
+                  ? 'Confirm Receipt'
+                  : hasActiveReturn
+                    ? 'Return In Progress'
+                    : anyReturnDeadline
+                      ? 'Return Window Expired'
+                      : 'Delivered'}
+            </Text>
+            <Text style={styles.returnBannerSub}>
+              {returnableItem && nextDeadline
+                ? `Return by ${formatDateTime(nextDeadline)} at a pickup point.`
+                : confirmableItem
+                  ? 'Confirm delivery to unlock the 24-hour return window.'
+                  : hasActiveReturn
+                    ? 'We are processing your return. Drop-off details were sent to you.'
+                    : reorderableItem
+                      ? 'Returns are closed. Reorder items that are still in stock.'
+                      : 'No further actions available for this order.'}
+            </Text>
+          </View>
+          {returnableItem ? (
+            <Pressable style={styles.returnBannerBtn} onPress={() => onStartReturn(returnableItem)}>
+              <Text style={styles.returnBannerBtnText}>Return</Text>
+            </Pressable>
+          ) : confirmableItem ? (
+            <Pressable style={styles.returnBannerBtn} onPress={() => onConfirmReceipt(confirmableItem)}>
+              <Text style={styles.returnBannerBtnText}>Confirm</Text>
+            </Pressable>
+          ) : reorderableItem ? (
+            <Pressable style={styles.returnBannerBtn} onPress={() => onReorder(reorderableItem)}>
+              <Text style={styles.returnBannerBtnText}>Reorder</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
 
       <View style={styles.etaCard}>
         <View style={styles.etaRow}>
@@ -638,6 +775,37 @@ function TrackingOverview({ order }: { order: ApiOrder }) {
                 <Text style={styles.shipItemNote}>Qty: {item.quantity} unit{item.quantity === 1 ? '' : 's'}</Text>
                 <ItemTrackingInfo tracking={item.tracking} />
                 <Text style={styles.shipItemTotal}>{formatUGX(item.total)}</Text>
+                {delivered && (item.can_confirm_receipt || item.can_return || (item.can_reorder && (item.stock_quantity ?? 0) > 0)) ? (
+                  <View style={styles.shipItemActions}>
+                    {item.can_confirm_receipt ? (
+                      <Pressable
+                        style={[styles.shipItemActionBtn, styles.shipItemActionPrimary]}
+                        onPress={() => onConfirmReceipt(item)}
+                      >
+                        <Icon name="check-circle" size={13} color={colors.onPrimary} />
+                        <Text style={styles.shipItemActionPrimaryText}>Confirm Receipt</Text>
+                      </Pressable>
+                    ) : null}
+                    {item.can_return ? (
+                      <Pressable
+                        style={[styles.shipItemActionBtn, styles.shipItemActionReturn]}
+                        onPress={() => onStartReturn(item)}
+                      >
+                        <Icon name="assignment" size={13} color={colors.primaryContainer} />
+                        <Text style={styles.shipItemActionReturnText}>Return · 24h</Text>
+                      </Pressable>
+                    ) : null}
+                    {item.can_reorder && (item.stock_quantity ?? 0) > 0 ? (
+                      <Pressable
+                        style={[styles.shipItemActionBtn, styles.shipItemActionOutline]}
+                        onPress={() => onReorder(item)}
+                      >
+                        <Icon name="replay" size={13} color={colors.primaryContainer} />
+                        <Text style={styles.shipItemActionOutlineText}>Reorder</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ) : null}
               </View>
             </View>
           );
@@ -1427,5 +1595,96 @@ const styles = StyleSheet.create({
     ...typography.labelLg,
     color: colors.primaryContainer,
     fontWeight: '600',
+  },
+  returnBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    marginBottom: spacing.sm,
+  },
+  returnBannerOpen: {
+    backgroundColor: colors.secondaryContainer,
+    borderColor: colors.secondary,
+  },
+  returnBannerMuted: {
+    backgroundColor: colors.surfaceContainerLow,
+    borderColor: colors.surfaceContainerHigh,
+  },
+  returnBannerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(255,255,255,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  returnBannerBody: {
+    flex: 1,
+  },
+  returnBannerTitle: {
+    ...typography.labelMd,
+    color: colors.onSurface,
+    fontWeight: '800',
+  },
+  returnBannerSub: {
+    ...typography.labelSm,
+    color: colors.onSurfaceVariant,
+    marginTop: 1,
+  },
+  returnBannerBtn: {
+    backgroundColor: colors.primaryContainer,
+    borderRadius: 999,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+  },
+  returnBannerBtnText: {
+    ...typography.labelSm,
+    color: colors.onPrimary,
+    fontWeight: '800',
+  },
+  shipItemActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  shipItemActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  shipItemActionPrimary: {
+    backgroundColor: colors.primaryContainer,
+    borderColor: colors.primaryContainer,
+  },
+  shipItemActionPrimaryText: {
+    ...typography.labelSm,
+    color: colors.onPrimary,
+    fontWeight: '700',
+  },
+  shipItemActionReturn: {
+    backgroundColor: colors.surfaceContainerLow,
+    borderColor: colors.secondary,
+  },
+  shipItemActionReturnText: {
+    ...typography.labelSm,
+    color: colors.secondary,
+    fontWeight: '700',
+  },
+  shipItemActionOutline: {
+    backgroundColor: 'transparent',
+    borderColor: colors.outlineVariant,
+  },
+  shipItemActionOutlineText: {
+    ...typography.labelSm,
+    color: colors.primaryContainer,
+    fontWeight: '700',
   },
 });
