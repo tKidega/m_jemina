@@ -30,6 +30,8 @@ interface HeroCarouselProps {
   transition?: 'slide' | 'fade';
   /** Full-bleed edges + overlay indicators — matches site #headercarousel */
   fullBleed?: boolean;
+  /** Override the frame corner radius (e.g. 5) */
+  radius?: number;
 }
 
 const SLIDE_INTERVAL = 4000;
@@ -51,6 +53,7 @@ export function HeroCarousel({
   showDots = false,
   transition = 'slide',
   fullBleed = false,
+  radius: cornerRadius,
 }: HeroCarouselProps) {
   const scrollRef = useRef<ScrollView>(null);
   const [active, setActive] = useState(0);
@@ -178,7 +181,12 @@ export function HeroCarousel({
     }
   };
 
-  const frameStyle = [styles.frame, { aspectRatio }, fullBleed ? styles.frameBleed : null];
+  const frameStyle = [
+    styles.frame,
+    { aspectRatio },
+    fullBleed ? styles.frameBleed : null,
+    cornerRadius != null ? { borderRadius: cornerRadius } : null,
+  ];
 
   const dots =
     showDots && slides.length > 1 ? (

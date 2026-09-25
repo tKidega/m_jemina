@@ -530,13 +530,14 @@ export function HomeScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
         }
       >
-        {/* Hero carousel — website #headercarousel parity: full-bleed crossfade */}
+        {/* Hero carousel — inset + 5px radius to match section cards */}
         <View style={styles.heroSection}>
           <HeroCarousel
             slides={heroSlides}
             showDots
             transition="fade"
             fullBleed
+            radius={5}
             aspectRatio={16 / 9}
             resizeMode="cover"
           />
@@ -1304,7 +1305,7 @@ const styles = StyleSheet.create({
   },
   heroSection: {
     paddingTop: 0,
-    paddingHorizontal: 0,
+    paddingHorizontal: spacing.md,
     marginTop: spacing.sm,
   },
   section: {

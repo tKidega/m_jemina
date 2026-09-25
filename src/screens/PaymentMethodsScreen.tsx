@@ -24,10 +24,12 @@ import {
   apiUpdatePaymentMethod,
   apiDeletePaymentMethod,
   apiGetAcceptedPaymentMethods,
+  apiGetCreditBalance,
   ApiAcceptedPaymentMethod,
   ApiPaymentMethod,
   ApiPaymentMethodType,
 } from '../data/api';
+import { formatUGX } from '../components/ProductCard';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
@@ -112,25 +114,43 @@ function emptyForm(): MethodForm {
 
 /* ─── JEMINA Credits Box ─────────────────────────────── */
 
-function CreditsBox() {
+function CreditsBox({ token }: { token: string | null }) {
+  const { navigate } = useNavigation();
+  const [balance, setBalance] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    let mounted = true;
+    apiGetCreditBalance(token)
+      .then(data => {
+        if (mounted) setBalance(data.balance);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [token]);
+
   return (
     <View style={styles.creditsBox}>
       <View style={styles.creditsTop}>
         <View>
           <Text style={styles.creditsLabel}>JEMINA B2B Credit Balance</Text>
-          <Text style={styles.creditsAmount}>UGX 145,000</Text>
+          <Text style={styles.creditsAmount}>
+            {balance == null ? 'UGX —' : formatUGX(balance)}
+          </Text>
         </View>
-        <Pressable style={styles.topUpBtn}>
-          <Icon name="add-circle" size={18} color={colors.white} />
-          <Text style={styles.topUpBtnText}>Top Up</Text>
-        </Pressable>
       </View>
       <View style={styles.creditsDivider} />
       <View style={styles.creditsFooter}>
         <Text style={styles.creditsFooterLabel}>Automatic Escrow Clearance</Text>
         <Text style={styles.creditsFooterValue}>Enabled</Text>
       </View>
-      <Pressable style={styles.creditHistoryBtn}>
+      <Pressable
+        style={styles.creditHistoryBtn}
+        onPress={() => navigate('CreditHistory')}
+        hitSlop={8}
+      >
         <Text style={styles.creditHistoryText}>Credit History</Text>
         <Icon name="chevron-right" size={16} color={colors.primaryFixedDim} />
       </Pressable>
@@ -367,7 +387,7 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
           }
         >
           {/* JEMINA Credits Box */}
-          <CreditsBox />
+          <CreditsBox token={token} />
 
           {/* Section Header */}
           <View style={styles.sectionHeader}>
@@ -597,20 +617,6 @@ const styles = StyleSheet.create({
     color: colors.onPrimary,
     fontWeight: '700',
     marginTop: 2,
-  },
-  topUpBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.secondaryContainer,
-    borderRadius: radius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  topUpBtnText: {
-    ...typography.labelMd,
-    color: colors.white,
-    fontWeight: '700',
   },
   creditsDivider: {
     height: 1,
