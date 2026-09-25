@@ -126,7 +126,7 @@ export function AccountScreen() {
       setProfile(null);
     }
     try {
-      const orders = await apiGetOrders(token);
+      const orders = await apiGetOrders(token, 'completed,delivered');
       setOrdersCount(orders.length);
     } catch {
       setOrdersCount(0);
@@ -166,7 +166,7 @@ export function AccountScreen() {
   const photoUrl = profile?.photo ? absoluteUrl(profile.photo) ?? profile.photo : undefined;
 
   const dashStats = [
-    { label: 'Orders', value: String(ordersCount) },
+    { label: 'Completed', value: String(ordersCount) },
     { label: 'Wishlist', value: String(wishlistCount) },
     { label: 'In Cart', value: String(itemCount) },
   ];

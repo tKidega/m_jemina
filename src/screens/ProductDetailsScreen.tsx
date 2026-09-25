@@ -1,12 +1,10 @@
 ﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Alert,
   Image,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,7 +16,7 @@ import { useNavigation } from '../navigation/NavigationContext';
 import { useCart } from '../state/CartContext';
 import { useAuth } from '../state/AuthContext';
 import { useWishlist } from '../state/WishlistContext';
-import { apiAddReview, apiProductToProduct, fetchProductDetail } from '../data/api';
+import { apiProductToProduct, fetchProductDetail } from '../data/api';
 import { formatUGX } from '../components/ProductCard';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -92,18 +90,13 @@ export function ProductDetailsScreen() {
   const { goBack, params, navigate, switchTab } = useNavigation();
   const insets = useSafeAreaInsets();
   const { addItem, itemCount } = useCart();
-  const { token, isAuthenticated } = useAuth();
+  const { token } = useAuth();
   const { isSaved, toggle } = useWishlist();
   const [activeTab, setActiveTab] = useState(0);
   const [activeImage, setActiveImage] = useState(0);
   const [added, setAdded] = useState(false);
   const [qty, setQty] = useState(1);
   const [wishlistError, setWishlistError] = useState<string | null>(null);
-  const [reviewRating, setReviewRating] = useState(0);
-  const [reviewComment, setReviewComment] = useState('');
-  const [reviewSubmitting, setReviewSubmitting] = useState(false);
-  const [reviewError, setReviewError] = useState<string | null>(null);
-  const [reviewDone, setReviewDone] = useState<string | null>(null);
 
   const product = (params?.product as Product | undefined) ?? FALLBACK_PRODUCT;
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
@@ -141,10 +134,6 @@ export function ProductDetailsScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    setReviewDone(null);
-    setReviewError(null);
-    setReviewRating(0);
-    setReviewComment('');
     fetchProductDetail(product.id)
       .then(api => {
         if (!cancelled) {
@@ -156,39 +145,6 @@ export function ProductDetailsScreen() {
       cancelled = true;
     };
   }, [product.id]);
-
-  const submitReview = useCallback(async () => {
-    if (!token) {
-      navigate('Login');
-      return;
-    }
-    if (reviewRating === 0) {
-      setReviewError('Please select a star rating.');
-      return;
-    }
-    if (!reviewComment.trim()) {
-      setReviewError('Please write a short comment.');
-      return;
-    }
-    setReviewSubmitting(true);
-    setReviewError(null);
-    try {
-      await apiAddReview(token, product.id, { rating: reviewRating, comment: reviewComment.trim() });
-      setReviewRating(0);
-      setReviewComment('');
-      setReviewDone('Thank you! Your review has been submitted.');
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Could not submit your review.';
-      if (message.toLowerCase().includes('already reviewed')) {
-        Alert.alert('Already reviewed', 'You have already reviewed this product.');
-        setReviewDone('You have already reviewed this product.');
-      } else {
-        setReviewError(message);
-      }
-    } finally {
-      setReviewSubmitting(false);
-    }
-  }, [token, product.id, reviewRating, reviewComment, navigate]);
 
   return (
     <View style={styles.root}>
@@ -567,43 +523,8 @@ export function ProductDetailsScreen() {
                   })}
                 </View>
                 <Text style={styles.reviewCount}>Based on {reviewCount} reviews</Text>
+                <Text style={styles.reviewRedirectHint}>Rate this product from Ratings &amp; Reviews after delivery.</Text>
               </View>
-              {!isAuthenticated ? (
-                <Button label="Sign in to write a review" variant="outline" fullWidth onPress={() => navigate('Login')} style={styles.reviewBtn} />
-              ) : reviewDone ? (
-                <View style={styles.reviewDoneBox}>
-                  <Icon name="check-circle" size={20} color={colors.statusSuccess} />
-                  <Text style={styles.reviewDoneText}>{reviewDone}</Text>
-                </View>
-              ) : (
-                <>
-                  <Text style={styles.reviewFormTitle}>Write a review</Text>
-                  <View style={styles.reviewStars}>
-                    {[1, 2, 3, 4, 5].map(n => (
-                      <Pressable key={n} onPress={() => setReviewRating(n)} hitSlop={6}>
-                        <Icon name={reviewRating >= n ? 'star' : 'star-border'} size={30} color={colors.secondary} />
-                      </Pressable>
-                    ))}
-                  </View>
-                  <TextInput
-                    style={styles.reviewInput}
-                    placeholder="Share your thoughts about this product..."
-                    placeholderTextColor={colors.onSurfaceVariant}
-                    multiline
-                    value={reviewComment}
-                    onChangeText={setReviewComment}
-                  />
-                  {reviewError ? <Text style={styles.wishlistError}>{reviewError}</Text> : null}
-                  <Button
-                    label={reviewSubmitting ? 'Submitting...' : 'Submit Review'}
-                    variant="primary"
-                    fullWidth
-                    onPress={submitReview}
-                    style={styles.reviewBtn}
-                  />
-                  <Text style={styles.reviewHint}>Reviews are available after your order is delivered.</Text>
-                </>
-              )}
             </View>
           )}
 
@@ -1242,49 +1163,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  reviewBtn: {
-    marginTop: spacing.md,
-  },
-  reviewDoneBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginTop: spacing.md,
-  },
-  reviewDoneText: {
-    ...typography.bodyMd,
-    color: colors.statusSuccess,
-    flex: 1,
-    fontWeight: '600',
-  },
-  reviewFormTitle: {
-    ...typography.labelLg,
-    color: colors.onSurface,
-    fontWeight: '700',
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  reviewStars: {
-    flexDirection: 'row',
-    gap: spacing.xs,
-    marginBottom: spacing.md,
-  },
-  reviewInput: {
-    ...typography.bodyMd,
-    color: colors.onSurface,
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    padding: spacing.md,
-    minHeight: 80,
-    textAlignVertical: 'top',
-    marginBottom: spacing.sm,
-  },
-  reviewHint: {
+  reviewRedirectHint: {
     ...typography.labelMd,
     color: colors.onSurfaceVariant,
     marginTop: spacing.sm,

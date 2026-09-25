@@ -63,7 +63,15 @@ function buildLists(reviewList: ApiMyReview[], orders: ApiOrder[]) {
 
   // Reviewed tab = user's reviews for products from successfully completed/delivered orders.
   const orderedProductIds = new Set(items.map(it => String(it.productId)));
-  const reviewedList = reviewList.filter(r => orderedProductIds.has(String(r.product.id)));
+  const imageByProductId = new Map(items.map(it => [it.productId, it.image]));
+  const reviewedList = reviewList
+    .filter(r => r.product && orderedProductIds.has(String(r.product.id)))
+    .map(r => {
+      const fromReview = r.product.images?.[0] ? absoluteUrl(r.product.images[0]) : undefined;
+      const fromOrder = imageByProductId.get(r.product.id);
+      const images = [fromReview ?? fromOrder ?? ''].filter(Boolean) as string[];
+      return { ...r, product: { ...r.product, images } };
+    });
 
   return { pendingList, reviewedList };
 }
@@ -298,13 +306,16 @@ export function MyReviewsScreen() {
                   onPress={() => openProduct(review.product.id)}
                 >
                   <View style={styles.imageWrap}>
-                    {review.product.images?.[0] ? (
-                      <Image source={{ uri: absoluteUrl(review.product.images[0]) }} style={styles.image} resizeMode="cover" />
-                    ) : (
-                      <View style={[styles.image, styles.imagePlaceholder]}>
-                        <Icon name="store" size={24} color={colors.outlineVariant} />
-                      </View>
-                    )}
+                    {(() => {
+                      const uri = review.product.images?.[0] ? absoluteUrl(review.product.images[0]) : undefined;
+                      return uri ? (
+                        <Image source={{ uri }} style={styles.image} resizeMode="cover" />
+                      ) : (
+                        <View style={[styles.image, styles.imagePlaceholder]}>
+                          <Icon name="store" size={24} color={colors.outlineVariant} />
+                        </View>
+                      );
+                    })()}
                   </View>
                   <View style={styles.body}>
                     <Text style={styles.productName} numberOfLines={1}>{review.product.name}</Text>
