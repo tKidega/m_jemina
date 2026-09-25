@@ -36,6 +36,7 @@ export type RouteName =
   | 'AllProducts'
   | 'FeaturedVendors'
   | 'MyInquiries'
+  | 'InquiryInvoice'
   | 'OrderConfirmation';
 export type TabName = 'Home' | 'Marketplace' | 'Cart' | 'Profile';
 

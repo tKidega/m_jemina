@@ -727,6 +727,7 @@ export interface ApiTrackingInfo {
   carrier?: string | null;
   dispatched_at?: string | null;
   delivered_at?: string | null;
+  return_deadline?: string | null;
   dispatch_location?: string | null;
   destination_location?: string | null;
   transit_points?: Array<{ name?: string; location?: string; latitude?: number; longitude?: number }>;
@@ -749,6 +750,14 @@ export interface ApiOrderItem {
   shop_name?: string | null;
   shipping_fee?: number | null;
   delivery_fee?: number | null;
+  stock_quantity?: number;
+  return_deadline?: string | null;
+  return_window_open?: boolean;
+  customer_received_at?: string | null;
+  return_status?: string | null;
+  can_confirm_receipt?: boolean;
+  can_return?: boolean;
+  can_reorder?: boolean;
 }
 
 export interface ApiOrderPickupPoint {
@@ -769,13 +778,17 @@ export interface ApiOrder {
   order_number: string;
   status: string;
   payment_status?: string;
+  subtotal?: number;
   total_amount: number;
   shipping_amount: number;
   tax_amount: number;
   created_at: string;
   delivered_at?: string | null;
+  return_deadline?: string | null;
   shipping_address?: ApiShippingAddress | null;
   payment_method?: string;
+  voucher_code?: string | null;
+  discount_amount?: number;
   notes?: string | null;
   items?: ApiOrderItem[];
   items_count?: number;
@@ -834,6 +847,68 @@ export async function apiCancelOrder(token: string, id: number, reason: string):
     token,
     body: { reason },
   });
+}
+
+// ---------------------------------------------------------------------------
+// Order Returns API (mirrors the website's return flow)
+// ---------------------------------------------------------------------------
+
+export interface ApiReturnRecord {
+  id: number;
+  return_number?: string | null;
+  status: string;
+  status_label?: string | null;
+  reason?: string | null;
+  amount?: number;
+  customer_notes?: string | null;
+  rejection_reason?: string | null;
+  order_id?: number;
+  order_number?: string | null;
+  product_id?: number;
+  product_name?: string | null;
+  product_image?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export async function apiGetReturns(token: string): Promise<ApiReturnRecord[]> {
+  const json = await request<{ returns: ApiReturnRecord[] }>('/returns', { token });
+  return (json.data as { returns: ApiReturnRecord[] }).returns ?? [];
+}
+
+/**
+ * Submit a return request. Enforced server-side: 24h return window +
+ * Confirm Receipt requirement for delivered items.
+ */
+export async function apiCreateReturn(
+  token: string,
+  payload: {
+    order_id: number;
+    product_id: number;
+    reason: string;
+    customer_notes?: string;
+    pickup_point_id?: number;
+  },
+): Promise<ApiReturnRecord> {
+  const json = await request<{ return: ApiReturnRecord }>('/returns', {
+    method: 'POST',
+    token,
+    body: payload,
+  });
+  return (json.data as { return: ApiReturnRecord }).return;
+}
+
+export async function apiCancelReturn(token: string, id: number | string): Promise<void> {
+  await request(`/returns/${id}/cancel`, { method: 'POST', token });
+}
+
+/** Customer confirms receipt of an order item (starts/unlocks the 24h return window). */
+export async function apiMarkItemReceived(
+  token: string,
+  orderId: number,
+  itemId: number,
+): Promise<void> {
+  await request(`/orders/${orderId}/items/${itemId}/mark-received`, { method: 'POST', token });
 }
 
 export interface ApiPaymentResult {
@@ -1587,6 +1662,10 @@ export interface ApiInquiryResult {
   destination?: string;
   is_draft?: boolean;
   expires_at?: string;
+  subject_name?: string;
+  expected_delivery?: string | null;
+  messages?: ApiInquiryThreadMessage[];
+  invoice?: ApiInquiryInvoice | null;
 }
 
 export interface ApiInquiryInput {
@@ -1621,6 +1700,77 @@ export async function apiGetMyInquiries(token: string): Promise<ApiInquiryResult
     token,
   });
   return (json.data as { inquiries: ApiInquiryResult[] }).inquiries;
+}
+
+export interface ApiInquiryThreadMessage {
+  id: number;
+  sender: 'customer' | 'vendor';
+  sender_name?: string | null;
+  message: string;
+  quoted_price?: number | null;
+  quoted_delivery_date?: string | null;
+  timestamp: string;
+}
+
+export interface ApiInquiryInvoice {
+  id: number;
+  invoice_number: string;
+  payment_type?: string | null;
+  status: string;
+  quantity: number;
+  unit_price: number;
+  total_amount: number;
+  discount_amount: number;
+  tax_amount: number;
+  final_amount: number;
+  payment_terms?: string | null;
+  due_date?: string | null;
+  notes?: string | null;
+  created_at: string;
+  sent_at?: string | null;
+  paid_at?: string | null;
+  product_name?: string | null;
+  product_image?: string | null;
+  vendor_name?: string | null;
+  customer_name?: string | null;
+  customer_email?: string | null;
+  inquiry_reference?: string;
+  formatted_reference?: string;
+  quantity_required?: number;
+}
+
+export async function apiReplyToInquiry(
+  token: string,
+  inquiryId: number,
+  message: string,
+): Promise<ApiInquiryThreadMessage> {
+  const json = await request<{ message: ApiInquiryThreadMessage }>(
+    `/inquiries/${inquiryId}/replies`,
+    { method: 'POST', token, body: { message } },
+  );
+  return (json.data as { message: ApiInquiryThreadMessage }).message;
+}
+
+export async function apiCompleteInquiry(
+  token: string,
+  inquiryId: number,
+): Promise<{ status: string; status_name: string; delivery_progress: number }> {
+  const json = await request<{ status: string; status_name: string; delivery_progress: number }>(
+    `/inquiries/${inquiryId}/complete`,
+    { method: 'POST', token },
+  );
+  return json.data as { status: string; status_name: string; delivery_progress: number };
+}
+
+export async function apiGetInquiryInvoice(
+  token: string,
+  inquiryId: number,
+): Promise<ApiInquiryInvoice> {
+  const json = await request<{ invoice: ApiInquiryInvoice }>(
+    `/inquiries/${inquiryId}/invoice`,
+    { method: 'GET', token },
+  );
+  return (json.data as { invoice: ApiInquiryInvoice }).invoice;
 }
 
 export interface ApiChatReply {

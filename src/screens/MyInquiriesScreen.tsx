@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -17,7 +18,13 @@ import { Button } from '../components/Button';
 import { SectionLoader } from '../components/Loader';
 import { useAuth } from '../state/AuthContext';
 import { formatUGX } from '../components/ProductCard';
-import { apiGetMyInquiries, ApiInquiryResult } from '../data/api';
+import {
+  apiCompleteInquiry,
+  apiGetMyInquiries,
+  apiReplyToInquiry,
+  ApiInquiryResult,
+  ApiInquiryThreadMessage,
+} from '../data/api';
 import { useNavigation } from '../navigation/NavigationContext';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -37,9 +44,14 @@ const STATUS_CONFIG: Record<string, { label: string; icon: string; color: string
   pending: { label: 'AWAITING RESPONSES', icon: 'pending', color: colors.outline, bg: colors.surfaceContainer },
   submitted: { label: 'AWAITING RESPONSES', icon: 'pending', color: colors.outline, bg: colors.surfaceContainer },
   replied: { label: 'REPLIES RECEIVED', icon: 'mark_chat_unread', color: colors.onSecondaryFixed, bg: colors.secondaryFixed },
+  quoted: { label: 'QUOTE PROVIDED', icon: 'request-quote', color: colors.onSecondaryFixed, bg: colors.secondaryFixed },
+  responded: { label: 'REPLIES RECEIVED', icon: 'mark_chat_unread', color: colors.onSecondaryFixed, bg: colors.secondaryFixed },
   negotiation: { label: 'UNDER NEGOTIATION', icon: 'compare-arrows', color: colors.onSecondaryFixed, bg: colors.secondaryFixed },
   accepted: { label: 'READY TO ESCROW', icon: 'lock', color: colors.onSecondary, bg: colors.secondary },
+  confirmed: { label: 'READY TO ESCROW', icon: 'lock', color: colors.onSecondary, bg: colors.secondary },
+  in_transit: { label: 'IN TRANSIT', icon: 'local-shipping', color: colors.primary, bg: colors.primaryContainer },
   completed: { label: 'COMPLETED', icon: 'check-circle', color: colors.statusSuccess, bg: '#e8f5e9' },
+  cancelled: { label: 'CANCELLED', icon: 'error-outline', color: colors.error, bg: colors.errorContainer },
   draft: { label: 'DRAFT INQUIRY', icon: 'edit-note', color: colors.outline, bg: colors.surfaceContainer },
   expired: { label: 'EXPIRED', icon: 'schedule', color: colors.error, bg: colors.errorContainer },
 };
@@ -120,7 +132,9 @@ export function MyInquiriesScreen() {
       case 'awaiting':
         return inquiries.filter(i => (i.replies_count ?? 0) === 0 && i.status !== 'draft' && !i.is_draft);
       case 'negotiation':
-        return inquiries.filter(i => i.status === 'negotiation' || i.status === 'accepted');
+        return inquiries.filter(
+          i => i.status === 'negotiation' || i.status === 'accepted' || i.status === 'quoted' || i.status === 'confirmed',
+        );
       case 'drafts':
         return inquiries.filter(i => i.status === 'draft' || i.is_draft);
       default:
@@ -139,7 +153,9 @@ export function MyInquiriesScreen() {
     all: inquiries.length,
     replies: inquiries.filter(i => (i.replies_count ?? 0) > 0 && !i.is_draft).length,
     awaiting: inquiries.filter(i => (i.replies_count ?? 0) === 0 && i.status !== 'draft' && !i.is_draft).length,
-    negotiation: inquiries.filter(i => i.status === 'negotiation' || i.status === 'accepted').length,
+    negotiation: inquiries.filter(
+      i => i.status === 'negotiation' || i.status === 'accepted' || i.status === 'quoted' || i.status === 'confirmed',
+    ).length,
     drafts: inquiries.filter(i => i.status === 'draft' || i.is_draft).length,
   }), [inquiries]);
 
@@ -318,26 +334,70 @@ export function MyInquiriesScreen() {
 }
 
 function InquiryCard({ inquiry, navigate }: { inquiry: ApiInquiryResult; navigate: (screen: any, params?: Record<string, unknown>) => void }) {
+  const { token } = useAuth();
   const [showChat, setShowChat] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [replySent, setReplySent] = useState(false);
+  const [sendingReply, setSendingReply] = useState(false);
+  const [completing, setCompleting] = useState(false);
+  const [localStatus, setLocalStatus] = useState<string | null>(null);
+  const [thread, setThread] = useState<ApiInquiryThreadMessage[]>(inquiry.messages ?? []);
 
-  const cfg = STATUS_CONFIG[inquiry.status] ?? STATUS_CONFIG.submitted;
-  const isNegotiation = inquiry.status === 'negotiation' || inquiry.status === 'accepted';
-  const isDraft = inquiry.status === 'draft' || inquiry.is_draft;
+  const status = localStatus ?? inquiry.status;
+  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.submitted;
+  const isNegotiation = status === 'negotiation' || status === 'accepted' || status === 'quoted' || status === 'confirmed';
+  const isDraft = status === 'draft' || inquiry.is_draft;
+  const isClosed = status === 'completed' || status === 'cancelled';
   const hasReplies = (inquiry.replies_count ?? 0) > 0;
   const replyCount = inquiry.replies_count ?? 0;
 
-  const handleSendReply = () => {
-    if (!replyText.trim()) return;
-    setReplySent(true);
-    setReplyText('');
-    setTimeout(() => setReplySent(false), 2000);
+  const threadItems = useMemo<ApiInquiryThreadMessage[]>(() => {
+    if (thread.length > 0) return thread;
+    if (inquiry.latest_reply) {
+      return [{
+        id: -1,
+        sender: 'vendor',
+        sender_name: inquiry.latest_reply.vendor_name,
+        message: inquiry.latest_reply.message,
+        quoted_price: inquiry.latest_reply.offered_price ?? null,
+        quoted_delivery_date: null,
+        timestamp: inquiry.latest_reply.timestamp,
+      }];
+    }
+    return [];
+  }, [thread, inquiry.latest_reply]);
+
+  const handleSendReply = async () => {
+    const text = replyText.trim();
+    if (!text || !token || sendingReply || isClosed) return;
+    setSendingReply(true);
+    try {
+      const message = await apiReplyToInquiry(token, inquiry.id, text);
+      setThread(prev => [...prev, message]);
+      setReplySent(true);
+      setReplyText('');
+      setTimeout(() => setReplySent(false), 2000);
+    } catch (e) {
+      Alert.alert('Could not send reply', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setSendingReply(false);
+    }
   };
 
-  const handleCloseInquiry = () => {
-    setShowChat(false);
+  const handleMarkComplete = async () => {
+    if (!token || completing || isClosed) return;
+    setCompleting(true);
+    try {
+      const result = await apiCompleteInquiry(token, inquiry.id);
+      setLocalStatus(result.status);
+      setShowChat(false);
+      setShowDetails(false);
+    } catch (e) {
+      Alert.alert('Could not update inquiry', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setCompleting(false);
+    }
   };
 
   return (
@@ -520,25 +580,34 @@ function InquiryCard({ inquiry, navigate }: { inquiry: ApiInquiryResult; navigat
                   </View>
                 </View>
 
-                {/* Latest reply */}
-                {inquiry.latest_reply && (
-                  <View style={styles.chatMsgRow}>
-                    <View style={styles.chatMsgVendor}>
-                      <Text style={styles.chatMsgVendorLabel}>{inquiry.latest_reply.vendor_name}</Text>
-                      {inquiry.latest_reply.is_recommended && (
-                        <Text style={styles.chatRecommendedBadge}>Recommended</Text>
-                      )}
+                {/* Thread messages (customer replies + supplier replies) */}
+                {threadItems.map(msg =>
+                  msg.sender === 'customer' ? (
+                    <View key={msg.id} style={styles.chatMsgRow}>
+                      <View style={styles.chatMsgUser}>
+                        <Text style={styles.chatMsgUserLabel}>You</Text>
+                        <Text style={styles.chatMsgTime}>{formatSubmittedTime(msg.timestamp)}</Text>
+                      </View>
+                      <View style={styles.chatMsgBubbleUser}>
+                        <Text style={styles.chatMsgText}>{msg.message}</Text>
+                      </View>
                     </View>
-                    <View style={styles.chatMsgBubbleVendor}>
-                      <Text style={styles.chatMsgText}>{inquiry.latest_reply.message}</Text>
-                      {inquiry.latest_reply.offered_price != null && (
-                        <View style={styles.chatPriceTag}>
-                          <Text style={styles.chatPriceTagText}>Offered: {formatUGX(inquiry.latest_reply.offered_price)}</Text>
-                        </View>
-                      )}
+                  ) : (
+                    <View key={msg.id} style={styles.chatMsgRow}>
+                      <View style={styles.chatMsgVendor}>
+                        <Text style={styles.chatMsgVendorLabel}>{msg.sender_name || inquiry.vendor_name || 'Supplier'}</Text>
+                      </View>
+                      <View style={styles.chatMsgBubbleVendor}>
+                        <Text style={styles.chatMsgText}>{msg.message}</Text>
+                        {msg.quoted_price != null && (
+                          <View style={styles.chatPriceTag}>
+                            <Text style={styles.chatPriceTagText}>Offered: {formatUGX(msg.quoted_price)}</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.chatMsgTimeVendor}>{formatDate(msg.timestamp)}</Text>
                     </View>
-                    <Text style={styles.chatMsgTimeVendor}>{formatDate(inquiry.latest_reply.timestamp)}</Text>
-                  </View>
+                  ),
                 )}
 
                 {replySent && (
@@ -554,23 +623,35 @@ function InquiryCard({ inquiry, navigate }: { inquiry: ApiInquiryResult; navigat
                   style={styles.chatInput}
                   value={replyText}
                   onChangeText={setReplyText}
-                  placeholder="Type your reply..."
+                  placeholder={isClosed ? 'This inquiry is closed' : 'Type your reply...'}
                   placeholderTextColor={colors.outline}
+                  editable={!isClosed && !sendingReply}
                   multiline
                 />
                 <Pressable
-                  style={[styles.chatSendBtn, !replyText.trim() && styles.chatSendBtnDisabled]}
+                  style={[styles.chatSendBtn, (!replyText.trim() || sendingReply || isClosed) && styles.chatSendBtnDisabled]}
                   onPress={handleSendReply}
-                  disabled={!replyText.trim()}
+                  disabled={!replyText.trim() || sendingReply || isClosed}
                 >
-                  <Icon name="send" size={18} color={replyText.trim() ? colors.onPrimary : colors.outline} />
+                  <Icon
+                    name="send"
+                    size={18}
+                    color={replyText.trim() && !sendingReply && !isClosed ? colors.onPrimary : colors.outline}
+                  />
                 </Pressable>
               </View>
 
-              <Pressable style={styles.chatCompleteBtn} onPress={handleCloseInquiry}>
-                <Icon name="check-circle" size={16} color={colors.statusSuccess} />
-                <Text style={styles.chatCompleteBtnText}>Mark as Complete & Close</Text>
-              </Pressable>
+              {isClosed ? (
+                <View style={styles.chatClosedRow}>
+                  <Icon name="check-circle" size={16} color={colors.statusSuccess} />
+                  <Text style={styles.chatClosedText}>{status === 'cancelled' ? 'Inquiry cancelled' : 'Inquiry completed'}</Text>
+                </View>
+              ) : (
+                <Pressable style={[styles.chatCompleteBtn, completing && styles.chatCompleteBtnDisabled]} onPress={handleMarkComplete} disabled={completing}>
+                  <Icon name="check-circle" size={16} color={colors.statusSuccess} />
+                  <Text style={styles.chatCompleteBtnText}>{completing ? 'Marking...' : 'Mark as Complete & Close'}</Text>
+                </Pressable>
+              )}
             </View>
           </KeyboardAvoidingView>
         </Modal>
@@ -642,7 +723,9 @@ function InquiryCard({ inquiry, navigate }: { inquiry: ApiInquiryResult; navigat
                 {inquiry.inquiry_subject && (
                   <View style={styles.detailsInfoRow}>
                     <Text style={styles.detailsInfoLabel}>Subject</Text>
-                    <Text style={styles.detailsInfoValue}>{inquiry.inquiry_subject.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</Text>
+                    <Text style={styles.detailsInfoValue}>
+                      {inquiry.subject_name ?? inquiry.inquiry_subject.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    </Text>
                   </View>
                 )}
 
@@ -665,6 +748,50 @@ function InquiryCard({ inquiry, navigate }: { inquiry: ApiInquiryResult; navigat
                     <Text style={styles.detailsInfoLabel}>Replies</Text>
                     <Text style={styles.detailsInfoValue}>{replyCount} supplier {replyCount === 1 ? 'reply' : 'replies'}</Text>
                   </View>
+                )}
+
+                {/* Supplier replies list */}
+                {threadItems.filter(m => m.sender === 'vendor').length > 0 && (
+                  <View style={styles.detailsReplySection}>
+                    <Text style={styles.detailsSectionLabel}>Supplier Replies</Text>
+                    {threadItems
+                      .filter(m => m.sender === 'vendor')
+                      .map(msg => (
+                        <View key={msg.id} style={styles.detailsReplyCard}>
+                          <View style={styles.detailsReplyHeader}>
+                            <Text style={styles.detailsReplyName}>{msg.sender_name || inquiry.vendor_name || 'Supplier'}</Text>
+                            <Text style={styles.detailsReplyTime}>{formatDate(msg.timestamp)}</Text>
+                          </View>
+                          <Text style={styles.detailsReplyText} numberOfLines={4}>{msg.message}</Text>
+                          {msg.quoted_price != null && (
+                            <Text style={styles.detailsReplyPrice}>Quoted: {formatUGX(msg.quoted_price)}/unit</Text>
+                          )}
+                        </View>
+                      ))}
+                  </View>
+                )}
+
+                {/* Invoice */}
+                {inquiry.invoice && (
+                  <Pressable
+                    style={({ pressed }) => [styles.invoiceCard, pressed && styles.pressed]}
+                    onPress={() => navigate('InquiryInvoice', { inquiryId: inquiry.id })}
+                  >
+                    <View style={styles.invoiceCardLeft}>
+                      <Icon name="receipt-long" size={22} color={colors.primary} />
+                      <View style={styles.invoiceCardTextWrap}>
+                        <Text style={styles.invoiceCardTitle}>Invoice {inquiry.invoice.invoice_number}</Text>
+                        <Text style={styles.invoiceCardSub}>
+                          {inquiry.invoice.due_date ? `Due ${formatDate(inquiry.invoice.due_date)} • ` : ''}
+                          {String(inquiry.invoice.status || '').replace(/\b\w/g, l => l.toUpperCase())}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.invoiceCardRight}>
+                      <Text style={styles.invoiceCardAmount}>{formatUGX(inquiry.invoice.final_amount)}</Text>
+                      <Icon name="chevron-right" size={18} color={colors.outline} />
+                    </View>
+                  </Pressable>
                 )}
               </ScrollView>
 
@@ -1210,7 +1337,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   chatSheet: {
+    height: '85%',
     maxHeight: '85%',
+    overflow: 'hidden',
     backgroundColor: colors.surfaceContainerLowest,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
@@ -1383,7 +1512,24 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.surfaceContainerHigh,
   },
+  chatCompleteBtnDisabled: {
+    opacity: 0.6,
+  },
   chatCompleteBtnText: {
+    ...typography.labelMd,
+    color: colors.statusSuccess,
+    fontWeight: '600',
+  },
+  chatClosedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm + 2,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.surfaceContainerHigh,
+  },
+  chatClosedText: {
     ...typography.labelMd,
     color: colors.statusSuccess,
     fontWeight: '600',
@@ -1396,7 +1542,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   detailsSheet: {
+    height: '80%',
     maxHeight: '80%',
+    overflow: 'hidden',
     backgroundColor: colors.surfaceContainerLowest,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
@@ -1492,6 +1640,86 @@ const styles = StyleSheet.create({
     ...typography.labelMd,
     color: colors.onSurfaceVariant,
     fontWeight: '600',
+  },
+  detailsSectionLabel: {
+    ...typography.labelSm,
+    color: colors.outline,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  detailsReplySection: {
+    gap: spacing.sm,
+  },
+  detailsReplyCard: {
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    padding: spacing.sm + 2,
+    gap: spacing.xs,
+  },
+  detailsReplyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  detailsReplyName: {
+    ...typography.labelMd,
+    color: colors.secondary,
+    fontWeight: '700',
+  },
+  detailsReplyTime: {
+    ...typography.labelSm,
+    color: colors.outline,
+    fontSize: 10,
+  },
+  detailsReplyText: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    lineHeight: 20,
+  },
+  detailsReplyPrice: {
+    ...typography.labelMd,
+    color: colors.onSecondaryContainer,
+    fontWeight: '700',
+  },
+  invoiceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.primaryContainer,
+    borderRadius: radius.lg,
+    padding: spacing.sm + 2,
+    gap: spacing.sm,
+  },
+  invoiceCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+  },
+  invoiceCardTextWrap: {
+    flex: 1,
+  },
+  invoiceCardTitle: {
+    ...typography.labelLg,
+    color: colors.onPrimary,
+    fontWeight: '700',
+  },
+  invoiceCardSub: {
+    ...typography.labelSm,
+    color: colors.primaryFixedDim,
+    marginTop: 1,
+  },
+  invoiceCardRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  invoiceCardAmount: {
+    ...typography.labelLg,
+    color: colors.onPrimary,
+    fontWeight: '700',
   },
 
   // Empty filter

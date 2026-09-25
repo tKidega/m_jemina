@@ -21,6 +21,7 @@ import { MarketplaceScreen } from './src/screens/MarketplaceScreen';
 import { ProductDetailsScreen } from './src/screens/ProductDetailsScreen';
 import { ProductInquiryScreen } from './src/screens/ProductInquiryScreen';
 import { MyInquiriesScreen } from './src/screens/MyInquiriesScreen';
+import { InquiryInvoiceScreen } from './src/screens/InquiryInvoiceScreen';
 import { VendorProfileScreen } from './src/screens/VendorProfileScreen';
 import { CartScreen } from './src/screens/CartScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -143,6 +144,9 @@ function Router() {
   }
   if (route === 'MyInquiries') {
     return <MyInquiriesScreen />;
+  }
+  if (route === 'InquiryInvoice') {
+    return <InquiryInvoiceScreen />;
   }
   if (route === 'VendorProfile') {
     return <VendorProfileScreen />;
