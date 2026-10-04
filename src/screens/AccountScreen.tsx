@@ -1,5 +1,5 @@
 ﻿import React, { useCallback, useEffect, useState } from 'react';
-import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppHeader, HeaderActions } from '../components/AppHeader';
 import { BottomNav } from '../components/BottomNav';
@@ -11,7 +11,7 @@ import { useAuth } from '../state/AuthContext';
 import { useCart } from '../state/CartContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import type { RouteName } from '../navigation/NavigationContext';
-import { apiGetCreditBalance, apiGetAddresses, apiGetProfile, apiGetOrders, apiGetWishlist, absoluteUrl } from '../data/api';
+import { apiGetCreditBalance, apiGetAddresses, apiGetProfile, apiGetOrders, apiGetWishlist, apiGetNewsletterStatus, apiSubscribeNewsletter, absoluteUrl } from '../data/api';
 import type { ApiUser, ApiAddress } from '../data/api';
 import { formatUGX } from '../components/ProductCard';
 import { colors } from '../theme/colors';
@@ -68,35 +68,74 @@ export function AccountScreen() {
       return;
     }
     setSubEmail(user.email ?? '');
-    AsyncStorage.getItem(newsletterKeyFor(user.id))
-      .then(raw => {
-        if (!raw) {
-          setSubscribed(false);
-          return;
-        }
-        try {
-          const saved = JSON.parse(raw) as { subscribed?: boolean; email?: string };
-          setSubscribed(saved.subscribed === true);
-          if (typeof saved.email === 'string' && saved.email) {
-            setSubEmail(saved.email);
+    const readLocal = () => {
+      AsyncStorage.getItem(newsletterKeyFor(user.id))
+        .then(raw => {
+          if (!raw) {
+            setSubscribed(false);
+            return;
           }
-        } catch {
-          setSubscribed(false);
-        }
+          try {
+            const saved = JSON.parse(raw) as { subscribed?: boolean; email?: string };
+            setSubscribed(saved.subscribed === true);
+            if (typeof saved.email === 'string' && saved.email) {
+              setSubEmail(saved.email);
+            }
+          } catch {
+            setSubscribed(false);
+          }
+        })
+        .catch(() => {});
+    };
+    if (!token) {
+      readLocal();
+      return;
+    }
+    let cancelled = false;
+    apiGetNewsletterStatus(token)
+      .then(status => {
+        if (cancelled) return;
+        setSubscribed(status.subscribed);
+        if (status.email) setSubEmail(status.email);
+        return AsyncStorage.setItem(
+          newsletterKeyFor(user.id),
+          JSON.stringify({ subscribed: status.subscribed, email: status.email ?? user.email ?? '' }),
+        );
       })
-      .catch(() => {});
-  }, [user]);
+      .catch(() => {
+        if (!cancelled) readLocal();
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, token]);
 
   const handleSubscribe = useCallback(() => {
     const email = subEmail.trim();
     if (!email || !user) {
       return;
     }
-    setSubscribed(true);
-    AsyncStorage.setItem(newsletterKeyFor(user.id), JSON.stringify({ subscribed: true, email })).catch(
-      () => {},
-    );
-  }, [subEmail, user]);
+    const persist = (savedEmail: string) => {
+      setSubscribed(true);
+      setSubEmail(savedEmail);
+      AsyncStorage.setItem(
+        newsletterKeyFor(user.id),
+        JSON.stringify({ subscribed: true, email: savedEmail }),
+      ).catch(() => {});
+    };
+    if (!token) {
+      persist(email);
+      return;
+    }
+    apiSubscribeNewsletter(token, email)
+      .then(status => persist(status.email ?? email))
+      .catch(error => {
+        Alert.alert(
+          'Subscription failed',
+          error instanceof Error ? error.message : 'Please try again.',
+        );
+      });
+  }, [subEmail, user, token]);
 
   const loadDashboard = useCallback(async () => {
     if (!isAuthenticated || !token) {

@@ -1106,6 +1106,25 @@ export async function apiRemoveFromWishlist(token: string, productId: number | s
   await request(`/profile/wishlist/${productId}`, { method: 'DELETE', token });
 }
 
+export interface ApiNewsletterStatus {
+  subscribed: boolean;
+  email: string | null;
+}
+
+export async function apiGetNewsletterStatus(token: string): Promise<ApiNewsletterStatus> {
+  const json = await request<ApiNewsletterStatus>('/newsletter/status', { token });
+  return json.data as ApiNewsletterStatus;
+}
+
+export async function apiSubscribeNewsletter(token: string, email: string): Promise<ApiNewsletterStatus> {
+  const json = await request<ApiNewsletterStatus>('/newsletter/subscribe', {
+    method: 'POST',
+    token,
+    body: { email },
+  });
+  return json.data as ApiNewsletterStatus;
+}
+
 export interface ApiMyReview {
   id: number;
   product: { id: number; name: string; images: string[] };

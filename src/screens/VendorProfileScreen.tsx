@@ -23,6 +23,8 @@ import {
   absoluteUrl,
   apiGetVendor,
   apiGetVendorReviews,
+  apiGetNewsletterStatus,
+  apiSubscribeNewsletter,
   apiProductToProduct,
   apiSubmitVendorReview,
   apiVendorChatAsk,
@@ -154,33 +156,73 @@ export function VendorProfileScreen() {
       setSubscribed(false);
       return;
     }
-    AsyncStorage.getItem(newsletterKey)
-      .then(raw => {
-        if (!raw) {
-          setSubscribed(false);
-          return;
-        }
-        try {
-          const saved = JSON.parse(raw) as { subscribed?: boolean; email?: string };
-          setSubscribed(saved.subscribed === true);
-          if (typeof saved.email === 'string' && saved.email) {
-            setSubEmail(saved.email);
+    const readLocal = () => {
+      AsyncStorage.getItem(newsletterKey)
+        .then(raw => {
+          if (!raw) {
+            setSubscribed(false);
+            return;
           }
-        } catch {
-          setSubscribed(false);
-        }
+          try {
+            const saved = JSON.parse(raw) as { subscribed?: boolean; email?: string };
+            setSubscribed(saved.subscribed === true);
+            if (typeof saved.email === 'string' && saved.email) {
+              setSubEmail(saved.email);
+            }
+          } catch {
+            setSubscribed(false);
+          }
+        })
+        .catch(() => {});
+    };
+    if (!token || !user) {
+      readLocal();
+      return;
+    }
+    let cancelled = false;
+    apiGetNewsletterStatus(token)
+      .then(status => {
+        if (cancelled) return;
+        setSubscribed(status.subscribed);
+        if (status.email) setSubEmail(status.email);
+        return AsyncStorage.setItem(
+          newsletterKey,
+          JSON.stringify({ subscribed: status.subscribed, email: status.email ?? user.email ?? '' }),
+        );
       })
-      .catch(() => {});
-  }, [newsletterKey]);
+      .catch(() => {
+        if (!cancelled) readLocal();
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [newsletterKey, token, user]);
 
   const handleSubscribe = useCallback(() => {
     const email = subEmail.trim();
     if (!email || newsletterKey == null) {
       return;
     }
-    setSubscribed(true);
-    AsyncStorage.setItem(newsletterKey, JSON.stringify({ subscribed: true, email })).catch(() => {});
-  }, [subEmail, newsletterKey]);
+    const persist = (savedEmail: string) => {
+      setSubscribed(true);
+      setSubEmail(savedEmail);
+      AsyncStorage.setItem(newsletterKey, JSON.stringify({ subscribed: true, email: savedEmail })).catch(
+        () => {},
+      );
+    };
+    if (!token || !user) {
+      persist(email);
+      return;
+    }
+    apiSubscribeNewsletter(token, email)
+      .then(status => persist(status.email ?? email))
+      .catch(error => {
+        Alert.alert(
+          'Subscription failed',
+          error instanceof Error ? error.message : 'Please try again.',
+        );
+      });
+  }, [subEmail, newsletterKey, token, user]);
 
   useEffect(() => {
     if (vendorId == null) {
