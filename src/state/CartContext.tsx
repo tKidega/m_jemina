@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Product } from '../components/ProductCard';
 import { useAuth } from './AuthContext';
@@ -88,7 +89,7 @@ function groupByVendor(items: CartItem[]): VendorGroup[] {
 }
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const { token, isHydrated } = useAuth();
+  const { token, isHydrated, user } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
   const [cartSource, setCartSource] = useState<'server' | 'local'>('local');
   const [loading, setLoading] = useState(true);
@@ -153,6 +154,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const addItem = useCallback(
     (product: Product, quantity = 1) => {
+      if (user?.role === 'vendor') {
+        Alert.alert('Not allowed', 'Vendor accounts cannot add products to the cart.');
+        return;
+      }
       const qty = Math.max(1, Math.round(quantity));
       setItems(prev => {
         const existing = prev.find(i => i.product.id === product.id);
@@ -167,7 +172,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         apiAddToCart(token, product.id, qty).catch(() => {});
       }
     },
-    [token],
+    [token, user?.role],
   );
 
   const removeItem = useCallback(

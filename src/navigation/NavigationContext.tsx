@@ -32,6 +32,7 @@ export type RouteName =
   | 'HelpCenter'
   | 'Messages'
   | 'PaymentMethods'
+  | 'VendorPayoutMethods'
   | 'Search'
   | 'AllProducts'
   | 'FeaturedVendors'

@@ -18,8 +18,8 @@ import { Button } from '../components/Button';
 import { useCart } from '../state/CartContext';
 import { useAuth } from '../state/AuthContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { apiCreateOrder, apiGetCreditBalance, apiGetAddresses, apiApplyVoucher, apiGetPaymentMethods, apiGetPickupPoints } from '../data/api';
-import type { ApiPaymentMethod, ApiAddress, ApiShippingAddress } from '../data/api';
+import { apiCreateOrder, apiGetCreditBalance, apiGetAddresses, apiApplyVoucher, apiGetPaymentMethods, apiGetPickupPoints, apiGetVendorAcceptedPaymentMethods } from '../data/api';
+import type { ApiPaymentMethod, ApiAddress, ApiShippingAddress, ApiAcceptedPaymentMethod } from '../data/api';
 import { formatUGX } from '../components/ProductCard';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -80,6 +80,7 @@ export function CheckoutScreen() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodKey>('cod');
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [savedPaymentMethods, setSavedPaymentMethods] = useState<ApiPaymentMethod[]>([]);
+  const [vendorAccepted, setVendorAccepted] = useState<ApiAcceptedPaymentMethod[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -140,6 +141,38 @@ export function CheckoutScreen() {
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  useEffect(() => {
+    const ids = Array.from(
+      new Set(
+        vendorGroups
+          .map(g => g.vendorId)
+          .filter((id): id is number => typeof id === 'number'),
+      ),
+    );
+    if (ids.length === 0) {
+      setVendorAccepted([]);
+      return;
+    }
+    let cancelled = false;
+    Promise.all(ids.map(id => apiGetVendorAcceptedPaymentMethods(id).catch(() => []))).then(results => {
+      if (cancelled) return;
+      const seen = new Set<string>();
+      const merged: ApiAcceptedPaymentMethod[] = [];
+      for (const list of results) {
+        for (const method of list) {
+          if (!seen.has(method.key)) {
+            seen.add(method.key);
+            merged.push(method);
+          }
+        }
+      }
+      setVendorAccepted(merged);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [vendorGroups]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -569,6 +602,19 @@ export function CheckoutScreen() {
               </View>
               <Icon name="chevron-right" size={20} color={colors.primary} />
             </Pressable>
+          ) : null}
+
+          {vendorAccepted.length > 0 ? (
+            <View style={styles.acceptedCard}>
+              <Text style={styles.acceptedTitle}>Vendors in this order accept</Text>
+              <View style={styles.acceptedList}>
+                {vendorAccepted.map(method => (
+                  <View key={method.key} style={styles.acceptedChip}>
+                    <Text style={styles.acceptedChipText}>{method.label}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
           ) : null}
 
           {paymentOptions.map(option => {
@@ -1056,6 +1102,23 @@ const styles = StyleSheet.create({
   savedPayBody: { flex: 1 },
   savedPayLabel: { ...typography.labelSm, color: colors.onSurfaceVariant },
   savedPayValue: { ...typography.bodyMd, color: colors.onSurface, fontWeight: '700', marginTop: 2 },
+  acceptedCard: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHigh,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  acceptedTitle: { ...typography.labelSm, color: colors.onSurfaceVariant, marginBottom: spacing.sm },
+  acceptedList: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  acceptedChip: {
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  acceptedChipText: { ...typography.labelSm, color: colors.onSurface, fontWeight: '600' },
   payCard: {
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,

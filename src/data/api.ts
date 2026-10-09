@@ -1,4 +1,4 @@
-import type { Product, ProductSpecifications } from '../components/ProductCard';
+﻿import type { Product, ProductSpecifications } from '../components/ProductCard';
 import { images } from './images';
 import { getDeviceModel } from '../lib/device';
 
@@ -583,7 +583,7 @@ export async function apiGetUser(token: string): Promise<ApiUser> {
   return (json.data as { user: ApiUser }).user;
 }
 
-/* ─── Security: 2FA Management ──────────────────────── */
+/* â”€â”€â”€ Security: 2FA Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 export interface ApiTwoFactorStatus {
   enabled: boolean;
@@ -650,7 +650,7 @@ export async function apiChangePassword(token: string, currentPassword: string, 
   return json?.message ?? 'Password updated successfully.';
 }
 
-/* ─── Security: Session Management ──────────────────── */
+/* â”€â”€â”€ Security: Session Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 export async function apiGetSessions(token: string): Promise<ApiSession[]> {
   const json = await request<{ sessions: ApiSession[] }>('/security/sessions', { token });
@@ -968,7 +968,7 @@ export async function apiGetAcceptedPaymentMethods(token?: string | null): Promi
 // Saved Payment Methods API
 // ---------------------------------------------------------------------------
 
-export type ApiPaymentMethodType = 'card' | 'mobile_money' | 'cloud_pay';
+export type ApiPaymentMethodType = 'card' | 'mobile_money' | 'cloud_pay' | 'bank_account' | 'bitcoin';
 
 export interface ApiPaymentMethod {
   id: number;
@@ -1034,6 +1034,69 @@ export async function apiDeletePaymentMethod(token: string, id: number): Promise
 
 export async function apiSetDefaultPaymentMethod(token: string, id: number): Promise<void> {
   await request(`/payment-methods/${id}/default`, { method: 'PUT', token });
+}
+
+export type ApiVendorPayoutMethodType = 'mobile_money' | 'bank_account' | 'credit_card' | 'bitcoin';
+
+export interface ApiVendorPayoutMethod {
+  id: number;
+  vendor_id: number;
+  type: ApiVendorPayoutMethodType;
+  provider: string;
+  account_name: string;
+  account_number: string;
+  card_expiry?: string | null;
+  bank_code?: string | null;
+  branch?: string | null;
+  is_default: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface VendorPayoutMethodPayload {
+  type: ApiVendorPayoutMethodType;
+  provider: string;
+  account_name: string;
+  account_number: string;
+  card_expiry?: string;
+  bank_code?: string;
+  branch?: string;
+}
+
+export async function apiGetVendorPayoutMethods(token: string): Promise<ApiVendorPayoutMethod[]> {
+  const json = await request<{ payout_methods: ApiVendorPayoutMethod[] }>('/vendor/payout-methods', { token });
+  return (json.data as { payout_methods: ApiVendorPayoutMethod[] }).payout_methods ?? [];
+}
+
+export async function apiCreateVendorPayoutMethod(token: string, payload: VendorPayoutMethodPayload): Promise<ApiVendorPayoutMethod> {
+  const json = await request<{ payout_method: ApiVendorPayoutMethod }>('/vendor/payout-methods', {
+    method: 'POST',
+    token,
+    body: payload,
+  });
+  return (json.data as { payout_method: ApiVendorPayoutMethod }).payout_method;
+}
+
+export async function apiUpdateVendorPayoutMethod(token: string, id: number, payload: VendorPayoutMethodPayload): Promise<ApiVendorPayoutMethod> {
+  const json = await request<{ payout_method: ApiVendorPayoutMethod }>(`/vendor/payout-methods/${id}`, {
+    method: 'PUT',
+    token,
+    body: payload,
+  });
+  return (json.data as { payout_method: ApiVendorPayoutMethod }).payout_method;
+}
+
+export async function apiDeleteVendorPayoutMethod(token: string, id: number): Promise<void> {
+  await request(`/vendor/payout-methods/${id}`, { method: 'DELETE', token });
+}
+
+export async function apiSetDefaultVendorPayoutMethod(token: string, id: number): Promise<void> {
+  await request(`/vendor/payout-methods/${id}/default`, { method: 'PUT', token });
+}
+
+export async function apiGetVendorAcceptedPaymentMethods(vendorId: number | string): Promise<ApiAcceptedPaymentMethod[]> {
+  const json = await request<{ methods: ApiAcceptedPaymentMethod[] }>(`/vendors/${vendorId}/payment-methods`);
+  return json.data?.methods ?? [];
 }
 
 // ---------------------------------------------------------------------------
@@ -1851,7 +1914,7 @@ export async function apiVendorChatNotify(
 }
 
 // ---------------------------------------------------------------------------
-// Promotions API (public — admin-managed seasonal banner on Home)
+// Promotions API (public â€” admin-managed seasonal banner on Home)
 // ---------------------------------------------------------------------------
 
 export type ApiPromotionPlacement =
@@ -2052,7 +2115,7 @@ export async function apiResetPin(token: string, otp: string, newPin: string): P
   return ((json?.data ?? json) as unknown) as ApiPinResetResult;
 }
 
-/** Toggle extra PIN security — require the JEMINA PIN to open Cart / Account screens. */
+/** Toggle extra PIN security â€” require the JEMINA PIN to open Cart / Account screens. */
 export async function apiSetPinGate(token: string, enabled: boolean): Promise<{ pin_gate_enabled: boolean }> {
   const json = await request<ApiEnvelope<{ pin_gate_enabled: boolean }>>('/pin/gate', {
     method: 'POST',
@@ -2107,7 +2170,7 @@ export async function apiGetPickupPoints(): Promise<ApiPickupPoint[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Homepage hero banners API (public — mirrors site 5-slot system)
+// Homepage hero banners API (public â€” mirrors site 5-slot system)
 // ---------------------------------------------------------------------------
 
 export interface ApiHeroBanner {

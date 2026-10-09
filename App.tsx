@@ -50,6 +50,7 @@ import { AccountSettingsScreen } from './src/screens/AccountSettingsScreen';
 import { OrderTrackingScreen } from './src/screens/OrderTrackingScreen';
 import { SurveysScreen } from './src/screens/SurveysScreen';
 import { VendorActionsScreen } from './src/screens/VendorActionsScreen';
+import { VendorPayoutMethodsScreen } from './src/screens/VendorPayoutMethodsScreen';
 import { HelpCenterScreen } from './src/screens/HelpCenterScreen';
 import { MessagesScreen } from './src/screens/MessagesScreen';
 import { colors } from './src/theme/colors';
@@ -129,6 +130,9 @@ function Router() {
   }
   if (route === 'VendorActions') {
     return <VendorActionsScreen />;
+  }
+  if (route === 'VendorPayoutMethods') {
+    return <VendorPayoutMethodsScreen />;
   }
   if (route === 'HelpCenter') {
     return <HelpCenterScreen />;

@@ -349,7 +349,18 @@ export function AccountScreen() {
 
         {/* Account menu */}
         <View style={styles.menuCard}>
-          {MENU_ITEMS.map((item, i) => (
+          {(user?.role === 'vendor'
+            ? [
+                {
+                  icon: 'savings' as IconName,
+                  label: 'Payout Methods',
+                  sub: 'Where your sales are paid out',
+                  route: 'VendorPayoutMethods' as RouteName,
+                },
+                ...MENU_ITEMS,
+              ]
+            : MENU_ITEMS
+          ).map((item, i) => (
             <Pressable
               key={item.label}
               style={[styles.menuItem, i > 0 && styles.menuItemDivider]}

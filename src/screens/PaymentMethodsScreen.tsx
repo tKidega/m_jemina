@@ -37,6 +37,8 @@ import { spacing, radius } from '../theme/spacing';
 const TYPE_OPTIONS: { id: ApiPaymentMethodType; label: string; icon: IconName }[] = [
   { id: 'card', label: 'Card', icon: 'credit-card' },
   { id: 'mobile_money', label: 'Mobile Money', icon: 'smartphone' },
+  { id: 'bank_account', label: 'Bank', icon: 'savings' },
+  { id: 'bitcoin', label: 'Bitcoin', icon: 'currency-bitcoin' },
   { id: 'cloud_pay', label: 'Cloud Pay', icon: 'account-balance-wallet' },
 ];
 
@@ -44,11 +46,21 @@ const PROVIDERS: Record<ApiPaymentMethodType, { id: string; label: string }[]> =
   card: [
     { id: 'visa', label: 'Visa' },
     { id: 'mastercard', label: 'Mastercard' },
+    { id: 'mtn_virtual', label: 'MTN Virtual' },
   ],
   mobile_money: [
     { id: 'mtn', label: 'MTN Mobile Money' },
     { id: 'airtel', label: 'Airtel Money' },
   ],
+  bank_account: [
+    { id: 'stanbic', label: 'Stanbic' },
+    { id: 'absa', label: 'Absa' },
+    { id: 'equity', label: 'Equity' },
+    { id: 'centenary', label: 'Centenary' },
+    { id: 'dfcu', label: 'DFCU' },
+    { id: 'other', label: 'Other' },
+  ],
+  bitcoin: [{ id: 'onchain', label: 'On-chain' }],
   cloud_pay: [
     { id: 'stripe', label: 'Stripe' },
     { id: 'paypal', label: 'PayPal' },
@@ -61,25 +73,37 @@ const PROVIDER_COLORS: Record<string, { bg: string; text: string; short: string 
   airtel: { bg: '#ff0000', text: '#ffffff', short: 'AIR' },
   visa: { bg: '#1a1f71', text: '#ffffff', short: 'VISA' },
   mastercard: { bg: '#eb001b', text: '#ffffff', short: 'MC' },
+  mtn_virtual: { bg: '#ffcc00', text: '#000000', short: 'MTN' },
   stripe: { bg: '#635bff', text: '#ffffff', short: 'STR' },
   paypal: { bg: '#003087', text: '#ffffff', short: 'PP' },
   flutterwave: { bg: '#f5a623', text: '#ffffff', short: 'FLW' },
+  stanbic: { bg: '#0033a0', text: '#ffffff', short: 'SB' },
+  absa: { bg: '#00549f', text: '#ffffff', short: 'AB' },
+  equity: { bg: '#00a54f', text: '#ffffff', short: 'EQ' },
+  centenary: { bg: '#006f44', text: '#ffffff', short: 'CT' },
+  dfcu: { bg: '#7a1f2b', text: '#ffffff', short: 'DF' },
+  other: { bg: '#5f6368', text: '#ffffff', short: 'BNK' },
+  onchain: { bg: '#f7931a', text: '#ffffff', short: 'BTC' },
 };
 
 function accountLabel(type: ApiPaymentMethodType): string {
   if (type === 'card') return 'Card Number';
   if (type === 'mobile_money') return 'Phone Number';
+  if (type === 'bank_account') return 'Bank Account Number';
+  if (type === 'bitcoin') return 'Wallet Address';
   return 'Email Address';
 }
 
 function accountPlaceholder(type: ApiPaymentMethodType): string {
-  if (type === 'card') return '0000 0000 0000 0000';
-  if (type === 'mobile_money') return 'e.g. 0770000000';
+  if (type === 'card') return '5424 0000 0000 0000';
+  if (type === 'mobile_money') return 'e.g. 771234567';
+  if (type === 'bank_account') return 'e.g. 0123456789';
+  if (type === 'bitcoin') return 'bc1...';
   return 'name@example.com';
 }
 
 function maskedAccount(method: ApiPaymentMethod): string {
-  if (method.type === 'card') {
+  if (method.type === 'card' || method.type === 'bank_account') {
     const last4 = method.account_number.slice(-4);
     return `•••• ${last4}`;
   }
@@ -89,7 +113,21 @@ function maskedAccount(method: ApiPaymentMethod): string {
 function typeLabel(type: ApiPaymentMethodType): string {
   if (type === 'card') return 'Card';
   if (type === 'mobile_money') return 'Mobile Money';
+  if (type === 'bank_account') return 'Bank Account';
+  if (type === 'bitcoin') return 'Bitcoin';
   return 'Cloud Pay';
+}
+
+function toUgandanPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  if (digits.startsWith('256')) return `+${digits}`;
+  if (digits.startsWith('0')) return `+256${digits.slice(1)}`;
+  return `+256${digits}`;
+}
+
+function fromUgandanPhone(raw: string): string {
+  if (raw.startsWith('+256')) return raw.slice(4);
+  return raw;
 }
 
 interface MethodForm {
@@ -284,7 +322,10 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
     setForm({
       type: method.type,
       provider: method.provider,
-      account_number: method.account_number ?? '',
+      account_number:
+        method.type === 'mobile_money'
+          ? fromUgandanPhone(method.account_number ?? '')
+          : method.account_number ?? '',
       expiry_date: method.expiry_date ?? '',
       account_name: method.account_name ?? '',
       is_default: method.is_default,
@@ -312,13 +353,31 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
       setFormError('Please enter the account details.');
       return;
     }
+    let accountNumber = form.account_number.trim();
+    if (form.type === 'mobile_money') {
+      accountNumber = toUgandanPhone(accountNumber);
+      if (!/^\+256[0-9]{9}$/.test(accountNumber)) {
+        setFormError('Enter a valid number, e.g. 771234567.');
+        return;
+      }
+    } else if (form.type === 'card') {
+      accountNumber = accountNumber.replace(/[\s-]/g, '');
+      if (!/^[0-9]{12,19}$/.test(accountNumber)) {
+        setFormError('Enter a valid card number.');
+        return;
+      }
+      if (!/^(0[1-9]|1[0-2])\/[0-9]{2}$/.test(form.expiry_date.trim())) {
+        setFormError('Expiry must be MM/YY, e.g. 05/27.');
+        return;
+      }
+    }
     setSaving(true);
     setFormError(null);
     try {
       const payload = {
         type: form.type,
         provider: form.provider,
-        account_number: form.account_number.trim(),
+        account_number: accountNumber,
         expiry_date: form.expiry_date.trim() || undefined,
         account_name: form.account_name.trim() || undefined,
         ...(editing ? { is_default: form.is_default } : {}),
@@ -408,7 +467,7 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
               <Icon name="account-balance-wallet" size={40} color={colors.outline} />
               <Text style={styles.emptyTitle}>No payment methods saved</Text>
               <Text style={styles.emptySub}>
-                Add a credit card, mobile money number, or Cloud Pay account for faster checkout.
+                Add a card, mobile money number, bank account, or bitcoin wallet for faster checkout.
               </Text>
             </View>
           ) : (
@@ -425,7 +484,7 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
           {/* Add Payment Button */}
           <Pressable style={styles.addPaymentBtn} onPress={openCreate}>
             <Icon name="add" size={18} color={colors.primaryContainer} />
-            <Text style={styles.addPaymentText}>Add Mobile Money / Card</Text>
+            <Text style={styles.addPaymentText}>Add Payment Method</Text>
           </Pressable>
 
           {/* Accepted payment methods */}
@@ -521,22 +580,41 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
               </View>
 
               <Text style={styles.label}>{accountLabel(form.type)}</Text>
-              <TextInput
-                style={styles.input}
-                value={form.account_number}
-                onChangeText={t => setForm(f => ({ ...f, account_number: t }))}
-                placeholder={accountPlaceholder(form.type)}
-                placeholderTextColor={colors.outline}
-                keyboardType={
-                  form.type === 'mobile_money'
-                    ? 'phone-pad'
-                    : form.type === 'cloud_pay'
-                      ? 'email-address'
-                      : 'default'
-                }
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
+              {form.type === 'mobile_money' ? (
+                <View style={styles.phoneRow}>
+                  <View style={styles.dialChip}>
+                    <Text style={styles.dialText}>+256</Text>
+                  </View>
+                  <TextInput
+                    style={[styles.input, styles.phoneInput]}
+                    value={form.account_number}
+                    onChangeText={t => setForm(f => ({ ...f, account_number: t }))}
+                    placeholder={accountPlaceholder(form.type)}
+                    placeholderTextColor={colors.outline}
+                    keyboardType="phone-pad"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    maxLength={12}
+                  />
+                </View>
+              ) : (
+                <TextInput
+                  style={styles.input}
+                  value={form.account_number}
+                  onChangeText={t => setForm(f => ({ ...f, account_number: t }))}
+                  placeholder={accountPlaceholder(form.type)}
+                  placeholderTextColor={colors.outline}
+                  keyboardType={
+                    form.type === 'bank_account'
+                      ? 'number-pad'
+                      : form.type === 'cloud_pay'
+                        ? 'email-address'
+                        : 'default'
+                  }
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              )}
 
               {form.type === 'card' ? (
                 <>
@@ -548,6 +626,7 @@ export function PaymentMethodsScreen({ embedded = false }: { embedded?: boolean 
                     placeholder="MM/YY"
                     placeholderTextColor={colors.outline}
                     autoCapitalize="characters"
+                    maxLength={5}
                   />
                   <Text style={styles.label}>Name on Account</Text>
                   <TextInput
@@ -775,9 +854,25 @@ const styles = StyleSheet.create({
     fontFamily: typography.bodyMd.fontFamily,
     fontSize: typography.bodyMd.fontSize,
   },
-  typeRow: { flexDirection: 'row', gap: spacing.sm },
+  phoneRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  dialChip: {
+    borderWidth: 1,
+    borderColor: colors.surfaceContainerHighest,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.surfaceContainerHighest,
+  },
+  dialText: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    fontWeight: '700',
+  },
+  phoneInput: { flex: 1 },
+  typeRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
   typeChip: {
-    flex: 1,
+    flexBasis: '45%',
+    flexGrow: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
