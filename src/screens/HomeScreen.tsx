@@ -231,6 +231,19 @@ export function HomeScreen() {
   const countdown = useFlashCountdown();
   const seasonalTabs = useMemo(() => buildSeasonalTabs(products, new Date()), [products]);
   const activeSeasonalTab = seasonalTabs.find(t => t.slug === activeSeasonSlug) ?? seasonalTabs[0] ?? null;
+  const [loadedSections, setLoadedSections] = useState<{
+    heroSlides: boolean;
+    promotions: boolean;
+    vendors: boolean;
+    seasonalTabs: boolean;
+    extraSections: boolean;
+  }>({
+    heroSlides: false,
+    promotions: false,
+    vendors: false,
+    seasonalTabs: false,
+    extraSections: false,
+  });
 
   const loadHeroSlides = useCallback(async () => {
     try {
@@ -253,6 +266,7 @@ export function HomeScreen() {
 
   useEffect(() => {
     loadHeroSlides();
+    setLoadedSections(prev => ({ ...prev, heroSlides: true }));
   }, [loadHeroSlides]);
 
   const loadPromotions = useCallback(async () => {
@@ -267,37 +281,40 @@ export function HomeScreen() {
 
   useEffect(() => {
     loadPromotions();
+    setLoadedSections(prev => ({ ...prev, promotions: true }));
   }, [loadPromotions]);
 
   useEffect(() => {
     let cancelled = false;
-    AsyncStorage.getItem(CONSENT_STORAGE_KEY)
-      .then(raw => {
-        if (cancelled) return;
-        let accepted = false;
-        if (raw) {
-          try {
-            const parsed = JSON.parse(raw) as Partial<LegalConsentRecord>;
-            accepted =
-              parsed.accepted === true &&
-              parsed.tos === true &&
-              parsed.privacy === true &&
-              parsed.cookies === true;
-          } catch {
-            accepted = false;
+    setTimeout(() => {
+      AsyncStorage.getItem(CONSENT_STORAGE_KEY)
+        .then(raw => {
+          if (cancelled) return;
+          let accepted = false;
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw) as Partial<LegalConsentRecord>;
+              accepted =
+                parsed.accepted === true &&
+                parsed.tos === true &&
+                parsed.privacy === true &&
+                parsed.cookies === true;
+            } catch {
+              accepted = false;
+            }
           }
-        }
-        if (!accepted) {
-          setShowConsent(true);
-        }
-        setConsentChecked(true);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setShowConsent(true);
+          if (!accepted) {
+            setShowConsent(true);
+          }
           setConsentChecked(true);
-        }
-      });
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setShowConsent(true);
+            setConsentChecked(true);
+          }
+        });
+    }, 2000);
     return () => {
       cancelled = true;
     };
@@ -348,6 +365,7 @@ export function HomeScreen() {
 
   useEffect(() => {
     autoShowPopup(promotions);
+    setLoadedSections(prev => ({ ...prev, extraSections: true }));
   }, [promotions, autoShowPopup]);
 
   const loadVendors = useCallback(() => {
@@ -373,33 +391,15 @@ export function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    apiGetVendors()
-      .then((vendors: ApiVendorSummary[]) => {
-        if (cancelled) {
-          return;
-        }
-        const mapped: StoreData[] = vendors.map((v, i) => ({
-          id: `vendor-${v.id}`,
-          vendorId: v.id,
-          name: v.name || 'Jemina Vendor',
-          rating: v.rating,
-          products: v.product_count,
-          icon: (i % 2 === 0 ? 'storefront' : 'shopping-bag') as 'storefront' | 'shopping-bag',
-          accent: i % 2 === 0 ? colors.secondary : colors.secondary,
-          description: v.description || `${v.name || 'Vendor'} - ${v.location || 'Uganda'}`,
-          location: v.location || 'Uganda',
-          logo: absoluteUrl(v.logo) ?? undefined,
-        }));
-        if (mapped.length > 0) {
-          setLiveVendors(mapped);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    loadVendors();
+    setLoadedSections(prev => ({ ...prev, vendors: true }));
+  }, [loadVendors]);
+
+  useEffect(() => {
+    if (products.length > 0) {
+      setLoadedSections(prev => (prev.seasonalTabs ? prev : { ...prev, seasonalTabs: true }));
+    }
+  }, [products.length]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -532,15 +532,19 @@ export function HomeScreen() {
       >
         {/* Hero carousel — inset + 5px radius to match section cards */}
         <View style={styles.heroSection}>
-          <HeroCarousel
-            slides={heroSlides}
-            showDots
-            transition="fade"
-            fullBleed
-            radius={5}
-            aspectRatio={16 / 9}
-            resizeMode="cover"
-          />
+          {loadedSections.heroSlides ? (
+            <HeroCarousel
+              slides={heroSlides}
+              showDots
+              transition="fade"
+              fullBleed
+              radius={5}
+              aspectRatio={16 / 9}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={{ height: 180 }} />
+          )}
         </View>
 
         {/* Explore sectors */}
@@ -863,7 +867,7 @@ export function HomeScreen() {
         </View>
 
         {/* Seasonal (per-season tabs) */}
-        {seasonalTabs.length > 0 ? (
+        {loadedSections.seasonalTabs && seasonalTabs.length > 0 ? (
           <View style={styles.section}>
             <SectionHeader
               icon="eco"
@@ -948,28 +952,30 @@ export function HomeScreen() {
         </View>
 
         {/* Additional product sections (mirrors website homepage) */}
-        {extraSections.map(section => (
-          <View key={section.title} style={styles.section}>
-            <SectionHeader
-              icon={section.icon}
-              title={section.title}
-              subtitle={section.subtitle}
-              actionLabel="View All"
-              onAction={() => navigate('AllProducts', { title: section.title, subtitle: section.subtitle, products: section.list })}
-            />
-            <ProductCarousel
-              products={section.list}
-              cardWidth={productCardWidth}
-              imageHeight={150}
-              showDots={false}
-              autoPlay
-              loop
-              autoPlayInterval={10000}
-              onPress={p => navigate('ProductDetails', { product: p })}
-            onAddToCart={p => addItem(p)}
-            />
-          </View>
-        ))}
+        {loadedSections.extraSections && extraSections.length > 0 ? (
+          extraSections.map(section => (
+            <View key={section.title} style={styles.section}>
+              <SectionHeader
+                icon={section.icon}
+                title={section.title}
+                subtitle={section.subtitle}
+                actionLabel="View All"
+                onAction={() => navigate('AllProducts', { title: section.title, subtitle: section.subtitle, products: section.list })}
+              />
+              <ProductCarousel
+                products={section.list}
+                cardWidth={productCardWidth}
+                imageHeight={150}
+                showDots={false}
+                autoPlay
+                loop
+                autoPlayInterval={10000}
+                onPress={p => navigate('ProductDetails', { product: p })}
+              onAddToCart={p => addItem(p)}
+              />
+            </View>
+          ))
+        ) : null}
       </ScrollView>
 
       <Modal visible={b2bModalOpen} animationType="slide" transparent onRequestClose={() => setB2bModalOpen(false)}>

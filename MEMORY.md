@@ -26,7 +26,7 @@ the bell) with `PushBridge` marking unread on `order_status`/`message`; `unreadC
 `versionName 1.1.1`, release APK rebuilt + installed on both devices. **Site repo must NOT be
 committed.** Website pickup-point system (backend + admin CRUD) is the NEXT phase.
 Remaining: 3 website-parity gaps (admin promo banner, homepage dedupe, promo info modal), site
-pickup-point system, survey reward copy, VPS gateway keys (flutterwave/mtn_mobile_money
+pickup-point system, survey reward copy, VPS gateway keys (marzpay/mtn_mobile_money
 disabled server-side — saved MTN/Airtel method at checkout hits "gateway not available"),
 and the PlayStore listing/gradlew AAB (versionCode bump).
 
@@ -227,9 +227,9 @@ Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes 
   'saved'|'cod'|'bitcoin'|'credit'`); `paymentMethod` defaults `'cod'`, auto-snaps to `'saved'`
   when a default saved method exists; `handlePlaceOrder` submits `option.method` and for
   `credit`/`cod` navigates straight to `Orders`, otherwise `Payment` with `option.gateway`
-  (`gatewayForSavedMethod`: card → `stripe`, mtn mobile_money → `mtn_mobile_money`, else →
-  `flutterwave`). Saved-methods card shows "X saved · tap to manage". The old `PAYMENT_METHODS`
-  constant (mtn/stripe/flutterwave/bitcoin/credit) was removed. **Total label** reduced
+  (`gatewayForSavedMethod`: card → `marzpay`, mtn mobile_money → `mtn_mobile_money`, else →
+  `marzpay`). Saved-methods card shows "X saved · tap to manage". The old `PAYMENT_METHODS`
+  constant (mtn/marzpay/bitcoin/credit) was removed. **Total label** reduced
   `headlineMd` → `bodyLg` (16px, matching Cart's canonical `totalLabel`); `totalValue` stays
   `headlineMd` (20px). platform fee 1500, voucher fields sent with order creation.
 - `src/screens/MarketplaceScreen.tsx` — **Featured Stores from live `apiGetVendors()`** (falls back
@@ -356,8 +356,8 @@ Prior session: `ApiCartController` (GET/POST/PUT/DELETE /cart + clear) + routes 
 ### Verified (2026-09-08)
 
 - **Checkout payment methods rework:** payment choices are now only the default saved method,
-  Cash on Delivery, Bitcoin, and JEMINA Credits. Server-gateway reality: `stripe` + `bitcoin`
-  enabled in `config('payments.gateways')`; `flutterwave` + `mtn_mobile_money` DISABLED (empty
+  Cash on Delivery, Bitcoin, and JEMINA Credits. Server-gateway reality: `marzpay` + `bitcoin`
+  enabled in `config('payments.gateways')`; `mtn_mobile_money` DISABLED (empty
   `enabled`) → saved MTN/Airtel method at checkout will surface "gateway is not available"
   until the VPS `.env` is configured (out of scope; UI-only requirement met).
 - **Pickup point:** Jemina Official address confirmed from DB (`street_address` "789 Commerce
@@ -599,8 +599,8 @@ radio/checkbox — select/text/textarea showed no input at all.
 - Confirm: `GET /api/v1/promotions` public but NOT consumed by app; `CatalogContext` has no dedupe;
   survey reward copy still shows "Reward: UGX 500,000" when submit returns `credit_awarded: 0`.
 
-Note: gateway init on the live server currently fails gracefully — VPS `.env` has NO Stripe/MTN/
-Flutterwave keys and Bitcoin is unimplemented server-side, so `initiate` returns
+Note: gateway init on the live server currently fails gracefully — VPS `.env` has NO MarzPay/MTN/
+keys and Bitcoin is unimplemented server-side, so `initiate` returns
 "Payment gateway is not available"/"not fully implemented". App shows the error + Retry + Orders.
 
 ### Verified on device (2026-09-02 — Home/browse UI polish)
@@ -703,8 +703,8 @@ payload extended with `pickup_point`/`fulfilment` (backend ignores for now); Tot
   survey reward copy alignment (`credit_awarded: 0` on submit but list/detail still shows
   `credit_reward: 500000`).
 - Vendor subscription status audit (`package` exposed in vendor API; no app surfacing yet).
-- VPS gateway keys (Stripe/MTN/Flutterwave) in `.env` for live payment processing — includes
-  enabling `flutterwave` + `mtn_mobile_money` so the saved-method checkout path works.
+- VPS gateway keys (MarzPay/MTN) in `.env` for live payment processing — includes
+  enabling `marzpay` + `mtn_mobile_money` so the saved-method checkout path works.
 - Optional: address/payment-method editor screens in Profile; vendor-specific delivery fee config
   (currently product-level `delivery_fee`).
 

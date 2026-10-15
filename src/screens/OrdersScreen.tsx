@@ -75,8 +75,6 @@ function paymentMethodLabel(method?: string | null): string {
     momo: 'Mobile Money',
     card: 'Card',
     visa: 'Visa',
-    stripe: 'Stripe',
-    flutterwave: 'Flutterwave',
     bank_transfer: 'Bank Transfer',
   };
   const key = method.toLowerCase();

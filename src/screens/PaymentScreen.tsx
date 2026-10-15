@@ -15,15 +15,13 @@ import { spacing, radius } from '../theme/spacing';
 const GATEWAY_LABELS: Record<string, { label: string; icon: IconName; currency: string }> = {
   mtn: { label: 'MTN Mobile Money', icon: 'smartphone', currency: 'UGX' },
   mtn_mobile_money: { label: 'MTN Mobile Money', icon: 'smartphone', currency: 'UGX' },
-  stripe: { label: 'Card Payment', icon: 'credit-card', currency: 'USD' },
-  flutterwave: { label: 'Flutterwave', icon: 'account-balance-wallet', currency: 'UGX' },
+  marzpay: { label: 'MarzPay', icon: 'account-balance-wallet', currency: 'UGX' },
   bitcoin: { label: 'Bitcoin', icon: 'currency-bitcoin', currency: 'BTC' },
 };
 
 const GATEWAY_TO_API: Record<string, string> = {
   mtn: 'mtn_mobile_money',
-  stripe: 'stripe',
-  flutterwave: 'flutterwave',
+  marzpay: 'marzpay',
   bitcoin: 'bitcoin',
 };
 
@@ -49,7 +47,7 @@ export function PaymentScreen() {
   const { token, user } = useAuth();
   const { clearCart } = useCart();
   const { params, navigate, goBack } = useNavigation();
-  const gateway = (params?.gateway as string | undefined) ?? 'stripe';
+  const gateway = (params?.gateway as string | undefined) ?? 'marzpay';
   const amount = Number(params?.amount ?? 0);
   const orderId = params?.orderId != null ? Number(params.orderId) : undefined;
   const shouldClearCart = params?.clearCartOnPay === true;
@@ -64,7 +62,7 @@ export function PaymentScreen() {
   const pollMisses = useRef(0);
   const clearedRef = useRef(false);
 
-  const info = GATEWAY_LABELS[gateway] ?? GATEWAY_LABELS.stripe;
+  const info = GATEWAY_LABELS[gateway] ?? GATEWAY_LABELS.marzpay;
 
   const markPaidAndClear = useCallback(() => {
     if (shouldClearCart && !clearedRef.current) {
@@ -109,7 +107,9 @@ export function PaymentScreen() {
         metadata: orderId != null ? { type: 'order_payment', order_id: orderId } : undefined,
       });
       setResult(res);
-      // Do NOT clear cart here — cart is cleared only when payment is confirmed paid.
+      // Store gateway_data for MarzPay redirect URL / payment link
+      // MarzPay card: redirect URL provided in gateway_data.payment_link
+      // MarzPay MM: instant, poll status for confirmation
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to initiate payment. Please try again.');
       // Charge never started — leave the unpaid order and cart intact so Retry can work.
@@ -291,11 +291,13 @@ export function PaymentScreen() {
               <Text style={styles.statusSub}>
                 {paid
                   ? 'Your payment has been confirmed and is locked in escrow. We\'re now processing your order.'
-                  : paymentLink
+: paymentLink
                     ? 'Complete your payment securely with your chosen gateway to release this order for dispatch.'
                     : gateway === 'mtn' || gateway === 'mtn_mobile_money'
                       ? 'Check your phone for the MTN MoMo prompt and enter your PIN to approve. This screen updates automatically.'
-                      : 'Your payment is being processed. We\'ll update your order once confirmed.'}
+                    : gateway === 'marzpay'
+                      ? 'MarzPay payment initiated. Check your phone for mobile money prompt or complete card payment at the gateway link.'
+                    : 'Your payment is being processed. We\'ll update your order once confirmed.'}
               </Text>
             </View>
 

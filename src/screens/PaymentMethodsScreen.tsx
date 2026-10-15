@@ -62,9 +62,8 @@ const PROVIDERS: Record<ApiPaymentMethodType, { id: string; label: string }[]> =
   ],
   bitcoin: [{ id: 'onchain', label: 'On-chain' }],
   cloud_pay: [
-    { id: 'stripe', label: 'Stripe' },
     { id: 'paypal', label: 'PayPal' },
-    { id: 'flutterwave', label: 'Flutterwave' },
+    { id: 'marzpay', label: 'MarzPay' },
   ],
 };
 
@@ -74,9 +73,8 @@ const PROVIDER_COLORS: Record<string, { bg: string; text: string; short: string 
   visa: { bg: '#1a1f71', text: '#ffffff', short: 'VISA' },
   mastercard: { bg: '#eb001b', text: '#ffffff', short: 'MC' },
   mtn_virtual: { bg: '#ffcc00', text: '#000000', short: 'MTN' },
-  stripe: { bg: '#635bff', text: '#ffffff', short: 'STR' },
   paypal: { bg: '#003087', text: '#ffffff', short: 'PP' },
-  flutterwave: { bg: '#f5a623', text: '#ffffff', short: 'FLW' },
+  marzpay: { bg: '#1a73e8', text: '#ffffff', short: 'MZ' },
   stanbic: { bg: '#0033a0', text: '#ffffff', short: 'SB' },
   absa: { bg: '#00549f', text: '#ffffff', short: 'AB' },
   equity: { bg: '#00a54f', text: '#ffffff', short: 'EQ' },

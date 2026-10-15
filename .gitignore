@@ -77,7 +77,7 @@ yarn-error.log
 
 # local MCP config with secrets
 opencode.json
-metro.log
+metro*.log
 
 # Bundled release APK (rebuild artifact, not source)
 app-release.apk

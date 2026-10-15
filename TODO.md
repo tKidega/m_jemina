@@ -14,7 +14,7 @@ a **Pickup Point & Delivery** model — shipping form removed, delivery address 
 address book, default "Jemina Point" pickup at Jemina Official's **Gulu** address, "Add a delivery
 address" link → `AddressBook` when none exists. **Checkout payment methods reworked (2026-09-08):**
 only the default saved method + Cash on Delivery + Bitcoin + JEMINA Credits (no generic
-MTN/Stripe/Flutterwave rows); COD/credit orders go straight to Orders, gateway orders route to
+MTN/MarzPay rows); COD/credit orders go straight to Orders, gateway orders route to
 `PaymentScreen` with the correct gateway. **Promo popup (2026-09-08):** auto-opens on launch and
 cycles a different promotion per launch (AsyncStorage index); promo-data-only modal (no action
 buttons) with centered, uncropped full-width image. **Push notifications + promo/ad popup DONE
@@ -158,8 +158,8 @@ selection or typing had NO input in the app. Confirmed against the live VPS `sur
 - [x] **Checkout payment options rework (2026-09-08)** — `PaymentOption` whitelist: default saved
   method + COD + Bitcoin + JEMINA Credits; defaults `'cod'`, auto-selects `'saved'` when a default
   saved method exists; `handlePlaceOrder` submits `option.method` and routes COD/credit → `Orders`,
-  gateway → `PaymentScreen` (custom `gatewayForSavedMethod`: card→`stripe`, mtn→`mtn_mobile_money`,
-  else→`flutterwave`); "X saved · tap to manage" label; old `PAYMENT_METHODS` const deleted
+  gateway → `PaymentScreen` (custom `gatewayForSavedMethod`: card→`marzpay`, mtn→`mtn_mobile_money`,
+  else→`marzpay`); "X saved · tap to manage" label; old `PAYMENT_METHODS` const deleted
 - [x] Orders list + order detail — `GET /api/v1/orders`, `GET /api/v1/orders/{id}` — `OrdersScreen`
 - [x] Order tracking UI — `OrderTrackingScreen` (dispatch → delivery timeline)
 - [x] Server-side `ApiOrderController` fixed to real schema + voucher_id/voucher_code/discount_amount support
@@ -167,7 +167,7 @@ selection or typing had NO input in the app. Confirmed against the live VPS `sur
 - [ ] ~~Signup bonus~~ — **Server removed signup credit award** (`fb22f1c`); current `ApiAuthController.register()` returns no bonus. App no longer shows or relies on a registration bonus.
 - [x] Credit payment in order store (`payment_method: 'credit'` → deducts balance, marks order `processing`/`paid`)
 - [x] App shows credits balance in Profile and at Checkout; credit payment option
-- [x] Checkout/payment gateway handoff UX (MTN / Stripe / Flutterwave / Bitcoin via `POST /api/v1/payments/initiate`) — `PaymentScreen` initiates + polls status; checkout routes non-credit payments to it
+- [x] Checkout/payment gateway handoff UX (MTN / MarzPay / Bitcoin via `POST /api/v1/payments/initiate`) — `PaymentScreen` initiates + polls status; checkout routes non-credit payments to it
 - [x] Wishlist + reviews wiring from Profile (`profile/wishlist`, `profile/reviews`) — `WishlistScreen`, `MyReviewsScreen`, auth-gated
 - [x] Add-to-wishlist heart + review form on product detail (`apiAddToWishlist`, `apiRemoveFromWishlist`, `apiAddReview`, wishlist preload)
 - [x] **Address book** — `AddressBookScreen` (full CRUD + set default via `/addresses*`) — `ApiAddressController`
@@ -370,6 +370,6 @@ selection or typing had NO input in the app. Confirmed against the live VPS `sur
 - [x] Credits & Wallet screen — full Stitch redesign (`61c09abed5964cf5a9a85cf6d0258acb`): hero balance card with BOU Escrow Protected badge, balance + J-Credits badge, sub-ledger (purchased/spent), quick actions (Top Up/Auto-On/Pay Depot), Buy Trade Credits section with 3 tiered cards (Starter/Merchant/Wholesale), Wallet Privileges 3-column perks, Trade Credit Ledger with filter chips and transaction items, trust footer. Added icons: `add_card`, `qr_code_scanner`, `percent`
 - [x] Release APK built + installed on both devices (phone `0794415254003308` + emulator `emulator-5554`)
 - [ ] Vendor logo SVG in DB — phones can't render SVG; needs PNG/JPG re-upload
-- [ ] VPS gateway keys not configured (MTN/Flutterwave disabled)
+- [ ] VPS gateway keys not configured (MTN disabled)
 - [ ] PlayStore listing/config still pending
 - [ ] Uncommitted on VPS: `ApiOrderController.php`, `ApiVendorController.php` + `routes/api.php`

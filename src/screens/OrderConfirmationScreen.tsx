@@ -43,7 +43,7 @@ function paymentIcon(method: string): 'payment' | 'smartphone' | 'currency-bitco
   if (method === 'cod') return 'payment';
   if (method === 'credit') return 'account-balance-wallet';
   if (method === 'bitcoin') return 'currency-bitcoin';
-  if (method.includes('card') || method === 'stripe') return 'credit-card';
+  if (method.includes('card')) return 'credit-card';
   return 'smartphone';
 }
 

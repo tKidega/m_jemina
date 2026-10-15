@@ -66,9 +66,9 @@ function maskAccount(method: ApiPaymentMethod): string {
 }
 
 function gatewayForSavedMethod(method: ApiPaymentMethod): string {
-  if (method.type === 'card') return 'stripe';
+  if (method.type === 'card') return 'marzpay';
   if (method.type === 'mobile_money' && method.provider.toLowerCase() === 'mtn') return 'mtn_mobile_money';
-  return 'flutterwave';
+  return 'marzpay';
 }
 
 export function CheckoutScreen() {

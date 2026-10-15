@@ -12,7 +12,7 @@
 
 - **Customers (retail + B2B):** browse products, request **inquiry‑only** quotes for
   wholesale/corporate deals, add to cart, checkout, and pay via **Cash on Delivery,
-  MTN Mobile Money, Flutterwave (cards/etc.), Stripe, Bitcoin, or JEMINA Credits**.
+  MTN Mobile Money, MarzPay (cards/etc.), Bitcoin, or JEMINA Credits**.
 - **Vendors:** run stores, set per‑product `delivery_fee` (vendor→customer) and
   `shipping_fee` (supplier→vendor), fulfil orders, arrange delivery, and can publish
   announcements/surveys (n8n‑automated).
