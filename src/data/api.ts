@@ -224,6 +224,8 @@ async function getJson<T>(path: string): Promise<T> {
   return (await response.json()) as T;
 }
 
+const CATALOG_POOL_PERCENT = 0.8;
+
 export async function fetchProducts(): Promise<ApiProduct[]> {
   const all: ApiProduct[] = [];
   let page = 1;
@@ -232,6 +234,9 @@ export async function fetchProducts(): Promise<ApiProduct[]> {
     const data = await getJson<ProductsResponse>(`/products?per_page=50&page=${page}`);
     all.push(...data.data.products);
     lastPage = data.data.pagination.last_page;
+    if (page === 1) {
+      lastPage = Math.max(1, Math.min(lastPage, Math.ceil(lastPage * CATALOG_POOL_PERCENT)));
+    }
     page += 1;
   } while (page <= lastPage && page <= 20);
   return all;
