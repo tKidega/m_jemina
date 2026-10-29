@@ -220,6 +220,7 @@ function PushBridge() {
           title: event.title,
           body: event.body,
           kind: 'order',
+          imageUrl: event.imageUrl,
           onPress: () => navigate('Orders'),
         });
       } else if (event.type === 'message') {
@@ -228,6 +229,7 @@ function PushBridge() {
           title: event.title,
           body: event.body,
           kind: 'message',
+          imageUrl: event.imageUrl,
           onPress: () => navigate('Messages'),
         });
       }

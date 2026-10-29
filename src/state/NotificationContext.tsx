@@ -22,6 +22,7 @@ export interface InAppNotice {
   title: string;
   body: string;
   kind: 'order' | 'message';
+  imageUrl?: string | null;
   onPress: () => void;
 }
 
@@ -58,6 +59,7 @@ interface NotificationContextValue {
     title: string;
     body: string;
     kind: 'order' | 'message';
+    imageUrl?: string | null;
     onPress: () => void;
   }) => void;
   unreadCount: number;
@@ -125,7 +127,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const showNotice = useCallback(
-    (n: { title: string; body: string; kind: 'order' | 'message'; onPress: () => void }) => {
+    (n: {
+      title: string;
+      body: string;
+      kind: 'order' | 'message';
+      imageUrl?: string | null;
+      onPress: () => void;
+    }) => {
       if (noticeTimer.current) {
         clearTimeout(noticeTimer.current);
       }
@@ -163,13 +171,21 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             action?.();
           }}
         >
-          <View style={styles.bannerIcon}>
-            <Icon
-              name={notice.kind === 'order' ? 'local-shipping' : 'chat'}
-              size={18}
-              color={colors.white}
+          {promoImageUrl(notice.imageUrl) ? (
+            <Image
+              source={{ uri: promoImageUrl(notice.imageUrl) }}
+              style={styles.bannerThumb}
+              resizeMode="cover"
             />
-          </View>
+          ) : (
+            <View style={styles.bannerIcon}>
+              <Icon
+                name={notice.kind === 'order' ? 'local-shipping' : 'chat'}
+                size={18}
+                color={colors.white}
+              />
+            </View>
+          )}
           <View style={styles.bannerBody}>
             <Text style={styles.bannerTitle} numberOfLines={1}>
               {notice.title}
@@ -278,6 +294,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  bannerThumb: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.sm,
+    backgroundColor: 'rgba(255,255,255,0.18)',
   },
   bannerBody: {
     flex: 1,

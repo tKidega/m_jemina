@@ -90,14 +90,15 @@ export async function clearDeviceToken(): Promise<void> {
 export type PushEvent =
   | { type: 'two_factor'; code: string }
   | { type: 'promo'; promo: ApiPromotion }
-  | { type: 'order_status'; title: string; body: string }
-  | { type: 'message'; title: string; body: string };
+  | { type: 'order_status'; title: string; body: string; imageUrl: string | null }
+  | { type: 'message'; title: string; body: string; imageUrl: string | null };
 
 function parsePushEvent(data: Record<string, string>): PushEvent | null {
   const type = data.type;
   if (typeof type !== 'string') {
     return null;
   }
+  const imageUrl = data.image_url || null;
   if (type === 'two_factor') {
     const code = data.code;
     return typeof code === 'string' && code.length > 0 ? { type: 'two_factor', code } : null;
@@ -122,10 +123,10 @@ function parsePushEvent(data: Record<string, string>): PushEvent | null {
     };
   }
   if (type === 'order_status') {
-    return { type: 'order_status', title: data.title ?? 'JEMINA', body: data.body ?? '' };
+    return { type: 'order_status', title: data.title ?? 'JEMINA', body: data.body ?? '', imageUrl };
   }
   if (type === 'message') {
-    return { type: 'message', title: data.title ?? 'JEMINA', body: data.body ?? '' };
+    return { type: 'message', title: data.title ?? 'JEMINA', body: data.body ?? '', imageUrl };
   }
   return null;
 }
