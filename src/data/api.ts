@@ -33,6 +33,7 @@ export interface ApiProduct {
   discount: number;
   discount_percentage: number;
   category: { id: number; name: string } | null;
+  subcategory?: { id: number; name: string } | null;
   vendor: ApiVendor | null;
   images: string[];
   photo: string | null;
@@ -47,6 +48,10 @@ export interface ApiProduct {
   bulk_order: boolean;
   corporate_ready: boolean;
   enterprise_solution: boolean;
+  is_b2b?: boolean;
+  wholesale_price?: number | null;
+  bulk_price?: number | null;
+  bulk_minimum?: number | null;
   seasonal?: boolean;
   holiday_special?: boolean;
   seasonal_theme?: string | null;
@@ -81,6 +86,7 @@ interface CategoriesResponse {
 
 const FALLBACK_VENDOR_NAME = 'Jemina Official';
 const VENDOR_LOCATION = 'Gulu, Uganda';
+const imageResolveCache: Map<string, string> = new Map();
 
 const SLUG_TO_LOCAL_IMAGE: Record<string, string> = {
   'dlight-solar-lantern-reading-light-s30': images.solarProduct,
@@ -109,15 +115,32 @@ export function absoluteUrl(url: string | null | undefined): string | undefined 
 }
 
 function resolveImage(api: ApiProduct): string | undefined {
-  if (api.images && api.images.length > 0 && api.images[0]) {
-    return absoluteUrl(api.images[0]);
+  const cacheKey = `${api.id}-primary`;
+  const cached = imageResolveCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+  if (api.images && api.images.length > 0) {
+    const first = api.images[0];
+    if (first) {
+      const resolved = absoluteUrl(first);
+      if (resolved) {
+        imageResolveCache.set(cacheKey, resolved);
+      }
+      return resolved;
+    }
   }
   if (api.photo) {
-    return absoluteUrl(api.photo);
+    const resolved = absoluteUrl(api.photo);
+    if (resolved) {
+      imageResolveCache.set(cacheKey, resolved);
+    }
+    return resolved;
   }
   const slug = (api.slug || '').toLowerCase();
   for (const [key, url] of Object.entries(SLUG_TO_LOCAL_IMAGE)) {
     if (slug.includes(key) || (api.name || '').toLowerCase().includes(key)) {
+      imageResolveCache.set(cacheKey, url);
       return url;
     }
   }
@@ -147,6 +170,11 @@ export function apiProductToProduct(api: ApiProduct): Product {
   const effective = hasDiscount ? api.discounted_price as number : api.price;
   const originalValue = hasDiscount ? api.price : undefined;
   const vendorName = api.vendor?.name || FALLBACK_VENDOR_NAME;
+  const isB2b = Boolean(
+    api.is_b2b ??
+      (api.is_wholesale || api.bulk_order || api.corporate_ready || api.enterprise_solution),
+  );
+  const minOrderValue = isB2b ? Math.max(1, api.min_order_quantity ?? 1) : 1;
 
   let badge: Product['badge'];
   if (api.sale_type === 'flash' || api.is_featured) {
@@ -174,6 +202,7 @@ export function apiProductToProduct(api: ApiProduct): Product {
     image,
     gallery: api.images.length > 0 ? api.images.map(absoluteUrl).filter(Boolean) as string[] : image ? [image] : undefined,
     category: api.category?.name ?? 'General',
+    subcategory: api.subcategory?.name ?? undefined,
     title: api.name,
     price: `UGX ${Math.round(effective).toLocaleString()}`,
     priceValue: effective,
@@ -181,8 +210,8 @@ export function apiProductToProduct(api: ApiProduct): Product {
     originalPriceValue: originalValue,
     discount: computeDiscountLabel(api),
     createdAt: api.created_at,
-    minOrder: `Min. Order: ${api.min_order_quantity ?? 1} units`,
-    minOrderValue: api.min_order_quantity ?? 1,
+    minOrder: `Min. Order: ${minOrderValue} ${minOrderValue === 1 ? 'unit' : 'units'}`,
+    minOrderValue,
     rating: api.rating,
     reviews: api.review_count,
     stock: resolveStock(api.stock_status),
@@ -198,6 +227,12 @@ export function apiProductToProduct(api: ApiProduct): Product {
     bulkOrder: Boolean(api.bulk_order),
     corporateReady: Boolean(api.corporate_ready),
     enterpriseSolution: Boolean(api.enterprise_solution),
+    isB2b,
+    wholesalePrice: Number(api.wholesale_price ?? 0),
+    bulkPrice: Number(api.bulk_price ?? 0),
+    bulkMinimum: Number(api.bulk_minimum ?? 0),
+    actionVariant: isB2b ? 'inquiry' : 'addToCart',
+    actionLabel: isB2b ? 'Request Quote' : undefined,
     seasonal: Boolean(api.seasonal),
     holidaySpecial: Boolean(api.holiday_special),
     seasonalTheme: api.seasonal_theme ?? undefined,

@@ -22,6 +22,7 @@ export interface Product {
   image?: string;
   gallery?: string[];
   category: string;
+  subcategory?: string;
   title: string;
   price: string;
   priceValue: number;
@@ -44,6 +45,10 @@ export interface Product {
   bulkOrder?: boolean;
   corporateReady?: boolean;
   enterpriseSolution?: boolean;
+  isB2b?: boolean;
+  wholesalePrice?: number;
+  bulkPrice?: number;
+  bulkMinimum?: number;
   seasonal?: boolean;
   holidaySpecial?: boolean;
   seasonalTheme?: string;
@@ -93,9 +98,10 @@ export function ProductCard({ product, onPress, onAddToCart, onInquiry, onToggle
     }).catch(() => {});
   }, [onToggleWishlist, toggle, product.id, navigate]);
 
-  const { image, category, title, price, originalPrice, discount, rating, reviews, minOrder, unitLabel, badge, badgeBottom, actionLabel, actionVariant = 'addToCart' } = product;
-  const variant = actionVariantProp ?? actionVariant;
+  const { image, category, title, price, originalPrice, discount, rating, reviews, minOrder, unitLabel, badge, badgeBottom, actionLabel, actionVariant } = product;
+  const variant = actionVariantProp ?? actionVariant ?? (product.isB2b ? 'inquiry' : 'addToCart');
   const label = actionLabelProp ?? actionLabel;
+  const handleInquiry = onInquiry ?? (() => navigate('ProductInquiry', { product }));
 
   return (
     <Pressable
@@ -136,16 +142,20 @@ export function ProductCard({ product, onPress, onAddToCart, onInquiry, onToggle
           <>
             <Text style={styles.category} numberOfLines={1}>{category}</Text>
             <Text style={styles.title} numberOfLines={2}>{title}</Text>
-            {rating !== undefined ? (
+            {rating !== undefined || minOrder ? (
               <View style={styles.ratingRow}>
-                <Icon name="star" size={13} color={colors.secondary} />
-                <Text style={styles.ratingText}>
-                  {rating.toFixed(1)} {reviews !== undefined ? `(${reviews})` : ''}
-                </Text>
+                {rating !== undefined ? (
+                  <>
+                    <Icon name="star" size={13} color={colors.secondary} />
+                    <Text style={styles.ratingText}>
+                      {rating.toFixed(1)} {reviews !== undefined ? `(${reviews})` : ''}
+                    </Text>
+                  </>
+                ) : null}
                 {minOrder ? (
                   <>
-                    <Text style={styles.sep}>|</Text>
-                    <Text style={styles.minOrder}>{minOrder}</Text>
+                    {rating !== undefined ? <Text style={styles.sep}>|</Text> : null}
+                    <Text style={styles.minOrder} numberOfLines={1}>{minOrder}</Text>
                   </>
                 ) : null}
               </View>
@@ -158,8 +168,8 @@ export function ProductCard({ product, onPress, onAddToCart, onInquiry, onToggle
           </>
         )}
         {variant === 'inquiry' ? (
-          <Pressable style={[styles.actionBtn, styles.inquiryBtn]} onPress={onInquiry}>
-            <Text style={styles.inquiryText}>{label ?? 'Inquiry Only'}</Text>
+          <Pressable style={[styles.actionBtn, styles.inquiryBtn]} onPress={handleInquiry} accessibilityRole="button" accessibilityLabel={`Request a quote for ${title}`}>
+            <Text style={styles.inquiryText}>{label ?? 'Request Quote'}</Text>
           </Pressable>
         ) : (
           <View style={styles.actionRow}>

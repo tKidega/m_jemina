@@ -25,8 +25,8 @@ interface CatalogContextValue {
 const CatalogContext = createContext<CatalogContextValue | null>(null);
 
 function derive(products: Product[]) {
-  const flashSale = products.filter(p => p.badge?.variant === 'flash' || Boolean(p.discount));
-  const featured = products.filter(p => p.badge?.variant === 'featured');
+  const flashSale = products.filter(p => p.badge?.variant === 'flash' || Boolean(p.discount)).slice(0, 25);
+  const featured = products.filter(p => p.badge?.variant === 'featured').slice(0, 25);
   const wholesale = products.filter(
     p => p.badge?.variant === 'wholesale' || p.badge?.variant === 'corporate',
   );

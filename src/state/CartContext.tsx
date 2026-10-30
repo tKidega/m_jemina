@@ -158,7 +158,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         Alert.alert('Not allowed', 'Vendor accounts cannot add products to the cart.');
         return;
       }
-      const qty = Math.max(1, Math.round(quantity));
+      if (product.isB2b) {
+        Alert.alert('Quotation only', 'This is a B2B item sold by quotation. Send a bulk inquiry to get pricing.');
+        return;
+      }
+      const qty = Math.max(product.minOrderValue ?? 1, 1, Math.round(quantity));
       setItems(prev => {
         const existing = prev.find(i => i.product.id === product.id);
         if (existing) {

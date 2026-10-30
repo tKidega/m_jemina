@@ -560,7 +560,7 @@ export function HomeScreen() {
                     return;
                   }
                   const list = products.filter(p => cat.match.test(p.category));
-                  navigate('AllProducts', { title: cat.label, products: list });
+                  navigate('AllProducts', { title: cat.label, subtitle: cat.label, products: list });
                 }}
               >
                 <View style={styles.sectorIcon}>

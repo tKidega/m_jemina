@@ -109,15 +109,34 @@ export function ProductDetailsScreen() {
   const unitPrice = resolved.priceValue ?? 0;
   const totalValue = unitPrice * qty;
   const savings = (resolved.originalPriceValue ?? 0) > unitPrice ? (resolved.originalPriceValue ?? 0) - unitPrice : 0;
-  const isWholesale = Boolean(resolved.isWholesale || resolved.bulkOrder || resolved.corporateReady || resolved.minOrder);
+  const isB2b = Boolean(
+    resolved.isB2b ??
+      (resolved.isWholesale || resolved.bulkOrder || resolved.corporateReady || resolved.enterpriseSolution),
+  );
+  const isWholesale = isB2b;
+  const minOrderValue = Math.max(1, resolved.minOrderValue ?? 1);
+  const wholesalePrice = resolved.wholesalePrice ?? 0;
+  const bulkPrice = resolved.bulkPrice ?? 0;
+  const bulkMinimum = resolved.bulkMinimum ?? 0;
+  const hasB2bTiers = isB2b && (wholesalePrice > 0 || bulkPrice > 0);
   const hasDelivery = (resolved.deliveryFee ?? 0) > 0 || (resolved.shippingFee ?? 0) > 0;
   const unitLabel = resolved.unitLabel;
 
+  const openInquiry = () => navigate('ProductInquiry', { product: resolved });
+
   const handleAddToCart = () => {
+    if (isB2b) {
+      openInquiry();
+      return;
+    }
     addItem(product, qty);
     setAdded(true);
     setTimeout(() => setAdded(false), 1500);
   };
+
+  useEffect(() => {
+    setQty(Math.max(1, resolved.minOrderValue ?? 1));
+  }, [resolved.id, resolved.minOrderValue]);
 
   const toggleWishlist = useCallback(async () => {
     if (!token) {
@@ -258,16 +277,11 @@ export function ProductDetailsScreen() {
                   {resolved.discount ? <Badge label={resolved.discount} variant="flash" style={styles.offBadge} /> : null}
                 </View>
               </View>
-              {isWholesale ? (
+              {isB2b ? (
                 <View style={styles.wholesaleBlock}>
-                  <Text style={styles.priceLabel}>
-                    {resolved.minOrder ? `BULK MOQ ${resolved.minOrderValue ?? ''}+` : 'WHOLESALE RATE'}
-                  </Text>
+                  <Text style={styles.priceLabel}>MOQ {minOrderValue}{minOrderValue === 1 ? ' UNIT' : ' UNITS'}</Text>
                   <View style={styles.wholesalePill}>
-                    <Text style={styles.wholesalePillText}>
-                      {formatUGX(unitPrice)}
-                      {unitLabel ? ` / ${unitLabel}` : ''}
-                    </Text>
+                    <Text style={styles.wholesalePillText}>Quote only</Text>
                   </View>
                 </View>
               ) : null}
@@ -277,6 +291,39 @@ export function ProductDetailsScreen() {
                 <Icon name="savings" size={14} color={colors.secondary} />
                 <Text style={styles.savingsText}>Save {formatUGX(savings)} on retail price</Text>
               </View>
+            ) : null}
+            {isB2b ? (
+              <>
+                <View style={styles.divider} />
+                <View style={styles.moqPanel}>
+                  <Text style={styles.moqPanelTitle}>Wholesale pricing</Text>
+                  {hasB2bTiers ? (
+                    <>
+                      {wholesalePrice > 0 ? (
+                        <View style={styles.moqTierRow}>
+                          <Text style={styles.moqTierLabel}>
+                            Wholesale{minOrderValue > 1 ? ` (${minOrderValue}+ units)` : ''}
+                          </Text>
+                          <Text style={styles.moqTierValue}>{formatUGX(wholesalePrice)} / unit</Text>
+                        </View>
+                      ) : null}
+                      {bulkPrice > 0 ? (
+                        <View style={styles.moqTierRow}>
+                          <Text style={styles.moqTierLabel}>
+                            Bulk{bulkMinimum > 1 ? ` (${bulkMinimum}+ units)` : ''}
+                          </Text>
+                          <Text style={styles.moqTierValue}>{formatUGX(bulkPrice)} / unit</Text>
+                        </View>
+                      ) : null}
+                    </>
+                  ) : (
+                    <Text style={styles.moqPanelHint}>Pricing is quoted per order. Send a bulk inquiry to get a price.</Text>
+                  )}
+                  <Text style={styles.moqPanelHint}>
+                    Minimum order: {minOrderValue} {minOrderValue === 1 ? 'unit' : 'units'}. This item is sold by quotation.
+                  </Text>
+                </View>
+              </>
             ) : null}
             {resolved.corporateReady ? (
               <>
@@ -550,6 +597,15 @@ export function ProductDetailsScreen() {
         </View>
 
         {/* Quantity & lot selection */}
+        {isB2b ? (
+          <View style={styles.qtySection}>
+            <Text style={styles.qtyLabel}>Sold by quotation</Text>
+            <Text style={styles.moqPanelHint}>
+              Minimum order quantity: {minOrderValue} {minOrderValue === 1 ? 'unit' : 'units'}. Submit a bulk inquiry and the
+              vendor will respond with pricing and availability.
+            </Text>
+          </View>
+        ) : (
         <View style={styles.qtySection}>
           <Text style={styles.qtyLabel}>Select Quantity</Text>
           <View style={styles.lotRow}>
@@ -572,7 +628,7 @@ export function ProductDetailsScreen() {
           </View>
           <View style={styles.stepperRow}>
             <View style={styles.stepper}>
-              <Pressable style={styles.stepperBtn} onPress={() => setQty(q => Math.max(1, q - 1))} hitSlop={6} accessibilityRole="button" accessibilityLabel="Decrease quantity">
+              <Pressable style={styles.stepperBtn} onPress={() => setQty(q => Math.max(minOrderValue, q - 1))} hitSlop={6} accessibilityRole="button" accessibilityLabel="Decrease quantity">
                 <Icon name="remove" size={20} color={colors.primary} />
               </Pressable>
               <Text style={styles.stepperValue}>{qty}</Text>
@@ -583,28 +639,38 @@ export function ProductDetailsScreen() {
             <Text style={styles.stepperNote}>Total: {formatUGX(totalValue)}</Text>
           </View>
         </View>
+        )}
       </ScrollView>
 
       {/* Bottom action bar */}
       <View style={[styles.actionBar, { paddingBottom: insets.bottom + spacing.sm }]}>
-        <View style={styles.actionRow}>
-          <Pressable
-            style={[styles.inquireBtn, !resolved.corporateReady && styles.inquireBtnDisabled]}
-            disabled={!resolved.corporateReady}
-            onPress={() => navigate('ProductInquiry', { product: resolved })}
-          >
-            <Icon name="chat" size={18} color={resolved.corporateReady ? colors.primary : colors.outline} />
-            <Text style={[styles.inquireText, !resolved.corporateReady && styles.inquireTextDisabled]}>Bulk Inquiry</Text>
+        {isB2b ? (
+          <Pressable style={styles.rfqBtn} onPress={openInquiry} accessibilityRole="button" accessibilityLabel="Request bulk quote">
+            <Icon name="chat" size={18} color={colors.onPrimary} />
+            <Text style={styles.rfqText}>Request Bulk Quote (RFQ)</Text>
           </Pressable>
-          <Pressable style={[styles.addBtn, added && styles.addBtnAdded]} onPress={handleAddToCart}>
-            <Icon name={added ? 'check' : 'shopping-cart'} size={18} color={added ? colors.white : colors.onSecondaryContainer} />
-            <Text style={styles.addText}>{added ? 'ADDED!' : `Add to Cart · ${formatUGX(totalValue)}`}</Text>
-          </Pressable>
-        </View>
-        <View style={styles.escrowTrust}>
-          <Icon name="verified-user" size={13} color={colors.secondary} />
-          <Text style={styles.escrowTrustText}>Payment held securely in JEMINA Escrow until inspection</Text>
-        </View>
+        ) : (
+          <>
+            <View style={styles.actionRow}>
+              <Pressable
+                style={[styles.inquireBtn, !resolved.corporateReady && styles.inquireBtnDisabled]}
+                disabled={!resolved.corporateReady}
+                onPress={openInquiry}
+              >
+                <Icon name="chat" size={18} color={resolved.corporateReady ? colors.primary : colors.outline} />
+                <Text style={[styles.inquireText, !resolved.corporateReady && styles.inquireTextDisabled]}>Bulk Inquiry</Text>
+              </Pressable>
+              <Pressable style={[styles.addBtn, added && styles.addBtnAdded]} onPress={handleAddToCart}>
+                <Icon name={added ? 'check' : 'shopping-cart'} size={18} color={added ? colors.white : colors.onSecondaryContainer} />
+                <Text style={styles.addText}>{added ? 'ADDED!' : `Add to Cart · ${formatUGX(totalValue)}`}</Text>
+              </Pressable>
+            </View>
+            <View style={styles.escrowTrust}>
+              <Icon name="verified-user" size={13} color={colors.secondary} />
+              <Text style={styles.escrowTrustText}>Payment held securely in JEMINA Escrow until inspection</Text>
+            </View>
+          </>
+        )}
       </View>
     </View>
   );
@@ -1279,6 +1345,52 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+  },
+  rfqBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.primary,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md + 2,
+  },
+  rfqText: {
+    ...typography.labelMd,
+    color: colors.onPrimary,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  moqPanel: {
+    gap: 6,
+  },
+  moqPanelTitle: {
+    ...typography.labelSm,
+    color: colors.onSurfaceVariant,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  moqTierRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  moqTierLabel: {
+    ...typography.bodySm,
+    color: colors.onSurface,
+    flexShrink: 1,
+  },
+  moqTierValue: {
+    ...typography.bodySm,
+    color: colors.secondary,
+    fontWeight: '800',
+  },
+  moqPanelHint: {
+    ...typography.bodySm,
+    color: colors.onSurfaceVariant,
+    lineHeight: 18,
   },
   inquireBtn: {
     flex: 1,

@@ -47,17 +47,68 @@ export function CollectionProductsScreen() {
   const showFilters = params?.showFilters !== false;
   const cardWidth = Math.round((width - spacing.lg * 2 - spacing.gutter) / 2);
 
-  const renderItem = ({ item }: { item: Product }) => (
-    <View style={[styles.cardWrap, { width: cardWidth }]}>
-      <ProductCard
-        product={item}
-        compact
-        imageHeight={120}
-        onPress={() => navigate('ProductDetails', { product: item })}
-        onAddToCart={() => addItem(item)}
-      />
-    </View>
-  );
+  const groupedRows = useMemo(() => {
+    const groupMap = new Map<string, Product[]>();
+    filtered.forEach(p => {
+      const key = p.subcategory?.trim() || p.category?.trim() || 'Other';
+      const existing = groupMap.get(key);
+      if (existing) {
+        existing.push(p);
+      } else {
+        groupMap.set(key, [p]);
+      }
+    });
+    return Array.from(groupMap.entries());
+  }, [filtered]);
+
+  const hasGroups = groupedRows.length > 1;
+
+  type ListRow =
+    | { kind: 'header'; key: string; title: string; count: number }
+    | { kind: 'row'; key: string; items: Product[] };
+
+  const listRows = useMemo<ListRow[]>(() => {
+    const rows: ListRow[] = [];
+    if (!hasGroups) {
+      for (let i = 0; i < filtered.length; i += 2) {
+        rows.push({ kind: 'row', key: `row-${i}`, items: filtered.slice(i, i + 2) });
+      }
+      return rows;
+    }
+    groupedRows.forEach(([groupTitle, items]) => {
+      rows.push({ kind: 'header', key: `header-${groupTitle}`, title: groupTitle, count: items.length });
+      for (let i = 0; i < items.length; i += 2) {
+        rows.push({ kind: 'row', key: `row-${groupTitle}-${i}`, items: items.slice(i, i + 2) });
+      }
+    });
+    return rows;
+  }, [filtered, groupedRows, hasGroups]);
+
+  const renderItem = ({ item }: { item: ListRow }) => {
+    if (item.kind === 'header') {
+      return (
+        <View style={styles.groupHeader}>
+          <Text style={styles.groupTitle}>{item.title}</Text>
+          <Text style={styles.groupCount}>{item.count}</Text>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.row}>
+        {item.items.map(product => (
+          <View key={product.id} style={[styles.cardWrap, { width: cardWidth }]}>
+            <ProductCard
+              product={product}
+              compact
+              imageHeight={120}
+              onPress={() => navigate('ProductDetails', { product })}
+              onAddToCart={() => addItem(product)}
+            />
+          </View>
+        ))}
+      </View>
+    );
+  };
 
   return (
     <View style={styles.root}>
@@ -101,11 +152,10 @@ export function CollectionProductsScreen() {
         </View>
       ) : null}
       <FlatList
-        data={filtered}
-        keyExtractor={item => item.id}
+        data={listRows}
+        keyExtractor={item => item.key}
         renderItem={renderItem}
-        numColumns={2}
-        columnWrapperStyle={styles.column}
+        numColumns={1}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
@@ -180,6 +230,24 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     paddingBottom: spacing.xxl,
     gap: spacing.md,
+  },
+  row: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: spacing.sm,
+  },
+  groupTitle: {
+    ...typography.headlineSm,
+    color: colors.onSurface,
+  },
+  groupCount: {
+    ...typography.labelMd,
+    color: colors.onSurfaceVariant,
   },
   column: {
     gap: spacing.md,
