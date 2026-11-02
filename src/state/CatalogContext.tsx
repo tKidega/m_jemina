@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Product } from '../components/ProductCard';
 import { apiProductToProduct, fetchCategories, fetchProducts } from '../data/api';
 import type { ApiCategory } from '../data/api';
@@ -23,6 +24,20 @@ interface CatalogContextValue {
 }
 
 const CatalogContext = createContext<CatalogContextValue | null>(null);
+
+const CATALOG_CACHE_KEY = 'jemina:catalog:v2';
+const CATALOG_CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+
+interface CatalogCache {
+  ts: number;
+  products: Product[];
+  categories: ApiCategory[];
+}
+
+function persistCatalog(products: Product[], categories: ApiCategory[]) {
+  const payload: CatalogCache = { ts: Date.now(), products, categories };
+  AsyncStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify(payload)).catch(() => {});
+}
 
 function derive(products: Product[]) {
   const flashSale = products.filter(p => p.badge?.variant === 'flash' || Boolean(p.discount)).slice(0, 25);
@@ -86,14 +101,17 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const refresh = useCallback(async (options: { silent?: boolean } = {}) => {
+    if (!options.silent) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const [apiProducts, apiCategories] = await Promise.all([fetchProducts(), fetchCategories()]);
       const mapped = apiProducts.map(apiProductToProduct);
       if (mapped.length > 0) {
         setProducts(mapped);
+        persistCatalog(mapped, apiCategories);
       }
       setCategories(apiCategories);
     } catch (e) {
@@ -104,7 +122,37 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    refresh();
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(CATALOG_CACHE_KEY);
+        if (!cancelled && raw) {
+          const cached = JSON.parse(raw) as CatalogCache;
+          if (
+            Array.isArray(cached.products) &&
+            cached.products.length > 0 &&
+            Date.now() - Number(cached.ts ?? 0) < CATALOG_CACHE_TTL_MS
+          ) {
+            setProducts(cached.products);
+            if (Array.isArray(cached.categories)) {
+              setCategories(cached.categories);
+            }
+            setLoading(false);
+          }
+        }
+      } catch {
+        // A corrupt cache should never block the live fetch.
+      }
+
+      if (!cancelled) {
+        refresh({ silent: true });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [refresh]);
 
   const getProductById = useCallback(

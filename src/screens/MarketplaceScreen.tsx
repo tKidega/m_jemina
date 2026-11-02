@@ -18,7 +18,8 @@ import { ProductCard, formatUGX, type Product } from '../components/ProductCard'
 import { useNavigation } from '../navigation/NavigationContext';
 import { useCart } from '../state/CartContext';
 import { useCatalog } from '../state/CatalogContext';
-import { apiGetVendors } from '../data/api';
+import { apiGetVendors, apiProductToProduct, fetchB2BCollections } from '../data/api';
+import type { ApiProduct, B2BCollections } from '../data/api';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, radius } from '../theme/spacing';
@@ -120,18 +121,14 @@ export function MarketplaceScreen() {
   const { navigate, switchTab } = useNavigation();
   const { itemCount, addItem } = useCart();
   const {
-    flashSale,
-    products,
     categories,
-    wholesale,
-    bulkOrder,
-    corporateReady,
-    enterpriseSolutions,
     error,
     refresh,
   } = useCatalog();
   const [activeFilter, setActiveFilter] = useState(0);
   const [liveVendors, setLiveVendors] = useState<StoreData[]>([]);
+  const [b2b, setB2b] = useState<B2BCollections | null>(null);
+  const [b2bError, setB2bError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const { width } = useWindowDimensions();
   const flashCardWidth = Math.round((width - spacing.lg * 2 - spacing.lg) / 2);
@@ -155,27 +152,52 @@ export function MarketplaceScreen() {
       .catch(() => {});
   }, []);
 
+  const loadB2b = useCallback(() => {
+    setB2bError(null);
+    return fetchB2BCollections(12)
+      .then(setB2b)
+      .catch(() => setB2bError('B2B catalog unavailable'));
+  }, []);
+
   useEffect(() => {
     loadVendors();
   }, [loadVendors]);
 
+  useEffect(() => {
+    loadB2b();
+  }, [loadB2b]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([refresh(), loadVendors()]);
+      await Promise.all([refresh(), loadB2b(), loadVendors()]);
     } finally {
       setRefreshing(false);
     }
-  }, [refresh, loadVendors]);
+  }, [refresh, loadB2b, loadVendors]);
 
   const stores = liveVendors.length > 0 ? liveVendors : DEFAULT_STORES;
 
-  const isB2B = (p: Product) =>
-    Boolean(p.isWholesale) || Boolean(p.bulkOrder) || Boolean(p.corporateReady) || Boolean(p.enterpriseSolution) ||
-    p.badge?.variant === 'wholesale' ||
-    p.badge?.variant === 'corporate';
+  // The B2B hub only ever needs the business buckets, so it is fed by the
+  // dedicated collection endpoint rather than the full retail catalogue.
+  const b2bProducts = useMemo(() => {
+    const seen = new Set<number>();
+    const out: Product[] = [];
+    const buckets = [b2b?.featured, b2b?.wholesale, b2b?.bulk, b2b?.corporate, b2b?.enterprise];
+    buckets.forEach(bucket => {
+      (bucket ?? []).forEach((api: ApiProduct) => {
+        if (seen.has(api.id)) return;
+        seen.add(api.id);
+        out.push(apiProductToProduct(api));
+      });
+    });
+    return out;
+  }, [b2b]);
 
-  const b2bProducts = products.filter(isB2B);
+  const bucketProducts = useCallback(
+    (bucket?: ApiProduct[]) => (bucket ?? []).map(apiProductToProduct),
+    [],
+  );
 
   const activeDef = FILTERS[activeFilter] ?? FILTERS[0];
 
@@ -200,22 +222,24 @@ export function MarketplaceScreen() {
     [b2bProducts, activeFilter, activeMatches],
   );
 
-  const b2bFlash = (flashSale.length > 0 ? flashSale : products.slice(0, 4)).filter(isB2B);
-  const flashDeals = (b2bFlash.length > 0 ? b2bFlash : b2bProducts.slice(0, 4)).slice(0, 4);
+  const flashDeals = useMemo(
+    () => bucketProducts(b2b?.featured).slice(0, 4),
+    [bucketProducts, b2b],
+  );
 
   const roster = useMemo(() => {
     const base = [
-      { icon: 'storefront' as const, title: 'Wholesale', subtitle: 'Buy in bulk at wholesale prices.', list: wholesale.length > 0 ? wholesale : b2bProducts.filter(p => p.isWholesale || p.badge?.variant === 'wholesale') },
-      { icon: 'inventory' as const, title: 'Bulk Orders', subtitle: 'Large-volume bulk purchasing for businesses.', list: bulkOrder.length > 0 ? bulkOrder : b2bProducts.filter(p => p.bulkOrder) },
-      { icon: 'business-center' as const, title: 'Corporate', subtitle: 'Corporate-ready products and solutions.', list: corporateReady.length > 0 ? corporateReady : b2bProducts.filter(p => p.corporateReady || p.badge?.variant === 'corporate') },
-      { icon: 'handshake' as const, title: 'Enterprise', subtitle: 'Enterprise-scale solutions for large teams.', list: enterpriseSolutions.length > 0 ? enterpriseSolutions : b2bProducts.filter(p => p.enterpriseSolution) },
+      { icon: 'storefront' as const, title: 'Wholesale', subtitle: 'Buy in bulk at wholesale prices.', list: bucketProducts(b2b?.wholesale) },
+      { icon: 'inventory' as const, title: 'Bulk Orders', subtitle: 'Large-volume bulk purchasing for businesses.', list: bucketProducts(b2b?.bulk) },
+      { icon: 'business-center' as const, title: 'Corporate', subtitle: 'Corporate-ready products and solutions.', list: bucketProducts(b2b?.corporate) },
+      { icon: 'handshake' as const, title: 'Enterprise', subtitle: 'Enterprise-scale solutions for large teams.', list: bucketProducts(b2b?.enterprise) },
     ];
     if (activeFilter === 0) return base;
     if (activeDef.sections) {
       return base.filter(s => (activeDef.sections ?? []).includes(s.title));
     }
     return base.map(s => ({ ...s, list: s.list.filter(activeMatches) }));
-  }, [wholesale, bulkOrder, corporateReady, enterpriseSolutions, b2bProducts, activeFilter, activeDef.sections, activeMatches]);
+  }, [bucketProducts, b2b, activeFilter, activeDef.sections, activeMatches]);
 
   const b2bSections = roster.filter(section => section.list.length > 0);
 
@@ -241,7 +265,7 @@ export function MarketplaceScreen() {
           </>
         }
       />
-      {error ? (
+      {error || b2bError ? (
         <Pressable style={styles.statusBanner} onPress={refresh}>
           <Icon name="sync" size={16} color={colors.white} />
           <Text style={styles.statusBannerText}>Offline — live catalog unavailable. Tap to retry.</Text>
@@ -274,7 +298,7 @@ export function MarketplaceScreen() {
         {/* Live stats bento strip */}
         <View style={styles.statsStrip}>
           <View style={styles.statCard}>
-            <Text style={[styles.statValue, styles.statValuePrimary]}>{formatCount(products.length)}+</Text>
+            <Text style={[styles.statValue, styles.statValuePrimary]}>{formatCount(b2b?.total ?? b2bProducts.length)}+</Text>
             <Text style={styles.statLabel}>Products</Text>
           </View>
           <View style={styles.statCard}>
@@ -311,14 +335,14 @@ export function MarketplaceScreen() {
           <View style={styles.catSection}>
             <View style={styles.sectionHead}>
               <Text style={styles.sectionTitle}>Browse by Category</Text>
-              <Pressable style={styles.sectionLink} onPress={() => navigate('AllProducts', { title: 'All Categories', subtitle: 'Browse every department.', products })}>
+              <Pressable style={styles.sectionLink} onPress={() => navigate('AllProducts', { title: 'All Categories', subtitle: 'Browse every department.', products: b2bProducts })}>
                 <Text style={styles.sectionLinkText}>View All ({categories.length})</Text>
                 <Icon name="chevron-right" size={14} color={colors.secondary} />
               </Pressable>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catRow}>
               {categories.slice(0, 12).map(cat => {
-                const list = products.filter(p => p.category.toLowerCase() === cat.name.toLowerCase());
+                const list = b2bProducts.filter(p => p.category.toLowerCase() === cat.name.toLowerCase());
                 return (
                   <Pressable
                     key={cat.id}
@@ -327,7 +351,7 @@ export function MarketplaceScreen() {
                       navigate('AllProducts', {
                         title: cat.name,
                         subtitle: `${cat.name} products`,
-                        products: list.length > 0 ? list : products,
+                        products: list.length > 0 ? list : b2bProducts,
                       })
                     }
                   >

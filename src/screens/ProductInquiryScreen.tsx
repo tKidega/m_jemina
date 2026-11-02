@@ -42,7 +42,7 @@ export function ProductInquiryScreen() {
   useEffect(() => {
     if (!product && !productsLoading && products.length === 0) {
       setProductsLoading(true);
-      fetchProducts()
+      fetchProducts({ b2b: true, perPage: 50, maxPages: 1 })
         .then(apiProducts => {
           const list = apiProducts.map(apiProductToProduct);
           setProducts(list);

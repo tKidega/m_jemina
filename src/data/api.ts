@@ -260,21 +260,132 @@ async function getJson<T>(path: string): Promise<T> {
 }
 
 const CATALOG_POOL_PERCENT = 0.8;
+const CATALOG_MAX_PAGES = 20;
+const CATALOG_PER_PAGE = 50;
+const PAGE_FETCH_CONCURRENCY = 6;
 
-export async function fetchProducts(): Promise<ApiProduct[]> {
-  const all: ApiProduct[] = [];
-  let page = 1;
-  let lastPage = 1;
-  do {
-    const data = await getJson<ProductsResponse>(`/products?per_page=50&page=${page}`);
-    all.push(...data.data.products);
-    lastPage = data.data.pagination.last_page;
-    if (page === 1) {
-      lastPage = Math.max(1, Math.min(lastPage, Math.ceil(lastPage * CATALOG_POOL_PERCENT)));
-    }
-    page += 1;
-  } while (page <= lastPage && page <= 20);
+export interface FetchProductsOptions {
+  b2b?: boolean;
+  isWholesale?: boolean;
+  bulkOrder?: boolean;
+  corporateReady?: boolean;
+  enterpriseSolution?: boolean;
+  categoryId?: number | string;
+  subcategoryId?: number | string;
+  vendorId?: number | string;
+  search?: string;
+  sortBy?: 'created_at' | 'price' | 'rating' | 'name' | 'quantity';
+  sortOrder?: 'asc' | 'desc';
+  perPage?: number;
+  maxPages?: number;
+  compact?: boolean;
+}
+
+function productsQuery(options: FetchProductsOptions, page: number): string {
+  const params = [
+    `per_page=${options.perPage ?? CATALOG_PER_PAGE}`,
+    `page=${page}`,
+    `compact=${options.compact === false ? 0 : 1}`,
+  ];
+
+  if (options.b2b) params.push('b2b=1');
+  if (options.isWholesale) params.push('is_wholesale=1');
+  if (options.bulkOrder) params.push('bulk_order=1');
+  if (options.corporateReady) params.push('corporate_ready=1');
+  if (options.enterpriseSolution) params.push('enterprise_solution=1');
+  if (options.categoryId != null) params.push(`category_id=${encodeURIComponent(String(options.categoryId))}`);
+  if (options.subcategoryId != null) params.push(`subcategory_id=${encodeURIComponent(String(options.subcategoryId))}`);
+  if (options.vendorId != null) params.push(`vendor_id=${encodeURIComponent(String(options.vendorId))}`);
+  if (options.search) params.push(`search=${encodeURIComponent(options.search)}`);
+  if (options.sortBy) params.push(`sort_by=${options.sortBy}`);
+  if (options.sortOrder) params.push(`sort_order=${options.sortOrder}`);
+
+  return `/products?${params.join('&')}`;
+}
+
+/**
+ * Fetches products. Page 1 is awaited first because it carries the pagination
+ * metadata; the remaining pages are then fetched in parallel batches instead of
+ * a serial waterfall, which is the difference between ~15s and ~3s on a cold
+ * start. Filtered calls default to a single page; pass `maxPages` to page them.
+ */
+export async function fetchProducts(options: FetchProductsOptions = {}): Promise<ApiProduct[]> {
+  const hasFilters = Boolean(
+    options.b2b ||
+      options.isWholesale ||
+      options.bulkOrder ||
+      options.corporateReady ||
+      options.enterpriseSolution ||
+      options.categoryId != null ||
+      options.subcategoryId != null ||
+      options.vendorId != null ||
+      options.search,
+  );
+
+  const first = await getJson<ProductsResponse>(productsQuery(options, 1));
+  const all: ApiProduct[] = [...first.data.products];
+
+  const reportedLastPage = first.data.pagination.last_page;
+  const cap =
+    options.maxPages ??
+    (hasFilters
+      ? 1
+      : Math.min(CATALOG_MAX_PAGES, Math.max(1, Math.ceil(reportedLastPage * CATALOG_POOL_PERCENT))));
+
+  const pages: number[] = [];
+  for (let page = 2; page <= cap; page += 1) {
+    pages.push(page);
+  }
+
+  for (let i = 0; i < pages.length; i += PAGE_FETCH_CONCURRENCY) {
+    const batch = pages.slice(i, i + PAGE_FETCH_CONCURRENCY);
+    const results = await Promise.all(
+      batch.map(page => getJson<ProductsResponse>(productsQuery(options, page)).catch(() => null)),
+    );
+    results.forEach(result => {
+      if (result) {
+        all.push(...result.data.products);
+      }
+    });
+  }
+
   return all;
+}
+
+export interface B2BCollections {
+  total: number;
+  wholesale: ApiProduct[];
+  bulk: ApiProduct[];
+  corporate: ApiProduct[];
+  enterprise: ApiProduct[];
+  featured: ApiProduct[];
+}
+
+/**
+ * Loads the B2B screen's buckets with one small request each instead of pulling
+ * the whole catalogue and filtering it on the device.
+ */
+export async function fetchB2BCollections(limit = 10): Promise<B2BCollections> {
+  const singlePage = (options: FetchProductsOptions) =>
+    fetchProducts({ ...options, perPage: limit, maxPages: 1 }).catch(() => [] as ApiProduct[]);
+
+  const [count, wholesale, bulk, corporate, enterprise, featured] = await Promise.all([
+    getJson<ProductsResponse>('/products?b2b=1&per_page=1&compact=1').catch(() => null),
+    singlePage({ isWholesale: true }),
+    singlePage({ bulkOrder: true }),
+    singlePage({ corporateReady: true }),
+    singlePage({ enterpriseSolution: true }),
+    singlePage({ b2b: true, sortBy: 'created_at' }),
+  ]);
+
+  return {
+    total: count?.data.pagination.total ?? 0,
+    wholesale,
+    bulk,
+    corporate,
+    enterprise,
+    featured,
+  };
 }
 
 export async function fetchProductDetail(id: number | string): Promise<ApiProduct> {
